@@ -1,0 +1,6 @@
+{
+  "name": "Livriko",
+  "description": "Plateforme marketplace et de livraison rapide - Tout votre marché, livré rapidement.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
