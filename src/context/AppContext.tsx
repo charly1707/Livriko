@@ -58,7 +58,7 @@ interface AppContextType {
     senderRole: UserRole | 'bot';
     senderId?: string;
     text: string;
-  }) => void;
+  }) => Promise<void>;
   
   // Cart Actions
   addToCart: (product: Product, quantity?: number) => void;
@@ -68,13 +68,13 @@ interface AppContextType {
   cartTotal: number;
   cartDeliveryFee: number;
   
-  // Order Lifecycle
+  const sendChatMessage = async (params: {
   placeOrder: (details: {
     paymentMethod: 'cash' | 'momo_mtn' | 'momo_moov' | 'orange_money' | 'celtis_cash';
     storePaymentMode?: 'online' | 'delivery';
     clientName: string;
     clientPhone: string;
-    clientAddress: string;
+  }) => {
     notes?: string;
     clientLat?: number;
     clientLng?: number;
@@ -87,77 +87,102 @@ interface AppContextType {
 
   // Product Management (Vendeur)
   addProduct: (newProd: Omit<Product, 'id'>) => void;
-  updateProduct: (prod: Product) => void;
-  deleteProduct: (id: string) => void;
+    // send message to backend AI chatbot and append reply (fallbacks to local generator)
+    if (params.senderRole !== 'bot') {
+      const generateBotReply = (channel: ChatChannel, senderRole: UserRole | 'bot', text: string) => {
+        const normalize = (s: string) => s
+          .normalize('NFD')
+          .replace(/[\u0000-\u036f]/g, '')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase();
+        const lower = normalize(text);
+        const contains = (words: string[]) => words.some(w => lower.includes(w));
 
-  // Delete user account (admin or self)
-  deleteUser: (userId: string) => void;
+        if (channel === 'assistant') {
+          if (contains(['commande', 'order'])) return 'Je peux vous aider à suivre une commande, vérifier votre panier ou expliquer les étapes de livraison.';
+          if (contains(['livreur', 'course', 'distance', 'livraison'])) return 'Le livreur est affecté une fois que le restaurant a confirmé la commande. La distance finale est validée au compteur.';
+          if (contains(['momo', 'paiement', 'recu', 'reçu', 'payer', 'carte'])) return 'Vous pouvez payer avec MoMo, Moov, Celtis Cash ou en espèces. Attachez le reçu si nécessaire.';
+          if (contains(['restaurant', 'vendeur', 'boutique'])) return 'Le restaurant confirme d’abord la commande, puis demande un livreur après préparation.';
+          return 'Je suis le robot assistant Livriko. Posez-moi une question sur votre commande, la livraison, ou le fonctionnement du site.';
+        }
 
-  // Notification
-  addNotification: (title: string, message: string, targetRole: UserRole, orderId?: string) => void;
-  markNotificationRead: (id: string) => void;
-}
-
-const AppContext = createContext<AppContextType | undefined>(undefined);
-
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [allUsers, setAllUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('livriko_users');
-    if (saved) {
-      try {
-        const parsed: User[] = JSON.parse(saved);
-        const merged = parsed.map(u => {
-          const mockUser = MOCK_USERS.find(mu => mu.id === u.id);
-          return mockUser ? { ...u, ...mockUser } : u;
-        });
-        for (const mockUser of MOCK_USERS) {
-          if (!merged.some(u => u.id === mockUser.id)) {
-            merged.push(mockUser);
+        if (channel === 'client-vendeur') {
+          if (senderRole === 'client') {
+            if (contains(['heure', 'temps', 'delai'])) return 'Le restaurant prépare votre commande et vous confirme dès que c’est prêt.';
+            return 'Merci pour la précision, nous préparons votre commande et vous contactons si nécessaire.';
+          }
+          if (senderRole === 'vendeur') {
+            if (contains(['retard', 'delay'])) return 'La préparation prend un peu plus de temps, je vous informe dès que c’est prêt.';
+            return 'Commande bien reçue, je confirme la préparation dès que possible.';
           }
         }
-        return merged;
-      } catch {
-        return MOCK_USERS;
+
+        if (channel === 'vendeur-livreur') {
+          if (senderRole === 'vendeur') {
+            if (contains(['presque', 'bientot', 'bientôt'])) return 'Je serai sur place dans quelques minutes pour récupérer le colis.';
+            return 'Je prends la demande de livraison et je vous confirme l’arrivée au restaurant.';
+          }
+          if (senderRole === 'livreur') {
+            if (contains(['retard', 'traffic', 'trafic'])) return 'Je suis en route, je prévois un léger retard à cause du trafic.';
+            return 'Je prends en charge la commande, j’arrive au restaurant dans quelques minutes.';
+          }
+        }
+
+        if (channel === 'livreur-client') {
+          if (senderRole === 'client') {
+            if (contains(['attendez', 'ou', 'ouù', 'ou?'])) return 'Je suis à proximité, j’arrive à votre adresse bientôt.';
+            return 'Merci, je vous préviens dès que je suis devant la porte.';
+          }
+          if (senderRole === 'livreur') {
+            if (contains(['arrive', 'arrivé', 'devant'])) return 'Je suis arrivé devant votre adresse, descendez s’il vous plaît.';
+            return 'Je suis en route avec votre commande, je vous préviens à l’arrivée.';
+          }
+        }
+
+        return 'Message reçu. Nous revenons vers vous très vite.';
+      };
+
+      // build a small history (including the new message)
+      const history = [...chatMessages, newChat].slice(-12).map(m => ({ senderRole: m.senderRole, text: m.text, channel: m.channel }));
+
+      try {
+        const res = await fetch('/backend/chatbot.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel: params.channel, senderRole: params.senderRole, text: params.text, history }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const replyText = data && data.reply ? data.reply : generateBotReply(params.channel, params.senderRole, params.text);
+          setChatMessages(prev => [
+            ...prev,
+            {
+              id: 'chat-bot-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+              orderId: params.orderId,
+              channel: params.channel,
+              senderRole: 'bot',
+              text: replyText,
+              timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+            },
+          ]);
+        } else {
+          throw new Error('chatbot backend error');
+        }
+      } catch (e) {
+        const replyText = generateBotReply(params.channel, params.senderRole, params.text);
+        setChatMessages(prev => [
+          ...prev,
+          {
+            id: 'chat-bot-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+            orderId: params.orderId,
+            channel: params.channel,
+            senderRole: 'bot',
+            text: replyText,
+            timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
       }
     }
-    return MOCK_USERS;
-  });
-
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('livriko_is_logged_in') === 'true';
-  });
-
-  const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
-    if (localStorage.getItem('livriko_is_logged_in') === 'true') {
-      return localStorage.getItem('livriko_current_user_id') || null;
-    }
-    return null;
-  });
-
-  const [activeRole, setActiveRoleState] = useState<UserRole>('client');
-  const [stores, setStores] = useState<Store[]>(MOCK_STORES);
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [activeCategory, setActiveCategory] = useState<CategoryType | 'all'>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [activeTrackingOrder, setActiveTrackingOrder] = useState<Order | null>(null);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
-
-  useEffect(() => {
-    localStorage.setItem('livriko_users', JSON.stringify(allUsers));
-  }, [allUsers]);
-
-  useEffect(() => {
-    localStorage.setItem('livriko_is_logged_in', isLoggedIn ? 'true' : 'false');
-    if (currentUserId) {
-      localStorage.setItem('livriko_current_user_id', currentUserId);
-    } else {
-      localStorage.removeItem('livriko_current_user_id');
-    }
-  }, [isLoggedIn, currentUserId]);
-
-  const currentUser = React.useMemo(() => {
     if (!isLoggedIn) return null;
     if (currentUserId) {
       const found = allUsers.find(u => u.id === currentUserId);
@@ -493,44 +518,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // generate a contextual bot reply and enqueue it (only reply to human messages)
     if (params.senderRole !== 'bot') {
       const generateBotReply = (channel: ChatChannel, senderRole: UserRole | 'bot', text: string) => {
-        const lower = text.toLowerCase();
+        const normalize = (s: string) => s
+          .normalize('NFD')
+          .replace(/[ -\u036f]/g, '')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase();
+        const lower = normalize(text);
+        const contains = (words: string[]) => words.some(w => lower.includes(w));
+
         if (channel === 'assistant') {
-          if (lower.includes('commande')) return 'Je peux vous aider à suivre une commande, vérifier votre panier ou expliquer les étapes de livraison.';
-          if (lower.includes('livreur') || lower.includes('course') || lower.includes('distance')) return 'Le livreur est affecté une fois que le restaurant a confirmé la commande. La distance finale est validée au compteur.';
-          if (lower.includes('momo') || lower.includes('paiement') || lower.includes('reçu') || lower.includes('carte')) return 'Vous pouvez payer avec MoMo, Moov, Celtis Cash ou en espèces. Attachez le reçu si nécessaire.';
-          if (lower.includes('restaurant') || lower.includes('vendeur')) return 'Le restaurant confirme d’abord la commande, puis demande un livreur après préparation.';
+          if (contains(['commande', 'order'])) return 'Je peux vous aider à suivre une commande, vérifier votre panier ou expliquer les étapes de livraison.';
+          if (contains(['livreur', 'course', 'distance', 'livraison'])) return 'Le livreur est affecté une fois que le restaurant a confirmé la commande. La distance finale est validée au compteur.';
+          if (contains(['momo', 'paiement', 'recu', 'reçu', 'payer', 'carte'])) return 'Vous pouvez payer avec MoMo, Moov, Celtis Cash ou en espèces. Attachez le reçu si nécessaire.';
+          if (contains(['restaurant', 'vendeur', 'boutique'])) return 'Le restaurant confirme d’abord la commande, puis demande un livreur après préparation.';
           return 'Je suis le robot assistant Livriko. Posez-moi une question sur votre commande, la livraison, ou le fonctionnement du site.';
         }
+
         if (channel === 'client-vendeur') {
           if (senderRole === 'client') {
-            if (lower.includes('heure')) return 'Le restaurant prépare votre commande et vous confirme dès que c’est prêt.';
+            if (contains(['heure', 'temps', 'delai'])) return 'Le restaurant prépare votre commande et vous confirme dès que c’est prêt.';
             return 'Merci pour la précision, nous préparons votre commande et vous contactons si nécessaire.';
           }
           if (senderRole === 'vendeur') {
-            if (lower.includes('retard')) return 'La préparation prend un peu plus de temps, je vous informe dès que c’est prêt.';
+            if (contains(['retard', 'delay'])) return 'La préparation prend un peu plus de temps, je vous informe dès que c’est prêt.';
             return 'Commande bien reçue, je confirme la préparation dès que possible.';
           }
         }
+
         if (channel === 'vendeur-livreur') {
           if (senderRole === 'vendeur') {
-            if (lower.includes('presque')) return 'Je serai sur place dans quelques minutes pour récupérer le colis.';
+            if (contains(['presque', 'bientot', 'bientôt'])) return 'Je serai sur place dans quelques minutes pour récupérer le colis.';
             return 'Je prends la demande de livraison et je vous confirme l’arrivée au restaurant.';
           }
           if (senderRole === 'livreur') {
-            if (lower.includes('retard') || lower.includes('traffic')) return 'Je suis en route, je prévois un léger retard à cause du trafic.';
+            if (contains(['retard', 'traffic', 'trafic'])) return 'Je suis en route, je prévois un léger retard à cause du trafic.';
             return 'Je prends en charge la commande, j’arrive au restaurant dans quelques minutes.';
           }
         }
+
         if (channel === 'livreur-client') {
           if (senderRole === 'client') {
-            if (lower.includes('attendez') || lower.includes('ou')) return 'Je suis à proximité, j’arrive à votre adresse bientôt.';
+            if (contains(['attendez', 'ou', 'ouù', 'ou?'])) return 'Je suis à proximité, j’arrive à votre adresse bientôt.';
             return 'Merci, je vous préviens dès que je suis devant la porte.';
           }
           if (senderRole === 'livreur') {
-            if (lower.includes('arrivé') || lower.includes('devant')) return 'Je suis arrivé devant votre adresse, descendez s’il vous plaît.';
+            if (contains(['arrive', 'arrivé', 'devant'])) return 'Je suis arrivé devant votre adresse, descendez s’il vous plaît.';
             return 'Je suis en route avec votre commande, je vous préviens à l’arrivée.';
           }
         }
+
         return 'Message reçu. Nous revenons vers vous très vite.';
       };
 
