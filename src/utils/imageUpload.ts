@@ -41,6 +41,10 @@ export async function uploadImageFile(
   return postImageUpload('/backend/index.php/api/upload/image', file, folder);
 }
 
+export async function uploadRegisterImageFile(file: File): Promise<string> {
+  return postImageUpload('/backend/index.php/api/upload/register-image', file);
+}
+
 /** Upload réservé aux vendeurs pour les photos d'articles/produits. */
 export async function uploadProductImageFile(file: File): Promise<string> {
   return postImageUpload('/backend/index.php/api/products/upload-image', file);

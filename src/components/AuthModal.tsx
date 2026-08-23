@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole, CategoryType } from '../types';
-import { uploadImageFile } from '../utils/imageUpload';
+import { uploadImageFile, uploadRegisterImageFile } from '../utils/imageUpload';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -124,16 +124,16 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
         let uploadedVehicle = vehiclePhoto;
 
         if (avatarFile) {
-          uploadedAvatar = await uploadImageFile(avatarFile, selectedRole === 'vendeur' ? 'stores' : 'avatars');
+          uploadedAvatar = await uploadRegisterImageFile(avatarFile);
         }
         if (selfieFile) {
-          uploadedSelfie = await uploadImageFile(selfieFile, 'livreurs');
+          uploadedSelfie = await uploadRegisterImageFile(selfieFile);
         }
         if (cipFile) {
-          uploadedCip = await uploadImageFile(cipFile, 'livreurs');
+          uploadedCip = await uploadRegisterImageFile(cipFile);
         }
         if (vehicleFile) {
-          uploadedVehicle = await uploadImageFile(vehicleFile, 'livreurs');
+          uploadedVehicle = await uploadRegisterImageFile(vehicleFile);
         }
 
         if (selectedRole === 'livreur') {

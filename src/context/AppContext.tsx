@@ -96,7 +96,7 @@ interface AppContextType {
   deleteProduct: (id: string) => void;
 
   // Delete user account (admin or self)
-  deleteUser: (userId: string) => void;
+  deleteUser: (userId: string) => Promise<void>;
 
   // Notification
   addNotification: (title: string, message: string, targetRole: UserRole, orderId?: string) => void;
@@ -115,6 +115,13 @@ const getDefaultApiBase = () => {
   return (window.location.origin || '').replace(/\/$/, '');
 };
 const buildApiUrl = (path: string) => `${API_BASE || getDefaultApiBase()}${path}`;
+
+const LOKOSSA_DEFAULT = { lat: 6.3833, lng: 1.7167 };
+
+const orderDbId = (orderId: string) => String(orderId).replace(/^ord-/, '');
+
+const applyOrderUpdate = (orders: Order[], orderId: string, patch: Partial<Order>) =>
+  orders.map(o => o.id === orderId ? { ...o, ...patch } : o);
 
 const uploadProductImage = async (file: File): Promise<string> => uploadProductImageFile(file);
 
@@ -161,6 +168,8 @@ const mapApiOrder = (order: any): Order => ({
   paymentStatus: order.paymentStatus || 'pending',
   createdAt: order.createdAt || '',
   riderId: order.riderId || undefined,
+  riderName: order.riderName || undefined,
+  riderPhone: order.riderPhone || undefined,
   deliveryStatus: order.deliveryStatus,
   distanceKm: order.distanceKm ?? undefined,
   notes: order.notes || undefined,
@@ -173,7 +182,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const persistedUser = readPersistedUserSnapshot();
 
   const [allUsers, setAllUsers] = useState<User[]>(() => (
-    persistedUser ? [persistedUser] : []
+    persistedUser ? [{ ...persistedUser, phone: persistedUser.phone || '' }] : []
   ));
 
   const [authReady, setAuthReady] = useState(false);
@@ -220,6 +229,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     const bootstrap = async () => {
+      let loggedInRole: UserRole | null = null;
       try {
         const meUrl = buildApiUrl('/backend/index.php/api/auth/me');
         const res = await axios.get(meUrl, { withCredentials: true });
@@ -234,6 +244,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             role: normalizeUserRole(user.role),
             avatar: user.avatar || undefined,
           };
+          loggedInRole = userData.role;
           setAllUsers(prev => {
             const existing = prev.find(u => u.id === userId);
             if (existing) {
@@ -315,6 +326,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch {
         setOrders([]);
+      }
+
+      try {
+        if (loggedInRole === 'admin') {
+          const usersUrl = buildApiUrl('/backend/index.php/api/admin/users');
+          const usersRes = await axios.get(usersUrl, { withCredentials: true });
+          if (Array.isArray(usersRes.data?.users)) {
+            const mappedUsers: User[] = usersRes.data.users.map((u: any) => ({
+              id: String(u.id),
+              name: u.name,
+              email: u.email,
+              phone: u.phone || '',
+              role: normalizeUserRole(u.role),
+              avatar: u.avatar || undefined,
+              verificationStatus: u.verificationStatus || undefined,
+              rejectionReason: u.rejectionReason || undefined,
+              selfiePhoto: u.selfiePhoto || undefined,
+              cipPhoto: u.cipPhoto || undefined,
+              vehiclePhoto: u.vehiclePhoto || undefined,
+              walletBalance: u.walletBalance,
+            }));
+            setAllUsers(mappedUsers);
+          }
+        }
+      } catch {
+        // admin user list optional
       }
     };
     bootstrap();
@@ -420,18 +457,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   };
 
-  const deleteUser = (userId: string) => {
-    setAllUsers(prev => prev.filter(u => u.id !== userId));
-    // remove stores owned by this user
-    setStores(prev => prev.filter(s => s.ownerId !== userId));
-    // If the deleted user is the current user, log them out
-    if (currentUserId === userId) {
-      setIsLoggedIn(false);
-      setCurrentUserId(null);
-      setActiveRoleState('client');
-      addNotification('Compte supprimé', 'Votre compte a été supprimé avec succès.', 'client');
-    } else {
-      addNotification('Compte supprimé', `Un compte utilisateur (${userId}) a été supprimé par l'administration.`, 'admin');
+  const deleteUser = async (userId: string) => {
+    try {
+      const payload = new URLSearchParams();
+      payload.append('userId', String(userId).replace(/^usr-/, ''));
+      await axios.post(buildApiUrl('/backend/index.php/api/admin/users/delete'), payload, { withCredentials: true });
+      setAllUsers(prev => prev.filter(u => u.id !== userId));
+      setStores(prev => prev.filter(s => s.ownerId !== userId));
+      if (currentUserId === userId) {
+        clearPersistedSession();
+        setIsLoggedIn(false);
+        setCurrentUserId(null);
+        setActiveRoleState('client');
+      } else {
+        addNotification('Compte supprimé', `Le compte ${userId} a été supprimé de la base de données.`, 'admin');
+      }
+    } catch (error: any) {
+      throw new Error(getApiErrorMessage(error));
     }
   };
 
@@ -526,39 +568,109 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const updateUserProfile = (userId: string, updates: Partial<User>) => {
-    setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
-  };
+  const updateUserProfile = async (userId: string, updates: Partial<User>) => {
+    const payload = new URLSearchParams();
+    if (updates.name) payload.append('name', updates.name);
+    if (updates.phone) payload.append('phone', updates.phone);
+    if (updates.avatar) payload.append('avatar', updates.avatar);
+    if (updates.city) payload.append('city', updates.city);
+    if (updates.vehicle) payload.append('vehicle', updates.vehicle);
+    if (updates.password) payload.append('newPassword', updates.password);
 
-  const approveLivreur = (userId: string) => {
-    setAllUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        return { ...u, verificationStatus: 'approved', isCertified: true };
+    try {
+      const res = await axios.post(buildApiUrl('/backend/index.php/api/auth/profile'), payload, { withCredentials: true });
+      if (res.data?.user) {
+        const apiUser = res.data.user;
+        setAllUsers(prev => prev.map(u => u.id === userId ? {
+          ...u,
+          name: apiUser.prenom || u.name,
+          phone: apiUser.telephone || u.phone,
+          avatar: apiUser.avatar || u.avatar,
+          ...updates,
+        } : u));
+        if (currentUserId === userId) {
+          persistSession({
+            id: userId,
+            name: apiUser.prenom || updates.name || '',
+            email: apiUser.email,
+            phone: apiUser.telephone,
+            role: normalizeUserRole(apiUser.role),
+            avatar: apiUser.avatar,
+          });
+        }
+      } else {
+        setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
       }
-      return u;
-    }));
-    addNotification(
-      'Dossier Livreur Approuvé ! 🎉',
-      'Votre compte livreur a été certifié par l\'administrateur Livriko. Vous pouvez maintenant accepter des courses.',
-      'livreur'
-    );
+    } catch (error: any) {
+      throw new Error(getApiErrorMessage(error));
+    }
   };
 
-  const rejectLivreur = (userId: string, reason?: string) => {
-    setAllUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        return { ...u, verificationStatus: 'rejected', rejectionReason: reason || 'Pièces non conformes' };
-      }
-      return u;
-    }));
+  const approveLivreur = async (userId: string) => {
+    const payload = new URLSearchParams();
+    payload.append('userId', String(userId).replace(/^usr-/, ''));
+    const res = await axios.post(buildApiUrl('/backend/index.php/api/admin/livreurs/approve'), payload, { withCredentials: true });
+    if (res.data?.user) {
+      setAllUsers(prev => prev.map(u => u.id === userId ? {
+        ...u,
+        verificationStatus: 'approved',
+        isCertified: true,
+      } : u));
+      addNotification(
+        'Dossier Livreur Approuvé ! 🎉',
+        'Le compte livreur a été certifié par l\'administration Livriko.',
+        'livreur',
+      );
+    }
   };
 
-  const toggleStoreCertification = (storeId: string) => {
-    setStores(prev => prev.map(s => s.id === storeId ? { ...s, isCertified: !s.isCertified } : s));
+  const rejectLivreur = async (userId: string, reason?: string) => {
+    const payload = new URLSearchParams();
+    payload.append('userId', String(userId).replace(/^usr-/, ''));
+    if (reason) payload.append('reason', reason);
+    await axios.post(buildApiUrl('/backend/index.php/api/admin/livreurs/reject'), payload, { withCredentials: true });
+    setAllUsers(prev => prev.map(u => u.id === userId ? {
+      ...u,
+      verificationStatus: 'rejected',
+      rejectionReason: reason || 'Pièces non conformes',
+    } : u));
   };
 
-  const updateStore = (updatedStore: Store) => {
-    setStores(prev => prev.map(s => s.id === updatedStore.id ? updatedStore : s));
+  const toggleStoreCertification = async (storeId: string) => {
+    const store = stores.find(s => s.id === storeId);
+    const payload = new URLSearchParams();
+    payload.append('storeId', String(storeId).replace(/^store-/, ''));
+    payload.append('estCertifie', String(!store?.isCertified));
+    const res = await axios.post(buildApiUrl('/backend/index.php/api/admin/stores/certify'), payload, { withCredentials: true });
+    if (res.data?.success) {
+      setStores(prev => prev.map(s => s.id === storeId ? { ...s, isCertified: !s.isCertified } : s));
+    }
+  };
+
+  const updateStore = async (updatedStore: Store) => {
+    const payload = new URLSearchParams();
+    payload.append('storeId', String(updatedStore.id).replace(/^store-/, ''));
+    payload.append('name', updatedStore.name);
+    payload.append('address', updatedStore.address);
+    payload.append('phone', updatedStore.phone);
+    payload.append('logo', updatedStore.logo || '');
+    payload.append('isOpen', String(Boolean(updatedStore.isOpen)));
+    if (updatedStore.lat != null) payload.append('lat', String(updatedStore.lat));
+    if (updatedStore.lng != null) payload.append('lng', String(updatedStore.lng));
+
+    const res = await axios.post(buildApiUrl('/backend/index.php/api/restaurants/update'), payload, { withCredentials: true });
+    if (res.data?.store) {
+      const apiStore = res.data.store;
+      setStores(prev => prev.map(s => s.id === updatedStore.id ? {
+        ...updatedStore,
+        logo: apiStore.logo || updatedStore.logo,
+        isCertified: apiStore.isCertified ?? updatedStore.isCertified,
+        lat: apiStore.lat ?? updatedStore.lat,
+        lng: apiStore.lng ?? updatedStore.lng,
+      } : s));
+    } else {
+      setStores(prev => prev.map(s => s.id === updatedStore.id ? updatedStore : s));
+    }
   };
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([
@@ -668,7 +780,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Place Order (Client)
   const placeOrder = async (details: {
-    paymentMethod: 'cash' | 'momo_mtn' | 'momo_moov' | 'orange_money' | 'celtis_cash';
+    paymentMethod: 'cash' | 'momo_mtn' | 'momo_moov' | 'orange_money' | 'celtis_cash' | 'wallet';
     storePaymentMode?: 'online' | 'delivery';
     clientName: string;
     clientPhone: string;
@@ -693,12 +805,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const storeName = cart[0]?.product.storeName ?? 'Boutique';
     const store = stores.find(s => s.id === storeId);
 
-    const storeLat = store?.lat;
-    const storeLng = store?.lng;
-    const clientLat = details.clientLat ?? currentUser?.location?.lat;
-    const clientLng = details.clientLng ?? currentUser?.location?.lng;
-    if (!isValidCoordinates(storeLat, storeLng) || !isValidCoordinates(clientLat, clientLng)) {
-      throw new Error('La position réelle de la boutique et du client est nécessaire pour calculer la distance.');
+    const storeLat = store?.lat ?? LOKOSSA_DEFAULT.lat;
+    const storeLng = store?.lng ?? LOKOSSA_DEFAULT.lng;
+    const clientLat = details.clientLat ?? currentUser?.location?.lat ?? LOKOSSA_DEFAULT.lat;
+    const clientLng = details.clientLng ?? currentUser?.location?.lng ?? LOKOSSA_DEFAULT.lng;
+    if (!isValidCoordinates(clientLat, clientLng)) {
+      throw new Error('Veuillez autoriser la géolocalisation ou saisir une adresse de livraison valide.');
     }
 
     const calculatedQuote = buildDeliveryQuoteFromCoordinates(storeLat, storeLng, clientLat, clientLng);
@@ -774,20 +886,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payload.append('paymentMethod', details.paymentMethod);
     payload.append('paymentStatus', newOrder.paymentStatus);
 
+    payload.append('clientName', details.clientName || currentUser?.name || 'Client');
+    payload.append('clientPhone', details.clientPhone || currentUser?.phone || '');
+    payload.append('clientLat', String(clientLat));
+    payload.append('clientLng', String(clientLng));
+    payload.append('notes', details.notes || '');
+    if (details.momoTransactionRef) payload.append('momoTransactionRef', details.momoTransactionRef);
+
+    let persistedOrder: Order = newOrder;
     try {
       const response = await axios.post(buildApiUrl('/backend/index.php/api/orders'), payload, { withCredentials: true });
-      const persistedOrder = response.data?.order ? mapApiOrder(response.data.order) : newOrder;
+      persistedOrder = response.data?.order ? mapApiOrder(response.data.order) : newOrder;
 
-      if (newOrder.storePaymentMode === 'online' && details.paymentMethod !== 'cash') {
-        if (!persistedOrder.databaseId) {
-          throw new Error('La commande a été créée sans identifiant serveur exploitable pour le paiement.');
-        }
-
+      if (details.paymentMethod === 'momo_mtn' && persistedOrder.databaseId) {
         await axios.post(buildApiUrl('/backend/index.php/api/payments/transactions'), new URLSearchParams({
           orderId: String(persistedOrder.databaseId),
           phone: details.clientPhone || '',
-          provider: details.paymentMethod === 'momo_mtn' ? 'mtn_momo' : details.paymentMethod,
-          idempotencyKey: `order-${persistedOrder.databaseId}-${details.paymentMethod}`,
+          provider: 'mtn_momo',
+          idempotencyKey: `order-${persistedOrder.databaseId}-mtn`,
         }), { withCredentials: true });
       }
 
@@ -799,188 +915,140 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     clearCart();
 
     try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
     } catch {
       // ignore
     }
 
     addNotification(
       'Nouvelle commande reçue !',
-      `Commande ${orderCode} de ${newOrder.clientName} (${newOrder.totalAmount.toLocaleString()} FCFA) reçue. Validez-la et demandez un livreur dès que la préparation est terminée.`,
+      `Commande ${persistedOrder.code} de ${persistedOrder.clientName} (${persistedOrder.totalAmount.toLocaleString()} FCFA) reçue.`,
       'vendeur',
-      newOrder.id
+      persistedOrder.id,
     );
 
-    return newOrder;
+    return persistedOrder;
   };
 
-  // Request Rider (Vendeur)
-  const requestRiderForOrder = (orderId: string) => {
-    void axios.post(buildApiUrl('/backend/index.php/api/orders/status'), new URLSearchParams([
-      ['orderId', String(orderId).replace(/^ord-/, '')],
-      ['status', 'rider_requested'],
-    ]), { withCredentials: true }).catch(error => console.error('Order rider request failed', error));
+  const syncOrderFromApi = (apiOrder: any) => {
+    const mapped = mapApiOrder(apiOrder);
+    setOrders(prev => applyOrderUpdate(prev, mapped.id, mapped));
+    setActiveTrackingOrder(prev => prev?.id === mapped.id ? mapped : prev);
+    return mapped;
+  };
 
-    setOrders(prev => prev.map(o => {
-      if (o.id === orderId) {
-        return { ...o, status: 'rider_requested' };
-      }
-      return o;
-    }));
+  const postOrderStatus = async (orderId: string, status: OrderStatus, reason?: string) => {
+    const payload = new URLSearchParams([
+      ['orderId', orderDbId(orderId)],
+      ['status', status],
+    ]);
+    if (reason) payload.append('reason', reason);
+    const res = await axios.post(buildApiUrl('/backend/index.php/api/orders/status'), payload, { withCredentials: true });
+    if (res.data?.order) {
+      return syncOrderFromApi(res.data.order);
+    }
+    return null;
+  };
+
+  const requestRiderForOrder = async (orderId: string) => {
+    try {
+      await postOrderStatus(orderId, 'rider_requested');
+    } catch (error) {
+      console.error('Order rider request failed', error);
+      throw error;
+    }
 
     addNotification(
       'Livraison demandée par le restaurant',
-      `Le restaurant a terminé la préparation de la commande ${orderId} et recherche maintenant le livreur le plus proche.`,
+      `Le restaurant a terminé la préparation de la commande et recherche un livreur.`,
       'livreur',
-      orderId
+      orderId,
     );
 
     addNotification(
       'Recherche de livreur en cours',
-      `Votre commande ${orderId} est prête. Nous recherchons un livreur à proximité pour la livraison.`,
+      `Votre commande est prête. Nous recherchons un livreur à proximité.`,
       'client',
-      orderId
+      orderId,
     );
   };
 
-  // Accept Delivery Order (Livreur)
-  const acceptDeliveryOrder = (orderId: string, customRider?: User) => {
+  const acceptDeliveryOrder = async (orderId: string, customRider?: User) => {
     const order = orders.find(o => o.id === orderId);
     if (!order || order.status !== 'rider_requested') return;
 
-    const storeLat = order.storeLat;
-    const storeLng = order.storeLng;
-    if (!isValidCoordinates(storeLat, storeLng)) {
-      addNotification('Localisation indisponible', 'La position réelle de la boutique est nécessaire pour rechercher un livreur.', 'vendeur', orderId);
-      return;
-    }
+    const activeRider = customRider || currentUser;
+    if (!activeRider || activeRider.role !== 'livreur') return;
 
-    const eligibleRiders = allUsers.filter(u => u.role === 'livreur' && u.verificationStatus === 'approved');
-    if (eligibleRiders.length === 0) {
-      addNotification(
-        'Aucun livreur disponible',
-        'Aucun livreur certifié n’est disponible pour prendre cette course.',
-        'vendeur',
-        orderId
-      );
-      return;
-    }
+    if (!customRider && currentUser?.role === 'livreur') {
+      const storeLat = order.storeLat ?? LOKOSSA_DEFAULT.lat;
+      const storeLng = order.storeLng ?? LOKOSSA_DEFAULT.lng;
+      const eligibleRiders = allUsers.filter(u => u.role === 'livreur' && u.verificationStatus === 'approved');
+      const nearestRider = eligibleRiders.reduce((closest, rider) => {
+        const riderLat = rider.location?.lat;
+        const riderLng = rider.location?.lng;
+        if (!isValidCoordinates(riderLat, riderLng)) return closest;
+        const distance = calculateHaversineDistance(storeLat, storeLng, riderLat, riderLng);
+        if (!closest || distance < closest.distance) return { rider, distance };
+        return closest;
+      }, null as { rider: User; distance: number } | null)?.rider;
 
-    const getRiderDistance = (rider: User) => {
-      const riderLat = rider.location?.lat;
-      const riderLng = rider.location?.lng;
-      if (!isValidCoordinates(riderLat, riderLng)) return null;
-      return calculateHaversineDistance(storeLat, storeLng, riderLat, riderLng);
-    };
-
-    const nearestRider = eligibleRiders.reduce((closest, rider) => {
-      const distance = getRiderDistance(rider);
-      if (distance === null) return closest;
-      if (!closest || distance < closest.distance) {
-        return { rider, distance };
+      if (nearestRider && nearestRider.id !== currentUser.id) {
+        addNotification(
+          'Course non attribuée',
+          `Cette course est réservée au livreur le plus proche (${nearestRider.name}).`,
+          'livreur',
+          orderId,
+        );
+        return;
       }
-      return closest;
-    }, null as { rider: User; distance: number } | null)?.rider;
-
-    if (!nearestRider) return;
-
-    const activeRider = customRider || currentUser || nearestRider;
-    if (!customRider && currentUser && currentUser.role === 'livreur' && currentUser.id !== nearestRider.id) {
-      addNotification(
-        'Course non attribuée',
-        `Cette course est réservée au livreur le plus proche (${nearestRider.name}).`,
-        'livreur',
-        orderId
-      );
-      return;
     }
 
-    void axios.post(buildApiUrl('/backend/index.php/api/orders/status'), new URLSearchParams([
-      ['orderId', String(orderId).replace(/^ord-/, '')],
-      ['status', 'rider_assigned'],
-    ]), { withCredentials: true }).catch(error => console.error('Order rider assignment failed', error));
-
-    setOrders(prev => prev.map(o => {
-      if (o.id === orderId) {
-        if (o.status === 'rider_assigned' || o.status === 'delivering' || o.status === 'delivered') return o;
-        return {
-          ...o,
-          status: 'rider_assigned',
-          riderId: activeRider?.id,
-          riderName: activeRider?.name,
-          riderPhone: activeRider?.phone,
-          riderPhoto: activeRider?.avatar,
-          riderVehicle: activeRider?.vehicle || 'Moto TVS HLX 125',
-          currentRiderLat: activeRider.location?.lat,
-          currentRiderLng: activeRider.location?.lng,
-          estimatedMinutes: o.distanceKm ? Math.round(8 + o.distanceKm * 3) : undefined,
-        };
+    try {
+      const mapped = await postOrderStatus(orderId, 'rider_assigned');
+      if (mapped) {
+        addNotification(
+          'Livreur affecté à votre commande !',
+          `${activeRider.name} a accepté la mission.`,
+          'client',
+          orderId,
+        );
       }
-      return o;
-    }));
-
-    addNotification(
-      'Livreur affecté à votre commande !',
-      `${activeRider?.name || 'Un livreur'} a accepté la mission et se rend au restaurant.`,
-      'client',
-      orderId
-    );
-
-    addNotification(
-      'Livreur confirmé',
-      `Le livreur ${activeRider?.name || 'proche'} a accepté la commande ${orderId}.`,
-      'vendeur',
-      orderId
-    );
+    } catch (error) {
+      console.error('Order rider assignment failed', error);
+      throw error;
+    }
   };
 
-  // Update Order Status
-  const updateOrderStatus = (orderId: string, status: OrderStatus, finalDistanceKm?: number, reason?: string) => {
+  const updateOrderStatus = async (orderId: string, status: OrderStatus, finalDistanceKm?: number, reason?: string) => {
     const nowTimeString = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
-    if (status !== 'pending') {
-      void axios.post(buildApiUrl('/backend/index.php/api/orders/status'), new URLSearchParams([
-        ['orderId', String(orderId).replace(/^ord-/, '')],
-        ['status', status],
-      ]), { withCredentials: true }).catch(error => console.error('Order status update failed', error));
+    try {
+      if (status !== 'pending') {
+        await postOrderStatus(orderId, status, reason);
+      }
+    } catch (error) {
+      console.error('Order status update failed', error);
+      throw error;
     }
 
     setOrders(prev => prev.map(o => {
-      if (o.id === orderId) {
-        const updated: Order = { ...o, status };
-        if (reason) {
-          updated.cancellationReason = reason;
-        }
-            if (status === 'delivering' || status === 'picked_up') {
-          if (!updated.startedAt) {
-            updated.startedAt = nowTimeString;
-          }
-        }
-        if (status === 'delivered') {
-          if (!updated.deliveredAt) {
-            updated.deliveredAt = nowTimeString;
-          }
-          updated.durationMinutes = updated.startedAt && updated.distanceKm ? Math.max(5, Math.round(12 + updated.distanceKm * 2)) : undefined;
-          if (finalDistanceKm !== undefined && finalDistanceKm > 0) {
-            updated.finalDistanceKm = finalDistanceKm;
-          }
-        }
-
+      if (o.id !== orderId) return o;
+      const updated: Order = { ...o, status };
+      if (reason) updated.cancellationReason = reason;
+      if (status === 'delivering' || status === 'picked_up') {
+        if (!updated.startedAt) updated.startedAt = nowTimeString;
+      }
+      if (status === 'delivered') {
+        if (!updated.deliveredAt) updated.deliveredAt = nowTimeString;
         if (finalDistanceKm !== undefined && finalDistanceKm > 0) {
           const feeInfo = calculateDeliveryFee(finalDistanceKm);
-          updated.distanceKm = feeInfo.distanceKm;
+          updated.finalDistanceKm = finalDistanceKm;
           updated.finalDeliveryFee = feeInfo.deliveryFee;
-          updated.driverEarnings = feeInfo.driverEarnings;
-          updated.platformFee = feeInfo.platformFee;
           updated.totalAmount = o.subtotal + feeInfo.deliveryFee;
         }
-        return updated;
       }
-      return o;
+      return updated;
     }));
 
     // If order delivered, and current user is the client of that order, prompt for review

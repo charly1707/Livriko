@@ -28,6 +28,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   const [activeTab, setActiveTab] = useState<'profil' | 'commandes' | 'adresses' | 'parametres'>(initialTab);
 
+  React.useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
+
   // Editable Profile fields
   const [name, setName] = useState(currentUser?.name || '');
   const [email, setEmail] = useState(currentUser?.email || '');

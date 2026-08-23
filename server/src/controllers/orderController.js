@@ -5,8 +5,31 @@ import { User } from '../models/User.js';
 import { currentUser, currentUserId } from '../middleware/auth.js';
 import { getPayload, isAdmin, isSeller, parseJsonField } from '../utils/http.js';
 import { orderPublicId, publicId, storePublicId, toObjectId } from '../utils/ids.js';
+import { defaultStoreCoordinates } from '../utils/geo.js';
+import { payWithWallet } from './walletController.js';
 
-function serializeOrder(order, extras = {}) {
+const STATUS_TRANSITIONS = {
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['rider_requested', 'cancelled'],
+  rider_requested: ['rider_assigned', 'cancelled'],
+  rider_assigned: ['picked_up', 'cancelled'],
+  picked_up: ['delivering'],
+  delivering: ['delivered'],
+  delivered: [],
+  cancelled: [],
+};
+
+async function serializeOrder(order, extras = {}) {
+  let riderName = extras.riderName || null;
+  let riderPhone = extras.riderPhone || null;
+  if (order.delivery?.riderId && !riderName) {
+    const rider = await User.findById(order.delivery.riderId);
+    if (rider) {
+      riderName = `${rider.prenom} ${rider.nom}`.trim();
+      riderPhone = rider.telephone;
+    }
+  }
+
   return {
     id: orderPublicId(order),
     databaseId: publicId(order),
@@ -35,11 +58,15 @@ function serializeOrder(order, extras = {}) {
     status: order.status,
     paymentMethod: order.paymentMethod,
     paymentStatus: order.paymentStatus,
+    paymentSource: order.paymentSource,
     createdAt: order.createdAt,
     deliveryStatus: order.delivery?.status || null,
     riderId: order.delivery?.riderId ? String(order.delivery.riderId) : null,
+    riderName,
+    riderPhone,
     notes: order.notes || '',
     distanceKm: order.delivery?.distanceKm ?? null,
+    cancellationReason: order.cancellationReason || null,
   };
 }
 
@@ -55,6 +82,10 @@ async function findOrder(orderId) {
     clientName: client ? `${client.prenom} ${client.nom}`.trim() : order.clientName,
     clientPhone: client?.telephone || order.clientPhone,
   });
+}
+
+function canTransition(from, to) {
+  return (STATUS_TRANSITIONS[from] || []).includes(to);
 }
 
 export async function createOrder(req, res) {
@@ -101,7 +132,7 @@ export async function createOrder(req, res) {
 
     const deliveryFee = Math.max(0, Number(payload.deliveryFee || 0));
     const total = subtotal + deliveryFee;
-    const allowedPayments = ['cash', 'momo_mtn', 'momo_moov', 'orange_money', 'celtis_cash'];
+    const allowedPayments = ['cash', 'momo_mtn', 'momo_moov', 'orange_money', 'celtis_cash', 'wallet'];
     const paymentMethod = allowedPayments.includes(payload.paymentMethod) ? payload.paymentMethod : 'cash';
     const address = String(payload.clientAddress || '').trim();
     if (!address) {
@@ -110,7 +141,11 @@ export async function createOrder(req, res) {
 
     const store = await Store.findById(storeId);
     const user = await User.findById(userId);
+    const storeCoords = defaultStoreCoordinates(store?.lat, store?.lng);
     const code = `#LVK-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(10 + Math.random() * 90)}`;
+
+    let paymentStatus = 'pending';
+    let paymentSource = paymentMethod === 'cash' ? 'cash' : paymentMethod === 'wallet' ? 'wallet' : 'direct_momo';
 
     const order = await Order.create({
       code,
@@ -123,15 +158,16 @@ export async function createOrder(req, res) {
       clientLng: payload.clientLng ? Number(payload.clientLng) : null,
       storeName: store?.nom || 'Boutique',
       storeAddress: store?.adresse || '',
-      storeLat: store?.lat ?? null,
-      storeLng: store?.lng ?? null,
+      storeLat: storeCoords.lat,
+      storeLng: storeCoords.lng,
       items: normalizedItems,
       subtotal,
       deliveryFee,
       total,
       paymentMethod,
-      paymentSource: paymentMethod === 'cash' ? 'cash' : 'direct_momo',
-      paymentStatus: 'pending',
+      paymentSource,
+      paymentStatus,
+      momoTransactionRef: payload.momoTransactionRef || payload.momo_tx_ref || null,
       notes: payload.notes || '',
       delivery: {
         distanceKm: payload.distanceKm ? Number(payload.distanceKm) : null,
@@ -140,10 +176,19 @@ export async function createOrder(req, res) {
       history: [{ status: 'pending', at: new Date() }],
     });
 
-    return res.status(201).json({ success: true, order: serializeOrder(order, { store }) });
+    if (paymentMethod === 'wallet') {
+      await payWithWallet(userId, total, order._id, `Commande ${code}`);
+      order.paymentStatus = 'paid';
+      await order.save();
+    }
+
+    return res.status(201).json({ success: true, order: await serializeOrder(order, { store }) });
   } catch (error) {
     console.error('Order creation error:', error);
-    return res.status(500).json({ success: false, message: 'Impossible d’enregistrer la commande.' });
+    const message = error.message?.includes('portefeuille')
+      ? error.message
+      : 'Impossible d’enregistrer la commande.';
+    return res.status(error.message?.includes('portefeuille') ? 402 : 500).json({ success: false, message });
   }
 }
 
@@ -186,38 +231,64 @@ export async function updateOrderStatus(req, res) {
 
   const order = await Order.findById(orderId);
   if (!order) {
-    return res.status(403).json({ success: false, message: 'Accès refusé.' });
+    return res.status(404).json({ success: false, message: 'Commande introuvable.' });
   }
 
   const role = currentUser(req)?.role || 'client';
+
+  if (!isAdmin(role) && !canTransition(order.status, status)) {
+    return res.status(409).json({
+      success: false,
+      message: `Transition impossible : ${order.status} → ${status}.`,
+    });
+  }
+
   if (role === 'client' && String(order.clientId) !== String(userId)) {
     return res.status(403).json({ success: false, message: 'Accès refusé.' });
+  }
+
+  if (isSeller(role)) {
+    const store = await Store.findOne({ ownerId: userId });
+    if (!store || String(store._id) !== String(order.storeId)) {
+      return res.status(403).json({ success: false, message: 'Cette commande n’appartient pas à votre boutique.' });
+    }
   }
 
   const sellerStatuses = ['confirmed', 'rider_requested', 'cancelled'];
   const riderStatuses = ['rider_assigned', 'picked_up', 'delivering', 'delivered'];
   const clientStatuses = ['cancelled'];
-  const allowedForRole = isSeller(role)
-    ? sellerStatuses
-    : role === 'livreur'
-      ? riderStatuses
-      : role === 'client'
-        ? clientStatuses
-        : [...sellerStatuses, ...riderStatuses, ...clientStatuses];
+  const allowedForRole = isAdmin(role)
+    ? allowed
+    : isSeller(role)
+      ? sellerStatuses
+      : role === 'livreur'
+        ? riderStatuses
+        : role === 'client'
+          ? clientStatuses
+          : [];
 
   if (!allowedForRole.includes(status)) {
     return res.status(403).json({ success: false, message: 'Ce rôle ne peut pas appliquer ce statut.' });
   }
 
-  if (role === 'livreur' && status === 'rider_assigned') {
+  if (role === 'livreur') {
     const rider = await User.findById(userId);
     if (!rider || rider.role !== 'livreur' || rider.statut !== 'actif') {
-      return res.status(403).json({ success: false, message: 'Votre profil livreur doit être actif et validé.' });
+      return res.status(403).json({ success: false, message: 'Votre profil livreur doit être actif.' });
     }
-    if (!order.delivery) order.delivery = {};
-    if (!order.delivery.riderId) {
+    if (!rider.documentsValide || rider.verificationStatus !== 'approved') {
+      return res.status(403).json({ success: false, message: 'Votre dossier livreur doit être approuvé par l’administration.' });
+    }
+
+    if (status === 'rider_assigned') {
+      if (!order.delivery) order.delivery = {};
+      if (order.delivery.riderId && String(order.delivery.riderId) !== String(userId)) {
+        return res.status(409).json({ success: false, message: 'Un autre livreur est déjà assigné.' });
+      }
       order.delivery.riderId = rider._id;
       order.delivery.status = 'accepte';
+    } else if (order.delivery?.riderId && String(order.delivery.riderId) !== String(userId)) {
+      return res.status(403).json({ success: false, message: 'Cette course est assignée à un autre livreur.' });
     }
   }
 

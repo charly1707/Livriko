@@ -206,6 +206,11 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       return;
     }
 
+    if (paymentMethod === 'momo_moov' || paymentMethod === 'orange_money' || paymentMethod === 'celtis_cash') {
+      setSubmissionError('Ce moyen de paiement n’est pas encore activé. Choisissez MTN MoMo ou espèces.');
+      return;
+    }
+
     setSubmissionError(null);
     setIsSubmitting(true);
 
@@ -264,7 +269,7 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     setRouteLoading(true);
     setRouteError(null);
 
-    fetch(routeUrl, { signal: controller.signal })
+    fetch(routeUrl, { signal: controller.signal, credentials: 'include' })
       .then(async (response) => {
         if (!response.ok) {
           throw new Error(`OSRM non disponible (${response.status})`);
@@ -593,7 +598,49 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
               {/* Payment Methods */}
               <div className="pt-4 border-t border-slate-200 space-y-3">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Choisissez votre moyen de paiement</h4>
-                <p className="text-xs text-slate-500">Sélectionnez votre façon de payer pour finaliser la commande.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {paymentMethodOptions.map(option => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setPaymentMethod(option.id)}
+                      className={`p-3 rounded-2xl border text-left text-xs font-bold transition ${
+                        paymentMethod === option.id
+                          ? `${option.accent} ring-2 ring-orange-300`
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {option.name}
+                    </button>
+                  ))}
+                </div>
+
+                {paymentMethod === 'momo_mtn' && (
+                  <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-[11px] text-amber-900 font-semibold">
+                      Paiement MTN MoMo : validez la demande sur votre téléphone après confirmation.
+                    </p>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                      placeholder="Numéro MoMo (+229...)"
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs"
+                    />
+                  </div>
+                )}
+
+                {paymentMethod === 'cash' && (
+                  <p className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                    Paiement en espèces à la livraison. Préparez le montant exact si possible.
+                  </p>
+                )}
+
+                {(paymentMethod === 'momo_moov' || paymentMethod === 'orange_money' || paymentMethod === 'celtis_cash') && (
+                  <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">
+                    Ce moyen de paiement sera disponible prochainement. Utilisez MTN MoMo ou espèces pour le moment.
+                  </p>
+                )}
               </div>
             </div>
 

@@ -319,6 +319,14 @@ export const Header: React.FC<{
             </button>
           )}
 
+          <button
+            onClick={onOpenNotifications}
+            className="relative p-1.5 sm:p-2 text-slate-200 hover:text-white transition cursor-pointer"
+            title="Notifications"
+          >
+            <Bell className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+
           {/* Auth actions are only on the welcome page; header stays for connected users only */}
           {!isUserConnected ? (
             <div className="hidden" aria-hidden="true" />
@@ -397,7 +405,7 @@ export const Header: React.FC<{
                   <button
                     onClick={() => {
                       setIsProfileDropdownOpen(false);
-                      onOpenUserProfile('commandes');
+                      onOpenNotifications();
                     }}
                     className="w-full min-h-11 px-3 py-3 rounded-xl hover:bg-slate-800 text-slate-200 text-xs font-bold transition text-left flex items-center justify-between cursor-pointer"
                   >

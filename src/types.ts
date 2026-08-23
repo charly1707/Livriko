@@ -116,7 +116,7 @@ export interface Order {
   storeNetEarnings?: number;   // 95% of subtotal (Vendeur payout)
   totalAmount: number;
   status: OrderStatus;
-  paymentMethod: 'cash' | 'momo_mtn' | 'momo_moov' | 'orange_money' | 'celtis_cash';
+  paymentMethod: 'cash' | 'momo_mtn' | 'momo_moov' | 'orange_money' | 'celtis_cash' | 'wallet';
   storePaymentMode?: 'online' | 'delivery';
   paymentSource?: 'wallet' | 'direct_momo' | 'cash';
   momoTransactionRef?: string;

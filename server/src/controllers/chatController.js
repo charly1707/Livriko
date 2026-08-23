@@ -7,7 +7,7 @@ import { getPayload } from '../utils/http.js';
 import { publicId, toObjectId } from '../utils/ids.js';
 import { uploadImageBuffer } from '../services/cloudinaryUpload.js';
 
-const ACTIVE_STATUSES = ['rider_assigned', 'picked_up', 'delivering'];
+const ACTIVE_STATUSES = ['confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'];
 
 function isParticipant(conversation, userId) {
   return (conversation.participants || []).some((participant) => String(participant.userId) === String(userId));

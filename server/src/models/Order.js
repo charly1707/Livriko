@@ -32,11 +32,12 @@ const orderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['cash', 'momo_mtn', 'momo_moov', 'orange_money', 'celtis_cash'],
+    enum: ['cash', 'momo_mtn', 'momo_moov', 'orange_money', 'celtis_cash', 'wallet'],
     default: 'cash',
   },
   paymentSource: { type: String, enum: ['direct_momo', 'wallet', 'cash'], default: 'cash' },
-  paymentStatus: { type: String, enum: ['pending', 'paid'], default: 'pending' },
+  paymentStatus: { type: String, enum: ['pending', 'paid', 'failed'], default: 'pending' },
+  momoTransactionRef: { type: String, default: null },
   notes: { type: String, default: '' },
   cancellationReason: { type: String, default: null },
   delivery: {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
@@ -33,6 +33,7 @@ function MainAppContent() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const chatAutoOpenedRef = useRef<string | null>(null);
   const [showScooterLoader, setShowScooterLoader] = useState(() => {
     try {
       return !sessionStorage.getItem('livriko_loader_shown');
@@ -55,13 +56,16 @@ function MainAppContent() {
   }, [activeRole]);
 
   useEffect(() => {
-    if (activeTrackingOrder?.status === 'rider_assigned' && !isChatOpen) {
+    const status = activeTrackingOrder?.status;
+    const orderId = activeTrackingOrder?.id;
+    if (status === 'rider_assigned' && orderId && chatAutoOpenedRef.current !== orderId) {
+      chatAutoOpenedRef.current = orderId;
       setIsChatOpen(true);
     }
-    if (activeTrackingOrder?.status === 'delivered' && isChatOpen) {
+    if (status === 'delivered' && isChatOpen) {
       setIsChatOpen(false);
     }
-  }, [activeTrackingOrder?.status, isChatOpen]);
+  }, [activeTrackingOrder?.status, activeTrackingOrder?.id, isChatOpen]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-900 selection:bg-blue-600 selection:text-white">
