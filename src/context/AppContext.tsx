@@ -6,7 +6,7 @@ import {
   CategoryType, OrderStatus 
 } from '../types';
 import { normalizeUserRole } from '../utils/authFallback';
-import { uploadImageFile } from '../utils/imageUpload';
+import { uploadImageFile, uploadProductImageFile } from '../utils/imageUpload';
 import { buildDeliveryQuoteFromCoordinates, calculateDeliveryFee, calculateRoadDistanceKm, calculateHaversineDistance, isValidCoordinates } from '../utils/deliveryCalculator';
 
 interface AppContextType {
@@ -115,7 +115,7 @@ const getDefaultApiBase = () => {
 };
 const buildApiUrl = (path: string) => `${API_BASE || getDefaultApiBase()}${path}`;
 
-const uploadProductImage = async (file: File): Promise<string> => uploadImageFile(file, 'products');
+const uploadProductImage = async (file: File): Promise<string> => uploadProductImageFile(file);
 
 const getApiErrorMessage = (error: any): string => {
   const status = error?.response?.status;

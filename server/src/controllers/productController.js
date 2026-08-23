@@ -52,8 +52,12 @@ export async function createProduct(req, res) {
     const payload = getPayload(req);
     const nom = String(payload.nom || '').trim();
     const prix = Number(payload.prix || 0);
+    const image = String(payload.image || '').trim();
     if (!nom || !(prix > 0)) {
       return res.status(400).json({ success: false, message: 'Nom du produit et prix valides requis.' });
+    }
+    if (!image) {
+      return res.status(400).json({ success: false, message: 'Une photo est requise pour publier l’article.' });
     }
 
     const product = await Product.create({

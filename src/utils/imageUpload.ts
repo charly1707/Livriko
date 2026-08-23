@@ -11,16 +11,15 @@ const buildApiUrl = (path: string) => `${API_BASE || getDefaultApiBase()}${path}
 
 export type ImageUploadFolder = 'products' | 'chat' | 'avatars' | 'stores' | 'livreurs' | 'misc';
 
-export async function uploadImageFile(
-  file: File,
-  folder: ImageUploadFolder = 'misc',
-): Promise<string> {
+async function postImageUpload(path: string, file: File, folder?: ImageUploadFolder): Promise<string> {
   const formData = new FormData();
   formData.append('image', file);
-  formData.append('folder', folder);
+  if (folder) {
+    formData.append('folder', folder);
+  }
 
   const res = await axios.post(
-    buildApiUrl('/backend/index.php/api/upload/image'),
+    buildApiUrl(path),
     formData,
     {
       withCredentials: true,
@@ -33,6 +32,18 @@ export async function uploadImageFile(
   }
 
   return res.data.url;
+}
+
+export async function uploadImageFile(
+  file: File,
+  folder: ImageUploadFolder = 'misc',
+): Promise<string> {
+  return postImageUpload('/backend/index.php/api/upload/image', file, folder);
+}
+
+/** Upload réservé aux vendeurs pour les photos d'articles/produits. */
+export async function uploadProductImageFile(file: File): Promise<string> {
+  return postImageUpload('/backend/index.php/api/products/upload-image', file);
 }
 
 export async function uploadImageInput(

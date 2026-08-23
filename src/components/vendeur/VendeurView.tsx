@@ -47,9 +47,12 @@ export const VendeurView: React.FC = () => {
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState(1500);
   const [category, setCategory] = useState<CategoryType>('restaurants');
-  const [image, setImage] = useState('https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80');
+  const [image, setImage] = useState('');
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+
+  const MAX_IMAGE_SIZE_MB = 5;
 
   if (!currentStore) {
     return (
@@ -71,7 +74,11 @@ export const VendeurView: React.FC = () => {
     }
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      setImageError('Format d’image non pris en charge. Utilisez JPEG, PNG ou WEBP.');
+      setImageError('Format non pris en charge. Utilisez JPEG, PNG ou WEBP.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
+      setImageError(`L’image ne doit pas dépasser ${MAX_IMAGE_SIZE_MB} Mo.`);
       return;
     }
     setSelectedImageFile(file);
@@ -84,6 +91,12 @@ export const VendeurView: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
+  const clearProductImage = () => {
+    setSelectedImageFile(null);
+    setImage('');
+    setImageError(null);
+  };
+
   const openAddModal = () => {
     setEditingProduct(null);
     setName('');
@@ -91,7 +104,8 @@ export const VendeurView: React.FC = () => {
     setPrice(1500);
     setCategory(currentStore.category || 'restaurants');
     setSelectedImageFile(null);
-    setImage('https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80');
+    setImage('');
+    setImageError(null);
     setIsProductModalOpen(true);
   };
 
@@ -103,6 +117,7 @@ export const VendeurView: React.FC = () => {
     setCategory(prod.category);
     setSelectedImageFile(null);
     setImage(prod.image);
+    setImageError(null);
     setIsProductModalOpen(true);
   };
 
@@ -142,8 +157,20 @@ export const VendeurView: React.FC = () => {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payloadImage = selectedImageFile ?? image;
+    setImageError(null);
 
+    if (!editingProduct && !selectedImageFile) {
+      setImageError('Ajoutez une photo pour publier votre article.');
+      return;
+    }
+
+    const payloadImage = selectedImageFile ?? (image || undefined);
+    if (!payloadImage) {
+      setImageError('Une photo est requise pour cet article.');
+      return;
+    }
+
+    setIsSavingProduct(true);
     try {
       if (editingProduct) {
         await updateProduct({
@@ -169,7 +196,9 @@ export const VendeurView: React.FC = () => {
       }
       setIsProductModalOpen(false);
     } catch (error: any) {
-      setImageError(error.message || 'Impossible d’enregistrer le produit.');
+      setImageError(error.message || 'Impossible d’enregistrer l’article.');
+    } finally {
+      setIsSavingProduct(false);
     }
   };
 
@@ -249,7 +278,7 @@ export const VendeurView: React.FC = () => {
             className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-md transition flex items-center gap-2 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            Ajouter un produit
+            Publier un article
           </button>
         </div>
       </div>
@@ -317,8 +346,8 @@ export const VendeurView: React.FC = () => {
             <Package className="w-6 h-6" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-slate-500 font-medium wrap-break-word">Catalogue Produits</p>
-            <h3 className="text-lg sm:text-xl font-black text-slate-900 wrap-break-word">{storeProducts.length} référence(s)</h3>
+            <p className="text-xs text-slate-500 font-medium wrap-break-word">Articles publiés</p>
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 wrap-break-word">{storeProducts.length} article(s)</h3>
           </div>
         </div>
       </div>
@@ -428,15 +457,35 @@ export const VendeurView: React.FC = () => {
         )}
       </div>
 
-      {/* Catalog Product Table */}
+      {/* Catalog Article Grid */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Mes Produits en Vente</h2>
-            <p className="text-xs text-slate-500">Mettez à jour vos prix, descriptions et photos de votre boutique</p>
+            <h2 className="text-lg font-bold text-slate-900">Mes articles en vente</h2>
+            <p className="text-xs text-slate-500">Publiez vos articles avec photo, prix et description</p>
           </div>
+          <button
+            onClick={openAddModal}
+            className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-md transition flex items-center gap-2 cursor-pointer self-start"
+          >
+            <Plus className="w-4 h-4" />
+            Publier un article
+          </button>
         </div>
 
+        {storeProducts.length === 0 ? (
+          <div className="py-10 px-6 text-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50">
+            <ImageIcon className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <p className="text-sm font-bold text-slate-700 mb-1">Aucun article publié</p>
+            <p className="text-xs text-slate-500 mb-4">Ajoutez votre premier article avec une photo pour le rendre visible aux clients.</p>
+            <button
+              onClick={openAddModal}
+              className="px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-md transition cursor-pointer"
+            >
+              Publier mon premier article
+            </button>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {storeProducts.map(prod => (
             <div key={prod.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3">
@@ -471,6 +520,7 @@ export const VendeurView: React.FC = () => {
             </div>
           ))}
         </div>
+        )}
       </div>
 
       {/* Store & Profile Settings Modal */}
@@ -602,7 +652,7 @@ export const VendeurView: React.FC = () => {
           <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden my-auto">
             <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-white shrink-0">
               <h3 className="text-base font-bold text-slate-900">
-                {editingProduct ? 'Modifier le produit' : 'Ajouter un produit'}
+                {editingProduct ? 'Modifier l’article' : 'Publier un article'}
               </h3>
               <button onClick={() => setIsProductModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
                 <X className="w-5 h-5" />
@@ -612,13 +662,13 @@ export const VendeurView: React.FC = () => {
             <form onSubmit={handleSaveProduct} className="flex flex-col flex-1 min-h-0">
               <div className="p-4 sm:p-5 space-y-3 flex-1 overflow-y-auto min-h-0">
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Nom du produit</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Nom de l’article</label>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    placeholder="ex: Poulet Braisé XL"
+                    placeholder="ex: Poulet Braisé XL, Riz au gras..."
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                   />
                 </div>
@@ -659,24 +709,59 @@ export const VendeurView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Photo du produit</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Photo de l’article {!editingProduct && <span className="text-rose-500">*</span>}
+                  </label>
                   <div className="flex flex-col gap-3">
-                    <img
-                      src={image}
-                      alt="Aperçu du produit"
-                      className="w-full h-40 rounded-3xl object-cover border border-slate-200 bg-slate-100"
-                    />
+                    {image ? (
+                      <div className="relative">
+                        <img
+                          src={image}
+                          alt="Aperçu de l’article"
+                          className="w-full h-44 rounded-3xl object-cover border border-slate-200 bg-slate-100"
+                        />
+                        <button
+                          type="button"
+                          onClick={clearProductImage}
+                          className="absolute top-2 right-2 p-1.5 rounded-full bg-white/90 border border-slate-200 text-slate-600 hover:text-rose-600 transition"
+                          title="Retirer la photo"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-full h-44 rounded-3xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-2 text-slate-400">
+                        <ImageIcon className="w-8 h-8" />
+                        <span className="text-[11px] font-semibold">Photo requise pour publier</span>
+                      </div>
+                    )}
 
-                    <label className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-2xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-200 transition">
-                      <ImageIcon className="w-4 h-4" />
-                      Ajouter une photo (galerie ou caméra)
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={e => handleProductImageSelect(e.target.files?.[0] || null)}
-                        className="hidden"
-                      />
-                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-200 transition">
+                        <ImageIcon className="w-4 h-4" />
+                        Galerie
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={e => handleProductImageSelect(e.target.files?.[0] || null)}
+                          className="hidden"
+                        />
+                      </label>
+
+                      <label className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-orange-50 border border-orange-200 text-xs font-bold text-orange-700 cursor-pointer hover:bg-orange-100 transition">
+                        <ImageIcon className="w-4 h-4" />
+                        Prendre une photo
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          capture="environment"
+                          onChange={e => handleProductImageSelect(e.target.files?.[0] || null)}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400">JPEG, PNG ou WEBP — max {MAX_IMAGE_SIZE_MB} Mo</p>
 
                     {imageError && (
                       <p className="text-[11px] text-rose-600">{imageError}</p>
@@ -696,9 +781,15 @@ export const VendeurView: React.FC = () => {
 
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-md transition cursor-pointer"
+                  disabled={isSavingProduct}
+                  className="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md transition cursor-pointer flex items-center gap-2"
                 >
-                  {editingProduct ? 'Enregistrer les modifications' : 'Ajouter le produit'}
+                  {isSavingProduct && <Clock className="w-3.5 h-3.5 animate-spin" />}
+                  {isSavingProduct
+                    ? 'Publication en cours...'
+                    : editingProduct
+                      ? 'Enregistrer les modifications'
+                      : 'Publier l’article'}
                 </button>
               </div>
             </form>
