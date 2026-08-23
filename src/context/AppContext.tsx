@@ -6,6 +6,7 @@ import {
   CategoryType, OrderStatus 
 } from '../types';
 import { normalizeUserRole } from '../utils/authFallback';
+import { uploadImageFile } from '../utils/imageUpload';
 import { buildDeliveryQuoteFromCoordinates, calculateDeliveryFee, calculateRoadDistanceKm, calculateHaversineDistance, isValidCoordinates } from '../utils/deliveryCalculator';
 
 interface AppContextType {
@@ -114,23 +115,7 @@ const getDefaultApiBase = () => {
 };
 const buildApiUrl = (path: string) => `${API_BASE || getDefaultApiBase()}${path}`;
 
-const uploadProductImage = async (file: File): Promise<string> => {
-  const formData = new FormData();
-  formData.append('image', file);
-
-  const res = await axios.post(buildApiUrl('/backend/index.php/api/products/upload-image'), formData, {
-    withCredentials: true,
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-
-  if (!res.data?.success || !res.data.url) {
-    throw new Error(res.data?.error || res.data?.message || 'Impossible d’envoyer l’image du produit.');
-  }
-
-  return res.data.url;
-};
+const uploadProductImage = async (file: File): Promise<string> => uploadImageFile(file, 'products');
 
 const getApiErrorMessage = (error: any): string => {
   const status = error?.response?.status;
@@ -458,6 +443,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payload.append('telephone', userData.phone);
     payload.append('mot_de_passe', normalizedPassword);
     payload.append('role', userData.role);
+    if (userData.avatar) payload.append('avatar', userData.avatar);
+    if (userData.selfiePhoto) payload.append('selfie_photo', userData.selfiePhoto);
+    if (userData.cipPhoto) payload.append('cip_photo', userData.cipPhoto);
+    if (userData.vehiclePhoto) payload.append('vehicle_photo', userData.vehiclePhoto);
     if (userData.role === 'restaurant' || userData.role === 'vendeur') {
       payload.append('restaurant_name', userData.storeName || `Boutique de ${userData.name}`);
       payload.append('adresse', userData.storeAddress || 'Centre-ville, Lokossa');

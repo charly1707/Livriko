@@ -1,14 +1,9 @@
-import path from 'path';
-import crypto from 'crypto';
-import { fileURLToPath } from 'url';
 import { Product } from '../models/Product.js';
 import { Store } from '../models/Store.js';
 import { currentUser, currentUserId } from '../middleware/auth.js';
 import { getPayload, isSeller } from '../utils/http.js';
 import { publicId, storePublicId, toObjectId } from '../utils/ids.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const productUploadDir = path.resolve(__dirname, '../../uploads/products');
+import { uploadImageBuffer } from '../services/cloudinaryUpload.js';
 
 function serializeProduct(product, store) {
   return {
@@ -147,15 +142,14 @@ export async function uploadImage(req, res) {
     return res.status(400).json({ error: 'Aucune image sélectionnée ou upload interrompu' });
   }
 
-  const url = `/backend/uploads/products/${req.file.filename}`;
-  return res.json({ success: true, url });
-}
-
-export function productFilename(_req, file, callback) {
-  const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
-  const allowed = { '.jpg': true, '.jpeg': true, '.png': true, '.webp': true };
-  if (!allowed[ext]) {
-    return callback(new Error('Format d’image non pris en charge'));
+  try {
+    const uploaded = await uploadImageBuffer(req.file.buffer, {
+      folder: 'products',
+      filename: req.file.originalname || 'product',
+    });
+    return res.json({ success: true, url: uploaded.url });
+  } catch (error) {
+    console.error('Product image upload error:', error);
+    return res.status(503).json({ success: false, error: error.message || 'Impossible d’envoyer l’image du produit.' });
   }
-  callback(null, `prod_${crypto.randomBytes(12).toString('hex')}${ext === '.jpeg' ? '.jpg' : ext}`);
 }

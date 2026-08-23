@@ -5,6 +5,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Product, Order, CategoryType, Store } from '../../types';
 import { CATEGORIES } from '../../data/mockData';
+import { uploadImageFile } from '../../utils/imageUpload';
 
 export const VendeurView: React.FC = () => {
   const { 
@@ -34,6 +35,8 @@ export const VendeurView: React.FC = () => {
   const [storeAddress, setStoreAddress] = useState(currentStore?.address || '');
   const [storeLogo, setStoreLogo] = useState(currentStore?.logo || '');
   const [userAvatar, setUserAvatar] = useState(currentUser?.avatar || '');
+  const [storeLogoFile, setStoreLogoFile] = useState<File | null>(null);
+  const [userAvatarFile, setUserAvatarFile] = useState<File | null>(null);
   const [storeIsOpen, setStoreIsOpen] = useState(currentStore?.isOpen || false);
 
   // Modal for adding/editing product
@@ -103,19 +106,37 @@ export const VendeurView: React.FC = () => {
     setIsProductModalOpen(true);
   };
 
-  const handleSaveStoreProfile = (e: React.FormEvent) => {
+  const handleSaveStoreProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    let nextLogo = storeLogo;
+    let nextAvatar = userAvatar;
+    try {
+      if (storeLogoFile) {
+        nextLogo = await uploadImageFile(storeLogoFile, 'stores');
+        setStoreLogo(nextLogo);
+      }
+      if (userAvatarFile) {
+        nextAvatar = await uploadImageFile(userAvatarFile, 'avatars');
+        setUserAvatar(nextAvatar);
+      }
+    } catch (error: any) {
+      setImageError(error.message || 'Impossible d’envoyer l’image.');
+      return;
+    }
+
     updateStore({
       ...currentStore,
       name: storeName,
       phone: storePhone,
       address: storeAddress,
-      logo: storeLogo,
+      logo: nextLogo,
       isOpen: storeIsOpen,
     });
-    if (userAvatar && currentUser) {
-      updateUserProfile(currentUser.id, { avatar: userAvatar });
+    if (nextAvatar && currentUser) {
+      updateUserProfile(currentUser.id, { avatar: nextAvatar });
     }
+    setStoreLogoFile(null);
+    setUserAvatarFile(null);
     setIsStoreProfileModalOpen(false);
   };
 
@@ -501,23 +522,44 @@ export const VendeurView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">URL du Logo du commerce</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Logo du commerce</label>
+                  {storeLogo && <img src={storeLogo} alt="Logo boutique" className="w-16 h-16 rounded-xl object-cover mb-2 border border-slate-200" />}
                   <input
-                    type="text"
-                    required
-                    value={storeLogo}
-                    onChange={e => setStoreLogo(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500"
+                    type="file"
+                    accept="image/*"
+                    onChange={e => {
+                      const file = e.target.files?.[0] || null;
+                      setStoreLogoFile(file);
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          if (typeof reader.result === 'string') setStoreLogo(reader.result);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="w-full text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">URL de votre photo de profil (Avatar)</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Photo de profil (Avatar)</label>
+                  {userAvatar && <img src={userAvatar} alt="Avatar vendeur" className="w-16 h-16 rounded-full object-cover mb-2 border border-slate-200" />}
                   <input
-                    type="text"
-                    value={userAvatar}
-                    onChange={e => setUserAvatar(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500"
+                    type="file"
+                    accept="image/*"
+                    onChange={e => {
+                      const file = e.target.files?.[0] || null;
+                      setUserAvatarFile(file);
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          if (typeof reader.result === 'string') setUserAvatar(reader.result);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="w-full text-xs"
                   />
                 </div>
 

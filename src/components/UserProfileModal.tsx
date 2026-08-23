@@ -3,6 +3,7 @@ import {
   X, User, ShoppingBag, MapPin, Settings, LogOut, Check, Phone, Mail, Building, Truck, ShieldCheck, Clock, ChevronRight, ArrowLeft, Key, Camera
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { uploadImageFile } from '../utils/imageUpload';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -61,18 +62,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
 
-  const handleImageFileSelect = (file: File | null) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setSelectedAvatar(reader.result);
-        if (currentUser) {
-          updateUserProfile(currentUser.id, { avatar: reader.result, selfiePhoto: reader.result });
-        }
-      }
-    };
-    reader.readAsDataURL(file);
+  const handleImageFileSelect = async (file: File | null) => {
+    if (!file || !currentUser) return;
+    try {
+      const url = await uploadImageFile(file, 'avatars');
+      setSelectedAvatar(url);
+      updateUserProfile(currentUser.id, { avatar: url, selfiePhoto: url });
+    } catch (error: any) {
+      setPasswordMessage(error.message || 'Impossible d’envoyer la photo de profil.');
+    }
   };
 
   if (!isOpen || !currentUser) return null;

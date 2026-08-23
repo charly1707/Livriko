@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole, CategoryType } from '../types';
+import { uploadImageFile } from '../utils/imageUpload';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -50,12 +51,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   // Livreur specific security fields
   const [vehicle, setVehicle] = useState('Moto TVS HLX 125');
-  const [selfiePhoto, setSelfiePhoto] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80');
-  const [cipPhoto, setCipPhoto] = useState('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=400&q=80');
-  const [vehiclePhoto, setVehiclePhoto] = useState('https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=400&q=80');
+  const [selfiePhoto, setSelfiePhoto] = useState('');
+  const [cipPhoto, setCipPhoto] = useState('');
+  const [vehiclePhoto, setVehiclePhoto] = useState('');
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+  const [cipFile, setCipFile] = useState<File | null>(null);
+  const [vehicleFile, setVehicleFile] = useState<File | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState('');
 
-  const handleImageFileSelect = (file: File | null, setter: React.Dispatch<React.SetStateAction<string>>) => {
+  const handleImageFileSelect = (
+    file: File | null,
+    setter: React.Dispatch<React.SetStateAction<string>>,
+    fileSetter?: React.Dispatch<React.SetStateAction<File | null>>,
+  ) => {
     if (!file) return;
+    fileSetter?.(file);
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
@@ -107,6 +118,23 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
 
       try {
         let newUser;
+        let uploadedAvatar = avatarPreview;
+        let uploadedSelfie = selfiePhoto;
+        let uploadedCip = cipPhoto;
+        let uploadedVehicle = vehiclePhoto;
+
+        if (avatarFile) {
+          uploadedAvatar = await uploadImageFile(avatarFile, selectedRole === 'vendeur' ? 'stores' : 'avatars');
+        }
+        if (selfieFile) {
+          uploadedSelfie = await uploadImageFile(selfieFile, 'livreurs');
+        }
+        if (cipFile) {
+          uploadedCip = await uploadImageFile(cipFile, 'livreurs');
+        }
+        if (vehicleFile) {
+          uploadedVehicle = await uploadImageFile(vehicleFile, 'livreurs');
+        }
 
         if (selectedRole === 'livreur') {
           if (!vehicle.trim()) {
@@ -121,10 +149,10 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
             role: 'livreur',
             vehicle,
             city,
-            avatar: selfiePhoto,
-            selfiePhoto,
-            cipPhoto,
-            vehiclePhoto,
+            avatar: uploadedSelfie,
+            selfiePhoto: uploadedSelfie,
+            cipPhoto: uploadedCip,
+            vehiclePhoto: uploadedVehicle,
             verificationStatus: 'pending',
             verificationSubmittedAt: 'À l\'instant',
           });
@@ -148,7 +176,7 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
             phone,
             role: 'vendeur',
             city,
-            avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80',
+            avatar: uploadedAvatar,
             storeName: storeName || `Boutique de ${name}`,
             storeCategory,
             storeAddress,
@@ -163,7 +191,7 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
             phone,
             role: selectedRole,
             city,
-            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+            avatar: uploadedAvatar || undefined,
           });
 
           setRegistrationSuccessMessage(`Compte créé avec succès ! Bienvenue sur Livriko, ${newUser.name}.`);
@@ -479,7 +507,7 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
                           type="file"
                           accept="image/*"
                           capture="user"
-                          onChange={e => handleImageFileSelect(e.target.files?.[0] || null, setSelfiePhoto)}
+                          onChange={e => handleImageFileSelect(e.target.files?.[0] || null, setSelfiePhoto, setSelfieFile)}
                           className="hidden"
                         />
                       </span>
@@ -505,7 +533,7 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
                           type="file"
                           accept="image/*"
                           capture="environment"
-                          onChange={e => handleImageFileSelect(e.target.files?.[0] || null, setCipPhoto)}
+                          onChange={e => handleImageFileSelect(e.target.files?.[0] || null, setCipPhoto, setCipFile)}
                           className="hidden"
                         />
                       </span>
@@ -531,7 +559,7 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
                           type="file"
                           accept="image/*"
                           capture="environment"
-                          onChange={e => handleImageFileSelect(e.target.files?.[0] || null, setVehiclePhoto)}
+                          onChange={e => handleImageFileSelect(e.target.files?.[0] || null, setVehiclePhoto, setVehicleFile)}
                           className="hidden"
                         />
                       </span>

@@ -6,11 +6,16 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "dev:server": "node --watch server/src/index.js",
+    "start": "node server/src/index.js",
     "start:server": "node server/src/index.js",
     "build": "vite build",
+    "build:render": "npm install && npm run build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -20,17 +25,18 @@
     "axios": "^1.7.2",
     "bcryptjs": "^3.0.2",
     "canvas-confetti": "^1.9.4",
+    "cloudinary": "^2.10.1",
     "connect-mongo": "^5.1.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
-    "mongoose": "^8.18.0",
-    "morgan": "^1.10.0",
-    "multer": "^2.0.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.546.0",
+    "mongoose": "^8.18.0",
+    "morgan": "^1.10.0",
     "motion": "^12.23.24",
+    "multer": "^2.0.2",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "react-leaflet": "^5.0.0",

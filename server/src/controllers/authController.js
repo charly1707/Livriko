@@ -84,10 +84,14 @@ export async function register(req, res) {
       email,
       motDePasse: hashedPassword,
       telephone,
+      avatar: payload.avatar || null,
       vehicle: payload.vehicle || null,
       city: payload.ville || payload.city || 'Lokossa',
       documentsValide: role === 'livreur' ? false : true,
       verificationStatus: role === 'livreur' ? 'pending' : null,
+      selfiePhoto: payload.selfie_photo || payload.selfiePhoto || null,
+      cipPhoto: payload.cip_photo || payload.cipPhoto || null,
+      vehiclePhoto: payload.vehicle_photo || payload.vehiclePhoto || null,
     });
 
     if (role === 'restaurant' || role === 'vendeur') {

@@ -1,6 +1,3 @@
-import path from 'path';
-import crypto from 'crypto';
-import { fileURLToPath } from 'url';
 import { Conversation } from '../models/Conversation.js';
 import { Order } from '../models/Order.js';
 import { Store } from '../models/Store.js';
@@ -8,9 +5,7 @@ import { User } from '../models/User.js';
 import { currentUserId } from '../middleware/auth.js';
 import { getPayload } from '../utils/http.js';
 import { publicId, toObjectId } from '../utils/ids.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const chatUploadDir = path.resolve(__dirname, '../../uploads/chat');
+import { uploadImageBuffer } from '../services/cloudinaryUpload.js';
 
 const ACTIVE_STATUSES = ['rider_assigned', 'picked_up', 'delivering'];
 
@@ -226,10 +221,15 @@ export async function uploadChatImage(req, res) {
   if (!req.file) {
     return res.status(400).json({ error: 'No file' });
   }
-  return res.json({ url: `/backend/uploads/chat/${req.file.filename}` });
-}
 
-export function chatFilename(_req, file, callback) {
-  const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
-  callback(null, `chat_${Date.now()}_${crypto.randomBytes(6).toString('hex')}${ext}`);
+  try {
+    const uploaded = await uploadImageBuffer(req.file.buffer, {
+      folder: 'chat',
+      filename: req.file.originalname || 'chat',
+    });
+    return res.json({ url: uploaded.url, success: true });
+  } catch (error) {
+    console.error('Chat image upload error:', error);
+    return res.status(503).json({ error: error.message || 'Impossible d’envoyer l’image.' });
+  }
 }

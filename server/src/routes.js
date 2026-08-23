@@ -1,7 +1,6 @@
 import express from 'express';
-import multer from 'multer';
-import fs from 'fs';
 import { requireAuth } from './middleware/auth.js';
+import { imageUpload, handleMulter } from './middleware/upload.js';
 import * as auth from './controllers/authController.js';
 import * as products from './controllers/productController.js';
 import * as stores from './controllers/storeController.js';
@@ -13,50 +12,8 @@ import * as serviceExpress from './controllers/serviceExpressController.js';
 import * as maps from './controllers/mapsController.js';
 import * as subscriptions from './controllers/subscriptionController.js';
 import * as health from './controllers/healthController.js';
+import * as upload from './controllers/uploadController.js';
 import { mtnWebhook } from './controllers/webhookController.js';
-
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-ensureDir(products.productUploadDir);
-ensureDir(chat.chatUploadDir);
-
-const imageFilter = (_req, file, callback) => {
-  const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-  if (!allowed.includes(file.mimetype)) {
-    return callback(new Error('Format d’image non pris en charge'));
-  }
-  callback(null, true);
-};
-
-const productUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, callback) => callback(null, products.productUploadDir),
-    filename: products.productFilename,
-  }),
-  limits: { fileSize: 2 * 1024 * 1024 },
-  fileFilter: imageFilter,
-});
-
-const chatUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, callback) => callback(null, chat.chatUploadDir),
-    filename: chat.chatFilename,
-  }),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: imageFilter,
-});
-
-function handleMulter(upload) {
-  return (req, res, next) => {
-    upload(req, res, (error) => {
-      if (!error) return next();
-      const message = error.code === 'LIMIT_FILE_SIZE' ? 'L’image dépasse la taille maximale autorisée' : error.message;
-      return res.status(400).json({ error: message, success: false });
-    });
-  };
-}
 
 export function createApiRouter() {
   const router = express.Router();
@@ -66,12 +23,14 @@ export function createApiRouter() {
   router.post('/auth/logout', auth.logout);
   router.get('/auth/me', auth.me);
 
+  router.post('/upload/image', requireAuth, handleMulter(imageUpload.single('image')), upload.uploadImage);
+
   router.get('/products', products.listAllProducts);
   router.post('/products', requireAuth, products.createProduct);
   router.get('/products/restaurant', requireAuth, products.listRestaurantProducts);
   router.post('/products/update', requireAuth, products.updateProduct);
   router.post('/products/delete', requireAuth, products.deleteProduct);
-  router.post('/products/upload-image', requireAuth, handleMulter(productUpload.single('image')), products.uploadImage);
+  router.post('/products/upload-image', requireAuth, handleMulter(imageUpload.single('image')), products.uploadImage);
 
   router.get('/restaurants', stores.listStores);
 
@@ -88,7 +47,7 @@ export function createApiRouter() {
   router.post('/chat/send', requireAuth, chat.sendMessage);
   router.post('/chat/add_participant', requireAuth, chat.addParticipant);
   router.post('/chat/mark_read', requireAuth, chat.markRead);
-  router.post('/chat/upload', requireAuth, handleMulter(chatUpload.single('image')), chat.uploadChatImage);
+  router.post('/chat/upload', requireAuth, handleMulter(imageUpload.single('image')), chat.uploadChatImage);
 
   router.post('/reviews/create', requireAuth, reviews.createReview);
   router.get('/reviews/driver', reviews.listForDriver);
