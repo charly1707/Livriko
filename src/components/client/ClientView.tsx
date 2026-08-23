@@ -9,7 +9,7 @@ import { HeroCarousel } from './HeroCarousel';
 import { OrderTrackingModal } from './OrderTrackingModal';
 import { StoreDetailView } from './StoreDetailView';
 import { ServiceExpressView } from './ServiceExpressView';
-import { onImageError } from '../../utils/media';
+import { onImageError, resolveMediaUrl, mediaSrc } from '../../utils/media';
 
 export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => void }> = ({ onOpenCart, onOpenChat }) => {
   const { 
@@ -31,10 +31,40 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
+  const productImageByStoreId = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const product of products) {
+      const image = resolveMediaUrl(product.image);
+      if (!product.storeId || !image) continue;
+      if (!map.has(product.storeId)) {
+        map.set(product.storeId, image);
+      }
+      const bare = product.storeId.replace(/^store-/, '');
+      if (!map.has(bare)) map.set(bare, image);
+      if (!map.has(`store-${bare}`)) map.set(`store-${bare}`, image);
+    }
+    return map;
+  }, [products]);
+
+  const enrichStoreMedia = (store: Store): Store => {
+    const fallback =
+      productImageByStoreId.get(store.id)
+      || productImageByStoreId.get(store.id.replace(/^store-/, ''))
+      || productImageByStoreId.get(`store-${store.id.replace(/^store-/, '')}`)
+      || '';
+    const logo = resolveMediaUrl(store.logo) || fallback;
+    const cover = resolveMediaUrl(store.coverImage) || logo || fallback;
+    return {
+      ...store,
+      logo,
+      coverImage: cover,
+    };
+  };
+
   // Keep the company-first flow usable while store records are loading from the API.
   const storesFromProducts = products.reduce<Store[]>((result, product) => {
     if (result.some(store => store.id === product.storeId)) return result;
-    result.push({
+    result.push(enrichStoreMedia({
       id: product.storeId,
       name: product.storeName || 'Boutique Livriko',
       category: product.category,
@@ -48,13 +78,22 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
       phone: '',
       isOpen: true,
       isCertified: false,
-    });
+    }));
     return result;
   }, []);
 
-  const allStores = [...stores, ...storesFromProducts.filter(productStore => !stores.some(store => store.id === productStore.id))];
+  const allStores = [
+    ...stores.map(enrichStoreMedia),
+    ...storesFromProducts.filter(productStore => !stores.some(store =>
+      store.id === productStore.id
+      || store.id.replace(/^store-/, '') === productStore.id.replace(/^store-/, ''),
+    )),
+  ];
   const filteredStores = allStores.filter(store => {
-    const storeProducts = products.filter(product => product.storeId === store.id);
+    const storeProducts = products.filter(product =>
+      product.storeId === store.id
+      || product.storeId.replace(/^store-/, '') === store.id.replace(/^store-/, ''),
+    );
     const matchesCategory = activeCategory === 'all' || store.category === activeCategory || storeProducts.some(product => product.category === activeCategory);
     const matchesSearch = !normalizedSearch || store.name.toLowerCase().includes(normalizedSearch) || storeProducts.some(product =>
       product.name.toLowerCase().includes(normalizedSearch) || product.description.toLowerCase().includes(normalizedSearch)
@@ -80,16 +119,18 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
   };
 
   const handleSelectProductAndGoToStore = (product: Product) => {
-    const foundStore = stores.find(
-      s => s.id === product.storeId || s.name.toLowerCase() === product.storeName.toLowerCase()
+    const foundStore = allStores.find(
+      s => s.id === product.storeId
+        || s.id.replace(/^store-/, '') === product.storeId.replace(/^store-/, '')
+        || s.name.toLowerCase() === product.storeName.toLowerCase(),
     );
 
-    const storeFromProduct: Store = foundStore || {
+    const storeFromProduct: Store = foundStore || enrichStoreMedia({
       id: product.storeId,
       name: product.storeName || 'Boutique Livriko',
       category: product.category,
       ownerId: product.storeId.replace(/^store-/, ''),
-      logo: '',
+      logo: product.image,
       coverImage: product.image,
       rating: 5,
       deliveryTime: '30-45 min',
@@ -98,7 +139,7 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
       phone: '',
       isOpen: true,
       isCertified: false,
-    };
+    });
 
     setAutoAddedProduct(null);
     setViewingStore(storeFromProduct);
@@ -143,7 +184,10 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
       <HeroCarousel 
         onSelectCategory={setActiveCategory} 
         onSelectStore={(storeId) => {
-          const found = stores.find(s => s.id === storeId);
+          const found = allStores.find(s =>
+            s.id === storeId
+            || s.id.replace(/^store-/, '') === String(storeId).replace(/^store-/, ''),
+          );
           if (found) {
             setViewingStore(found);
             setAutoAddedProduct(null);
@@ -267,7 +311,14 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
               className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition cursor-pointer group"
             >
               <div className="h-28 relative">
-                <img src={store.coverImage || store.logo} alt={store.name} onError={onImageError} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                <img
+                  src={mediaSrc(store.coverImage || store.logo)}
+                  alt={store.name}
+                  onError={onImageError}
+                  className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                />
                 <span className="absolute top-2 right-2 bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded-full text-[10px] font-bold text-slate-800 flex items-center gap-1 shadow-xs">
                   <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                   {store.rating}
@@ -276,7 +327,14 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
 
               <div className="p-4 space-y-2">
                 <div className="flex items-center gap-2">
-                  <img src={store.logo || store.coverImage} alt={store.name} onError={onImageError} className="w-8 h-8 rounded-lg object-cover border border-slate-200" />
+                  <img
+                    src={mediaSrc(store.logo || store.coverImage)}
+                    alt={store.name}
+                    onError={onImageError}
+                    className="w-8 h-8 rounded-lg object-cover border border-slate-200"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
                   <div className="min-w-0 flex-1">
                     <h3 className="text-xs font-bold text-slate-900 truncate group-hover:text-orange-500 transition">{store.name}</h3>
                     <p className="text-[10px] text-slate-500 truncate">{store.address}</p>
@@ -424,7 +482,7 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
         <div className="fixed inset-0 z-[1100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100 my-auto">
             <div className="h-48 sm:h-64 relative bg-slate-100">
-              <img src={selectedProduct.image} alt={selectedProduct.name} onError={onImageError} className="w-full h-full object-cover" />
+              <img src={mediaSrc(selectedProduct.image)} alt={selectedProduct.name} onError={onImageError} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               <button
                 onClick={() => setSelectedProduct(null)}
                 className="absolute top-4 right-4 w-9 h-9 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white flex items-center justify-center transition p-1"

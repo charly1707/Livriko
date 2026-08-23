@@ -1,4 +1,5 @@
 import { Store } from '../models/Store.js';
+import { Product } from '../models/Product.js';
 import { currentUserId } from '../middleware/auth.js';
 import { getPayload, isSeller } from '../utils/http.js';
 import { publicId, toObjectId } from '../utils/ids.js';
@@ -26,9 +27,28 @@ function serializeStore(restaurant) {
 export async function listStores(_req, res) {
   try {
     const restaurants = await Store.find().sort({ createdAt: -1 });
+    const storeIds = restaurants.map((restaurant) => restaurant._id);
+    const products = await Product.find({ storeId: { $in: storeIds }, image: { $nin: [null, ''] } })
+      .select('storeId image')
+      .sort({ createdAt: -1 });
+
+    const fallbackLogoByStoreId = new Map();
+    for (const product of products) {
+      const key = String(product.storeId);
+      if (!fallbackLogoByStoreId.has(key) && product.image) {
+        fallbackLogoByStoreId.set(key, product.image);
+      }
+    }
+
     return res.json({
       success: true,
-      restaurants: restaurants.map(serializeStore),
+      restaurants: restaurants.map((restaurant) => {
+        const serialized = serializeStore(restaurant);
+        if (!serialized.logo) {
+          serialized.logo = fallbackLogoByStoreId.get(String(restaurant._id)) || null;
+        }
+        return serialized;
+      }),
     });
   } catch (error) {
     console.error('Restaurant listing error:', error);

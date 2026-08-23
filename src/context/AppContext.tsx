@@ -8,6 +8,7 @@ import {
 import { normalizeUserRole, readPersistedSession, readPersistedUserSnapshot, readStoredActiveRole, resolveActiveRole, persistSession, clearPersistedSession, ACTIVE_ROLE_KEY } from '../utils/authFallback';
 import { uploadImageFile, uploadProductImageFile } from '../utils/imageUpload';
 import { buildDeliveryQuoteFromCoordinates, calculateDeliveryFee, calculateRoadDistanceKm, calculateHaversineDistance, isValidCoordinates } from '../utils/deliveryCalculator';
+import { resolveMediaUrl } from '../utils/media';
 
 interface AppContextType {
   isLoggedIn: boolean;
@@ -274,18 +275,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const productsUrl = buildApiUrl('/backend/index.php/api/products');
         const res = await axios.get(productsUrl, { withCredentials: true });
         if (res.data?.products) {
-          const mappedProducts: Product[] = res.data.products.map((p: any) => ({
-            id: String(p.id),
-            storeId: String(p.store_id || p.restaurant_id),
-            storeName: p.store_name || p.nom || 'Boutique',
-            name: p.nom,
-            description: p.description || '',
-            price: Number(p.prix) || 0,
-            category: (p.category as CategoryType) || 'restaurants',
-            image: p.image || '',
-            inStock: Boolean(p.en_stock),
-            unit: p.unit || 'portion',
-          }));
+          const mappedProducts: Product[] = res.data.products.map((p: any) => {
+            const rawStoreId = String(p.store_id || p.restaurant_id || '');
+            const storeId = rawStoreId.startsWith('store-')
+              ? rawStoreId
+              : (rawStoreId ? `store-${rawStoreId}` : '');
+            return {
+              id: String(p.id),
+              storeId,
+              storeName: p.store_name || p.nom || 'Boutique',
+              name: p.nom,
+              description: p.description || '',
+              price: Number(p.prix) || 0,
+              category: (p.category as CategoryType) || 'restaurants',
+              image: resolveMediaUrl(p.image || ''),
+              inStock: Boolean(p.en_stock),
+              unit: p.unit || 'portion',
+            };
+          });
           setProducts(mappedProducts);
         }
       } catch {
@@ -295,25 +302,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const restaurantsUrl = buildApiUrl('/backend/index.php/api/restaurants');
         const res = await axios.get(restaurantsUrl, { withCredentials: true });
-        const mappedStores: Store[] = (res.data?.restaurants || []).map((restaurant: any) => ({
-          id: `store-${restaurant.id}`,
-          name: restaurant.name,
-          category: 'restaurants',
-          ownerId: String(restaurant.ownerId),
-          logo: restaurant.logo || '',
-          coverImage: restaurant.logo || '',
-          rating: 0,
-          deliveryTime: '',
-          address: restaurant.address,
-          city: restaurant.city,
-          phone: restaurant.phone,
-          momoPhone: restaurant.momoPhone || undefined,
-          lat: restaurant.lat ?? undefined,
-          lng: restaurant.lng ?? undefined,
-          isOpen: Boolean(restaurant.isOpen),
-          isCertified: Boolean(restaurant.isCertified),
-          description: restaurant.description || '',
-        }));
+        const mappedStores: Store[] = (res.data?.restaurants || []).map((restaurant: any) => {
+          const logo = resolveMediaUrl(restaurant.logo || '');
+          return {
+            id: `store-${restaurant.id}`,
+            name: restaurant.name,
+            category: (restaurant.category as CategoryType) || 'restaurants',
+            ownerId: String(restaurant.ownerId),
+            logo,
+            coverImage: logo,
+            rating: Number(restaurant.rating) || 4.8,
+            deliveryTime: restaurant.deliveryTime || '30-45 min',
+            address: restaurant.address,
+            city: restaurant.city,
+            phone: restaurant.phone,
+            momoPhone: restaurant.momoPhone || undefined,
+            lat: restaurant.lat ?? undefined,
+            lng: restaurant.lng ?? undefined,
+            isOpen: Boolean(restaurant.isOpen),
+            isCertified: Boolean(restaurant.isCertified),
+            description: restaurant.description || '',
+          };
+        });
         setStores(mappedStores);
       } catch {
         setStores([]);

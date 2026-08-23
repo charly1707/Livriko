@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Store, Product, CartItem } from '../../types';
 import { useApp } from '../../context/AppContext';
+import { onImageError, resolveMediaUrl, mediaSrc } from '../../utils/media';
 
 interface StoreDetailViewProps {
   store: Store;
@@ -29,10 +30,17 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
     autoAddedProduct ? autoAddedProduct.id : null
   );
 
+  const sameStoreId = (a: string, b: string) =>
+    a === b || a.replace(/^store-/, '') === b.replace(/^store-/, '');
+
   // Products belonging to this store
   const storeProducts = products.filter(
-    p => p.storeId === store.id || p.storeName.toLowerCase() === store.name.toLowerCase()
+    p => sameStoreId(p.storeId, store.id) || p.storeName.toLowerCase() === store.name.toLowerCase()
   );
+
+  const fallbackImage = resolveMediaUrl(storeProducts.find(p => p.image)?.image || '');
+  const coverSrc = mediaSrc(store.coverImage || store.logo || fallbackImage);
+  const logoSrc = mediaSrc(store.logo || store.coverImage || fallbackImage);
 
   // Filter items in cart that belong to this store or overall
   const cartItemsFromStore = cart.filter(
@@ -102,9 +110,11 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
         {/* Cover Photo */}
         <div className="h-48 sm:h-64 relative bg-slate-900">
           <img 
-            src={store.coverImage} 
-            alt={store.name} 
+            src={coverSrc} 
+            alt={store.name}
+            onError={onImageError}
             className="w-full h-full object-cover opacity-90"
+            referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent" />
           
@@ -123,9 +133,11 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
         <div className="p-6 relative -mt-12 sm:-mt-16 flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 border-b border-slate-100 bg-white">
           <div className="flex items-end gap-4">
             <img 
-              src={store.logo} 
-              alt={store.name} 
+              src={logoSrc} 
+              alt={store.name}
+              onError={onImageError}
               className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-4 border-white shadow-xl bg-white shrink-0"
+              referrerPolicy="no-referrer"
             />
             <div>
               <div className="flex items-center gap-2">
@@ -213,9 +225,12 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
                     {/* Image */}
                     <div className="h-44 relative bg-slate-100 overflow-hidden">
                       <img 
-                        src={product.image} 
-                        alt={product.name} 
+                        src={mediaSrc(product.image)} 
+                        alt={product.name}
+                        onError={onImageError}
                         className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
                       />
                       {qtyInCart > 0 && (
                         <span className="absolute top-3 right-3 bg-orange-500 text-white font-black text-xs px-3 py-1 rounded-full shadow-md flex items-center gap-1">
