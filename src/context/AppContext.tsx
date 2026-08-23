@@ -880,12 +880,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       storeNetEarnings,
       totalAmount: cartSubtotal + resolvedQuote.deliveryFee,
       status: 'pending',
-      paymentMethod: details.paymentMethod,
-      storePaymentMode: details.storePaymentMode ?? (details.paymentMethod === 'cash' ? 'delivery' : 'online'),
+      paymentMethod: 'cash',
+      storePaymentMode: 'delivery',
       paymentStatus: 'pending',
       deliveryFeePaymentStatus: 'pending',
-      momoTransactionRef: details.momoTransactionRef,
-      paymentReceiptPhoto: details.paymentReceiptPhoto,
       createdAt: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       notes: details.notes,
       estimatedMinutes: Math.round(10 + resolvedQuote.distanceKm * 4),
@@ -896,7 +894,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payload.append('clientAddress', details.clientAddress);
     payload.append('deliveryFee', String(resolvedQuote.deliveryFee));
     payload.append('distanceKm', String(resolvedQuote.distanceKm));
-    payload.append('paymentMethod', details.paymentMethod);
+    payload.append('paymentMethod', 'cash');
     payload.append('paymentStatus', newOrder.paymentStatus);
 
     payload.append('clientName', details.clientName || currentUser?.name || 'Client');
@@ -904,69 +902,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payload.append('clientLat', String(clientLat));
     payload.append('clientLng', String(clientLng));
     payload.append('notes', details.notes || '');
-    if (details.momoTransactionRef) payload.append('momoTransactionRef', details.momoTransactionRef);
 
     let persistedOrder: Order = newOrder;
     try {
       const response = await axios.post(buildApiUrl('/backend/index.php/api/orders'), payload, { withCredentials: true });
       persistedOrder = response.data?.order ? mapApiOrder(response.data.order) : newOrder;
-
-      if (details.paymentMethod === 'momo_mtn' && persistedOrder.databaseId) {
-        const txRes = await axios.post(buildApiUrl('/backend/index.php/api/payments/transactions'), new URLSearchParams({
-          orderId: String(persistedOrder.databaseId),
-          phone: details.clientPhone || '',
-          provider: 'mtn_momo',
-          idempotencyKey: `order-${persistedOrder.databaseId}-mtn`,
-        }), { withCredentials: true });
-
-        const transactionId = txRes.data?.transaction?.id;
-        if (transactionId) {
-          addNotification(
-            'Paiement MTN MoMo',
-            'Validez la demande sur votre téléphone. Nous confirmons le paiement côté serveur…',
-            'client',
-            persistedOrder.id,
-          );
-
-          // Polling serveur (jamais faire confiance au navigateur seul).
-          const maxAttempts = 24;
-          for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-            await new Promise((r) => setTimeout(r, 5000));
-            try {
-              const statusRes = await axios.get(buildApiUrl('/backend/index.php/api/payments/status'), {
-                params: { transactionId },
-                withCredentials: true,
-              });
-              const status = String(statusRes.data?.transaction?.status || 'pending');
-              if (status === 'successful') {
-                persistedOrder = { ...persistedOrder, paymentStatus: 'paid' };
-                addNotification('Paiement confirmé', 'Votre paiement MTN MoMo a été validé.', 'client', persistedOrder.id);
-                break;
-              }
-              if (status === 'failed' || status === 'cancelled') {
-                persistedOrder = { ...persistedOrder, paymentStatus: 'failed' as any };
-                addNotification('Paiement échoué', 'Le paiement Mobile Money a échoué ou a été annulé.', 'client', persistedOrder.id);
-                break;
-              }
-            } catch {
-              // continuer le polling
-            }
-          }
-        }
-      }
-
-      if (details.paymentMethod === 'wallet') {
-        // Solde mis à jour côté serveur ; rafraîchir le profil
-        try {
-          const meRes = await axios.get(buildApiUrl('/backend/index.php/api/auth/me'), { withCredentials: true });
-          if (meRes.data?.user && currentUserId) {
-            const bal = Number(meRes.data.user.walletBalance || 0);
-            setAllUsers(prev => prev.map(u => u.id === currentUserId ? { ...u, walletBalance: bal } : u));
-          }
-        } catch {
-          // ignore
-        }
-      }
 
       setOrders(prev => [persistedOrder, ...prev.filter(order => order.id !== persistedOrder.id)]);
       setActiveTrackingOrder(persistedOrder);

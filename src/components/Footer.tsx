@@ -246,15 +246,9 @@ export const Footer: React.FC = () => {
         <div className="pt-6 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-400">
           
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-            <span className="text-[11px] font-medium text-slate-500 mr-2">Paiement à la livraison ou par Mobile Money :</span>
+            <span className="text-[11px] font-medium text-slate-500 mr-2">Mode de paiement :</span>
             <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-semibold text-[11px]">
-              MTN MoMo
-            </span>
-            <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-semibold text-[11px]">
-              Moov Money
-            </span>
-            <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-semibold text-[11px]">
-              Espèces (Cash)
+              Espèces à la livraison
             </span>
           </div>
 

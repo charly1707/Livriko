@@ -178,7 +178,7 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
           </div>
           <div className="p-3">
             <span className="text-slate-400 block text-[10px] uppercase font-bold">Paiement Accepté</span>
-            <span className="font-bold text-slate-900">MoMo (MTN/Moov) & Cash</span>
+            <span className="font-bold text-slate-900">Paiement à la livraison (espèces)</span>
           </div>
           <div className="p-3">
             <span className="text-slate-400 block text-[10px] uppercase font-bold">Menu / Catalogue</span>
@@ -366,41 +366,15 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
               </button>
             </div>
 
-            {/* Middle: Accepted Payment Badges with Real Payment Logos */}
-            <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-300 bg-slate-800/80 px-3 py-2 rounded-2xl border border-slate-700">
-              <span className="col-span-2 text-slate-400 font-bold text-[10px]">Paiement :</span>
-              {[
-                {
-                  name: 'MTN MoMo',
-                  logo: '/mtn-momo.svg',
-                  accent: 'bg-amber-500/10 border-amber-500/20 text-amber-200',
-                },
-                {
-                  name: 'Moov Money',
-                  logo: '/moov-money.svg',
-                  accent: 'bg-blue-500/10 border-blue-500/20 text-blue-200',
-                },
-                {
-                  name: 'Celtis Cash',
-                  logo: '/celtis-cash.svg',
-                  accent: 'bg-purple-500/10 border-purple-500/20 text-purple-200',
-                },
-                {
-                  name: 'Espèces',
-                  logo: '/cash.svg',
-                  accent: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200',
-                },
-              ].map((method) => (
-                <div
-                  key={method.name}
-                  className={`flex items-center gap-2 rounded-2xl border px-2.5 py-1 ${method.accent} border-opacity-80 min-w-0`}
-                >
-                  <div className="w-5 h-5 rounded-lg overflow-hidden bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                    <img src={method.logo} alt={method.name} className="max-h-4 max-w-4 object-contain" />
-                  </div>
-                  <span className="font-semibold uppercase tracking-[0.08em] leading-tight">{method.name}</span>
+            {/* Middle: Accepted Payment */}
+            <div className="flex items-center gap-2 text-[10px] text-slate-300 bg-slate-800/80 px-3 py-2 rounded-2xl border border-slate-700">
+              <span className="text-slate-400 font-bold">Paiement :</span>
+              <div className="flex items-center gap-2 rounded-2xl border px-2.5 py-1 bg-emerald-500/10 border-emerald-500/20 text-emerald-200">
+                <div className="w-5 h-5 rounded-lg overflow-hidden bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                  <img src="/cash.svg" alt="Espèces" className="max-h-4 max-w-4 object-contain" />
                 </div>
-              ))}
+                <span className="font-semibold uppercase tracking-[0.08em] leading-tight">À la livraison</span>
+              </div>
             </div>
 
             {/* Right Action: Cancel Button & Checkout */}
@@ -419,7 +393,7 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
                 onClick={onOpenCart}
                 className="flex-1 md:flex-none px-5 py-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black text-xs shadow-xl shadow-orange-500/20 flex items-center justify-center gap-2 transition cursor-pointer"
               >
-                <span>Finaliser la commande (MoMo / Celtis / Cash)</span>
+                <span>Finaliser la commande (paiement à la livraison)</span>
                 <ChevronRight className="w-4 h-4 text-white" />
               </button>
             </div>

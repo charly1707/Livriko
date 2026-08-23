@@ -8,7 +8,6 @@ import { orderPublicId, publicId, storePublicId, toObjectId } from '../utils/ids
 import { defaultStoreCoordinates } from '../utils/geo.js';
 import { calculateDeliveryFee, haversineKm, isValidLatLng } from '../utils/deliveryPricing.js';
 import { getRoute } from '../services/maps.js';
-import { payWithWallet } from './walletController.js';
 
 const STATUS_TRANSITIONS = {
   pending: ['confirmed', 'cancelled'],
@@ -132,8 +131,7 @@ export async function createOrder(req, res) {
       });
     }
 
-    const allowedPayments = ['cash', 'momo_mtn', 'momo_moov', 'orange_money', 'celtis_cash', 'wallet'];
-    const paymentMethod = allowedPayments.includes(payload.paymentMethod) ? payload.paymentMethod : 'cash';
+    const paymentMethod = 'cash';
     const address = String(payload.clientAddress || '').trim();
     if (!address) {
       return res.status(400).json({ success: false, message: 'Adresse de livraison requise.' });
@@ -165,7 +163,7 @@ export async function createOrder(req, res) {
     const code = `#LVK-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(10 + Math.random() * 90)}`;
 
     let paymentStatus = 'pending';
-    let paymentSource = paymentMethod === 'cash' ? 'cash' : paymentMethod === 'wallet' ? 'wallet' : 'direct_momo';
+    let paymentSource = 'cash';
 
     const order = await Order.create({
       code,
@@ -187,7 +185,7 @@ export async function createOrder(req, res) {
       paymentMethod,
       paymentSource,
       paymentStatus,
-      momoTransactionRef: payload.momoTransactionRef || payload.momo_tx_ref || null,
+      momoTransactionRef: null,
       notes: payload.notes || '',
       delivery: {
         distanceKm: feeBreakdown.distanceKm,
@@ -195,12 +193,6 @@ export async function createOrder(req, res) {
       },
       history: [{ status: 'pending', at: new Date() }],
     });
-
-    if (paymentMethod === 'wallet') {
-      await payWithWallet(userId, total, order._id, `Commande ${code}`);
-      order.paymentStatus = 'paid';
-      await order.save();
-    }
 
     return res.status(201).json({ success: true, order: await serializeOrder(order, { store }) });
   } catch (error) {

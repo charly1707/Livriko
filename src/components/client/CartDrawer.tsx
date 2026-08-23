@@ -72,39 +72,6 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     setIsAuthModalOpen,
   } = useApp();
 
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'momo_mtn' | 'momo_moov' | 'orange_money' | 'celtis_cash' | 'wallet'>('momo_mtn');
-  const [storePaymentMode, setStorePaymentMode] = useState<'online' | 'delivery'>('online');
-
-  const paymentMethodOptions = [
-    {
-      id: 'momo_mtn' as const,
-      name: 'MTN MoMo',
-      logoUrl: '/mtn-momo.svg',
-      accent: 'bg-[#F7C600] text-slate-900 border-[#F7C600]',
-    },
-    {
-      id: 'wallet' as const,
-      name: 'Portefeuille',
-      logoUrl: '/wallet.svg',
-      accent: 'bg-[#0F766E] text-white border-[#0F766E]',
-    },
-    {
-      id: 'cash' as const,
-      name: 'Espèces',
-      logoUrl: '/cash.svg',
-      accent: 'bg-[#10B981] text-white border-[#10B981]',
-    },
-    {
-      id: 'momo_moov' as const,
-      name: 'Moov Money',
-      logoUrl: '/moov-money.svg',
-      accent: 'bg-[#1E40AF] text-white border-[#1E40AF]',
-    },
-  ];
-  const [momoTxRef, setMomoTxRef] = useState('');
-  const [paymentReceiptPhoto, setPaymentReceiptPhoto] = useState('');
-  const [copiedPhone, setCopiedPhone] = useState(false);
-
   const [address, setAddress] = useState(currentUser?.location?.address || 'Quartier Agamé, Parcelle 14 - Lokossa');
   const [phone, setPhone] = useState(currentUser?.phone || '+229 97 12 34 56');
   const [name, setName] = useState(currentUser?.name || 'Client Livriko');
@@ -125,17 +92,6 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   const [routeError, setRouteError] = useState<string | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
-  const handleImageFileSelect = (file: File | null, setter: React.Dispatch<React.SetStateAction<string>>) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setter(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
   useEffect(() => {
     if (isOpen && currentUser) {
       if (currentUser.name) setName(currentUser.name);
@@ -147,12 +103,6 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       }
     }
   }, [isOpen, currentUser]);
-
-  useEffect(() => {
-    if (paymentMethod === 'cash') {
-      setStorePaymentMode('delivery');
-    }
-  }, [paymentMethod]);
 
   const [geoError, setGeoError] = useState<string | null>(null);
 
@@ -217,15 +167,6 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       return;
     }
 
-    if (paymentMethod === 'momo_moov' || paymentMethod === 'orange_money' || paymentMethod === 'celtis_cash') {
-      setSubmissionError('Ce moyen de paiement n’est pas encore activé. Choisissez MTN MoMo, portefeuille ou espèces.');
-      return;
-    }
-    if (paymentMethod === 'wallet' && (currentUser?.walletBalance ?? 0) < (cartSubtotal + cartDeliveryFee)) {
-      setSubmissionError('Solde portefeuille insuffisant.');
-      return;
-    }
-
     setSubmissionError(null);
     setIsSubmitting(true);
 
@@ -235,16 +176,14 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       }
       const quote = calculateDeliveryFee(resolvedDistanceKm);
       await placeOrder({
-        paymentMethod,
-        storePaymentMode,
+        paymentMethod: 'cash',
+        storePaymentMode: 'delivery',
         clientName: name,
         clientPhone: phone,
         clientAddress: address,
         notes,
         clientLat: clientCoords.lat,
         clientLng: clientCoords.lng,
-        momoTransactionRef: momoTxRef,
-        paymentReceiptPhoto,
         deliveryQuote: {
           distanceKm: quote.distanceKm,
           deliveryFee: quote.deliveryFee,
@@ -618,63 +557,14 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
               {/* Payment Methods */}
               <div className="pt-4 border-t border-slate-200 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Choisissez votre moyen de paiement</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  {paymentMethodOptions.map(option => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setPaymentMethod(option.id)}
-                      className={`p-3 rounded-2xl border text-left text-xs font-bold transition ${
-                        paymentMethod === option.id
-                          ? `${option.accent} ring-2 ring-orange-300`
-                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {option.name}
-                    </button>
-                  ))}
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Mode de paiement</h4>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-1.5">
+                  <p className="text-sm font-black text-emerald-900">Paiement à la livraison uniquement</p>
+                  <p className="text-[11px] text-emerald-800 leading-relaxed">
+                    Réglez en espèces auprès du livreur à la réception de votre commande. Préparez le montant exact si possible
+                    ({(cartSubtotal + cartDeliveryFee).toLocaleString()} FCFA).
+                  </p>
                 </div>
-
-                {paymentMethod === 'momo_mtn' && (
-                  <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-[11px] text-amber-900 font-semibold">
-                      Paiement MTN MoMo : validez la demande sur votre téléphone après confirmation.
-                    </p>
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={e => setPhone(e.target.value)}
-                      placeholder="Numéro MoMo (+229...)"
-                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs"
-                    />
-                  </div>
-                )}
-
-                {paymentMethod === 'wallet' && (
-                  <div className="space-y-2 rounded-2xl border border-teal-200 bg-teal-50 p-3">
-                    <p className="text-[11px] text-teal-900 font-semibold">
-                      Solde portefeuille : {(currentUser?.walletBalance ?? 0).toLocaleString()} FCFA
-                    </p>
-                    {(currentUser?.walletBalance ?? 0) < (cartSubtotal + cartDeliveryFee) && (
-                      <p className="text-[11px] text-rose-700">
-                        Solde insuffisant pour cette commande. Rechargez ou choisissez un autre moyen.
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {paymentMethod === 'cash' && (
-                  <p className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                    Paiement en espèces à la livraison. Préparez le montant exact si possible.
-                  </p>
-                )}
-
-                {(paymentMethod === 'momo_moov' || paymentMethod === 'orange_money' || paymentMethod === 'celtis_cash') && (
-                  <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">
-                    Ce moyen de paiement sera disponible prochainement. Utilisez MTN MoMo, portefeuille ou espèces.
-                  </p>
-                )}
               </div>
             </div>
 

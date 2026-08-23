@@ -186,8 +186,8 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelectCategory, on
             <div className="flex items-center gap-3 text-white/90">
               <CreditCard className="w-5 h-5 text-emerald-400 shrink-0 stroke-[1.75]" />
               <div className="text-left">
-                <p className="text-xs sm:text-sm font-semibold leading-tight text-white">Paiement 100% sécurisé</p>
-                <p className="text-[11px] sm:text-xs text-slate-300 font-light">MoMo, Flooz & Espèces</p>
+                <p className="text-xs sm:text-sm font-semibold leading-tight text-white">Paiement à la livraison</p>
+                <p className="text-[11px] sm:text-xs text-slate-300 font-light">Espèces uniquement</p>
               </div>
             </div>
 
