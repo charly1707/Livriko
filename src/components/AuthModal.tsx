@@ -73,114 +73,112 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setRegistrationError(null);
-    setLoginError(null);
+const handleRegisterSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setRegistrationError(null);
+      setLoginError(null);
 
-    if (!name.trim()) {
-      setRegistrationError("Veuillez renseigner votre nom complet.");
-      return;
-    }
-    if (!email.trim()) {
-      setRegistrationError("Veuillez renseigner votre adresse e-mail.");
-      return;
-    }
-    const emailValue = email.trim().toLowerCase();
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(emailValue)) {
-      setRegistrationError("Veuillez renseigner une adresse e-mail valide.");
-      return;
-    }
-    if (allUsers.some(u => u.email.toLowerCase() === emailValue)) {
-      setRegistrationError("Un compte existe déjà avec cette adresse e-mail.");
-      return;
-    }
-    if (!phone.trim()) {
-      setRegistrationError("Veuillez renseigner votre numéro de téléphone.");
-      return;
-    }
-    if (!password.trim()) {
-      setRegistrationError("Veuillez renseigner un mot de passe.");
-      return;
-    }
-
-    if (selectedRole === 'livreur') {
-      if (!vehicle.trim()) {
-        setRegistrationError("Veuillez renseigner la marque et le modèle de votre moto.");
+      if (!name.trim()) {
+        setRegistrationError("Veuillez renseigner votre nom complet.");
         return;
       }
-      const newUser = registerUser({
-        name,
-        email,
-        password: password || '123456',
-        phone,
-        role: 'livreur',
-        vehicle,
-        city,
-        avatar: selfiePhoto,
-        selfiePhoto,
-        cipPhoto,
-        vehiclePhoto,
-        verificationStatus: 'pending',
-        verificationSubmittedAt: 'À l\'instant',
-      });
-
-      setRegistrationSuccessMessage(
-        `Compte créé ! Dossier de sécurité N° #LVK-RIDER-${newUser.id.slice(-4)} soumis pour vérification.`
-      );
-      setTimeout(() => {
-        setRegistrationSuccessMessage(null);
-        onClose();
-      }, 1500);
-
-    } else if (selectedRole === 'vendeur') {
-      if (!storeName.trim()) {
-        setRegistrationError("Le nom de la boutique est obligatoire.");
+      if (!email.trim()) {
+        setRegistrationError("Veuillez renseigner votre adresse e-mail.");
         return;
       }
-      if (!storeAddress.trim()) {
-        setRegistrationError("L'adresse de la boutique est obligatoire.");
+      const emailValue = email.trim().toLowerCase();
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(emailValue)) {
+        setRegistrationError("Veuillez renseigner une adresse e-mail valide.");
         return;
       }
-      const newUser = registerUser({
-        name,
-        email,
-        password: password || '123456',
-        phone,
-        role: 'vendeur',
-        city,
-        avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80',
-        storeName: storeName || `Boutique de ${name}`,
-        storeCategory,
-        storeAddress,
-      });
+      if (!phone.trim()) {
+        setRegistrationError("Veuillez renseigner votre numéro de téléphone.");
+        return;
+      }
+      if (!password.trim()) {
+        setRegistrationError("Veuillez renseigner un mot de passe.");
+        return;
+      }
+      if (password.trim().length < 8) {
+        setRegistrationError("Le mot de passe doit contenir au moins 8 caractères.");
+        return;
+      }
 
-      setRegistrationSuccessMessage(`Félicitations ! Votre espace boutique "${newUser.name}" a été activé.`);
-      setTimeout(() => {
-        setRegistrationSuccessMessage(null);
-        onClose();
-      }, 1200);
-    } else {
-      const newUser = registerUser({
-        name,
-        email,
-        password: password || '123456',
-        phone,
-        role: selectedRole,
-        city,
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-      });
+      try {
+        let newUser;
 
-      setRegistrationSuccessMessage(`Compte créé avec succès ! Bienvenue sur Livriko, ${newUser.name}.`);
-      setTimeout(() => {
-        setRegistrationSuccessMessage(null);
-        onClose();
-      }, 1000);
+        if (selectedRole === 'livreur') {
+          if (!vehicle.trim()) {
+            setRegistrationError("Veuillez renseigner la marque et le modèle de votre moto.");
+            return;
+          }
+          newUser = await registerUser({
+            name,
+            email,
+            password: password || '123456',
+            phone,
+            role: 'livreur',
+            vehicle,
+            city,
+            avatar: selfiePhoto,
+            selfiePhoto,
+            cipPhoto,
+            vehiclePhoto,
+            verificationStatus: 'pending',
+            verificationSubmittedAt: 'À l\'instant',
+          });
+
+          setRegistrationSuccessMessage(
+            `Compte créé ! Dossier de sécurité N° #LVK-RIDER-${newUser.id.slice(-4)} soumis pour vérification.`
+          );
+        } else if (selectedRole === 'vendeur') {
+          if (!storeName.trim()) {
+            setRegistrationError("Le nom de la boutique est obligatoire.");
+            return;
+          }
+          if (!storeAddress.trim()) {
+            setRegistrationError("L'adresse de la boutique est obligatoire.");
+            return;
+          }
+          newUser = await registerUser({
+            name,
+            email,
+            password: password || '123456',
+            phone,
+            role: 'vendeur',
+            city,
+            avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80',
+            storeName: storeName || `Boutique de ${name}`,
+            storeCategory,
+            storeAddress,
+          });
+
+          setRegistrationSuccessMessage(`Félicitations ! Votre espace boutique "${newUser.name}" a été activé.`);
+        } else {
+          newUser = await registerUser({
+            name,
+            email,
+            password: password || '123456',
+            phone,
+            role: selectedRole,
+            city,
+            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+          });
+
+          setRegistrationSuccessMessage(`Compte créé avec succès ! Bienvenue sur Livriko, ${newUser.name}.`);
+        }
+
+        setTimeout(() => {
+          setRegistrationSuccessMessage(null);
+          onClose();
+        }, 1200);
+      } catch (err: any) {
+        setRegistrationError(err.message || 'Échec de l’inscription.');
     }
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
     setLoginSuccess(null);
@@ -190,7 +188,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    const res = loginUser(loginEmail, loginPassword);
+    const res = await loginUser(loginEmail, loginPassword);
     if (res.success && res.user) {
       setLoginSuccess('Connexion réussie !');
       setActiveRole(res.user.role, true);
@@ -213,7 +211,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     },
     {
       role: 'vendeur' as UserRole,
-      title: 'Vendeur / Pharmacie',
+      title: 'Vendeur / Boutique',
       desc: 'Gérer boutique, produits & ventes',
       icon: Store,
       color: 'bg-blue-50 text-blue-600 border-blue-200',
@@ -393,12 +391,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </select>
             </div>
 
-            {/* Vendeur / Pharmacien specific fields */}
+            {/* Vendeur specific fields */}
             {selectedRole === 'vendeur' && (
               <div className="p-4 bg-blue-50/70 rounded-2xl border border-blue-200 space-y-3">
                 <div className="flex items-center gap-2 text-blue-900 font-bold text-xs uppercase">
                   <Store className="w-4 h-4 text-blue-600" />
-                  Informations de votre Commerce / Pharmacie
+                  Informations de votre Commerce
                 </div>
 
                 <div>
@@ -422,7 +420,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                     >
                       <option value="restaurants">Restaurant / Maquis</option>
-                      <option value="pharmacies">Pharmacie de garde</option>
                       <option value="supermarches">Supermarché / Épicerie</option>
                       <option value="boutiques">Boutique High-Tech / Mode</option>
                       <option value="autres">Services Express</option>

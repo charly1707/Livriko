@@ -18,6 +18,19 @@ export const AdminView: React.FC = () => {
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'verifications' | 'stores' | 'orders'>('verifications');
+  const [activeTab2, setActiveTab2] = useState<'verifications' | 'stores' | 'orders' | 'reviews'>('verifications');
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviewFilters, setReviewFilters] = useState({ driver_id: '', rating: '' });
+
+  React.useEffect(() => {
+    if (activeTab2 !== 'reviews') return;
+    const params = new URLSearchParams();
+    if (reviewFilters.driver_id) params.append('driver_id', reviewFilters.driver_id);
+    if (reviewFilters.rating) params.append('rating', reviewFilters.rating);
+    fetch('/backend/index.php/api/reviews/admin?' + params.toString(), { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => { if (data.success) setReviews(data.reviews || []); });
+  }, [activeTab2, reviewFilters]);
 
   const totalGMV = orders.reduce((sum, o) => sum + o.totalAmount, 0);
   const totalCommission = Math.round(totalGMV * 0.10); // 10% platform commission
@@ -66,8 +79,8 @@ export const AdminView: React.FC = () => {
               SUPERVISION MARCHE & LIVRAISON LIVRIKO
             </span>
           </div>
-          <h1 className="text-2xl font-black text-white mt-1">Tableau de Bord Super Administrateur</h1>
-          <p className="text-xs text-slate-400">Certification des livreurs (CIP & Moto sous 12h), validation des boutiques et contrôle des flux.</p>
+          <h1 className="text-xl sm:text-2xl font-black text-white mt-1 break-words">Tableau de Bord Super Administrateur</h1>
+          <p className="text-xs text-slate-400 break-words">Certification des livreurs (CIP & Moto sous 12h), validation des boutiques et contrôle des flux.</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -80,39 +93,39 @@ export const AdminView: React.FC = () => {
 
       {/* Analytics KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2 min-w-0">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold">Volume d'Affaires (GMV)</span>
             <TrendingUp className="w-5 h-5 text-blue-600" />
           </div>
-          <h3 className="text-2xl font-black text-slate-900">{totalGMV.toLocaleString()} FCFA</h3>
+          <h3 className="text-xl sm:text-2xl font-black text-slate-900 break-words">{totalGMV.toLocaleString()} FCFA</h3>
           <p className="text-[11px] text-emerald-600 font-semibold">↑ Flux réels Lokossa</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2 min-w-0">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold">Dossiers Livreurs en Attente</span>
             <Clock className="w-5 h-5 text-amber-500" />
           </div>
-          <h3 className="text-2xl font-black text-amber-600">{pendingLivreurs.length} dossier(s)</h3>
+          <h3 className="text-xl sm:text-2xl font-black text-amber-600 break-words">{pendingLivreurs.length} dossier(s)</h3>
           <p className="text-[11px] text-slate-500">Examen sous 12h max</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2 min-w-0">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold">Boutiques Partenaires</span>
             <Store className="w-5 h-5 text-indigo-600" />
           </div>
-          <h3 className="text-2xl font-black text-slate-900">{vendorsCount}</h3>
+          <h3 className="text-xl sm:text-2xl font-black text-slate-900 break-words">{vendorsCount}</h3>
           <p className="text-[11px] text-emerald-600 font-semibold">{stores.filter(s => s.isCertified).length} certifiées</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2 min-w-0">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold">Livreurs Certifiés</span>
             <Truck className="w-5 h-5 text-emerald-600" />
           </div>
-          <h3 className="text-2xl font-black text-slate-900">{approvedLivreurs.length} / {ridersCount}</h3>
+          <h3 className="text-xl sm:text-2xl font-black text-slate-900 break-words">{approvedLivreurs.length} / {ridersCount}</h3>
           <p className="text-[11px] text-slate-500">Flotte moto agréée</p>
         </div>
       </div>
@@ -120,7 +133,7 @@ export const AdminView: React.FC = () => {
       {/* Navigation Sub-Tabs */}
       <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none gap-2 rounded-2xl bg-slate-100 p-1 max-w-xl">
         <button
-          onClick={() => setActiveTab('verifications')}
+          onClick={() => { setActiveTab('verifications'); setActiveTab2('verifications'); }}
           className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'verifications' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
           }`}
@@ -130,7 +143,7 @@ export const AdminView: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('stores')}
+          onClick={() => { setActiveTab('stores'); setActiveTab2('stores'); }}
           className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'stores' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
           }`}
@@ -140,13 +153,23 @@ export const AdminView: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('orders')}
+          onClick={() => { setActiveTab('orders'); setActiveTab2('orders'); }}
           className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'orders' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
           }`}
         >
           <ShoppingBag className="w-4 h-4 text-orange-500" />
           Commandes ({orders.length})
+        </button>
+      </div>
+
+      {/* Extra Tab: Reviews */}
+      <div className="mt-3">
+        <button
+          onClick={() => setActiveTab2('reviews')}
+          className={`py-2 px-3 rounded-xl text-xs font-bold ${activeTab2 === 'reviews' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+        >
+          Évaluations des livreurs
         </button>
       </div>
 
@@ -252,6 +275,50 @@ export const AdminView: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab2 === 'reviews' && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4 mt-4">
+          <h2 className="text-lg font-bold text-slate-900">Évaluations des livreurs</h2>
+          <div className="flex items-center gap-2">
+            <select value={reviewFilters.driver_id} onChange={e=>setReviewFilters(f=>({...f,driver_id:e.target.value}))} className="px-3 py-2 rounded border">
+              <option value="">Tous les livreurs</option>
+              {allUsers.filter(u=>u.role==='livreur').map(l=> <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+            <select value={reviewFilters.rating} onChange={e=>setReviewFilters(f=>({...f,rating:e.target.value}))} className="px-3 py-2 rounded border">
+              <option value="">Toutes les notes</option>
+              {[5,4,3,2,1].map(n=> <option key={n} value={String(n)}>{n} ⭐</option>)}
+            </select>
+            <button onClick={()=>{setReviewFilters({driver_id:'',rating:''});}} className="px-3 py-2 rounded bg-slate-100">Réinitialiser</button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase text-[10px]">
+                  <th className="pb-3">Date</th>
+                  <th className="pb-3">Commande</th>
+                  <th className="pb-3">Client</th>
+                  <th className="pb-3">Livreur</th>
+                  <th className="pb-3">Note</th>
+                  <th className="pb-3">Commentaire</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {reviews.map(r=> (
+                  <tr key={r.id} className="hover:bg-slate-50/80">
+                    <td className="py-3 text-slate-600">{r.created_at}</td>
+                    <td className="py-3 font-mono text-blue-600">{r.code_commande || r.order_id}</td>
+                    <td className="py-3">{r.client_nom} {r.client_prenom}</td>
+                    <td className="py-3">{r.driver_nom} {r.driver_prenom}</td>
+                    <td className="py-3 font-bold">{r.rating} ⭐</td>
+                    <td className="py-3 text-slate-700">{r.comment}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

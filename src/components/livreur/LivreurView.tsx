@@ -4,13 +4,24 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Order, OrderStatus, User } from '../../types';
-import { calculateDeliveryFee, calculateHaversineDistance, formatFCFA } from '../../utils/deliveryCalculator';
+import { calculateDeliveryFee, calculateHaversineDistance, formatFCFA, isValidCoordinates } from '../../utils/deliveryCalculator';
 
 interface RiderAcceptButtonProps {
   order: Order;
   currentUser: User;
   getNearestRiderForOrder: (order: Order) => User | null;
   onAccept: () => void;
+}
+
+interface ServiceMission {
+  id: number;
+  type: string;
+  description: string;
+  fromAddress: string;
+  toAddress: string;
+  distanceKm: number;
+  fee: number;
+  status: string;
 }
 
 const RiderAcceptButton: React.FC<RiderAcceptButtonProps> = ({ order, currentUser, getNearestRiderForOrder, onAccept }) => {
@@ -29,7 +40,7 @@ const RiderAcceptButton: React.FC<RiderAcceptButtonProps> = ({ order, currentUse
       disabled={!isNearest}
       className={`px-5 py-2.5 rounded-xl text-xs font-bold shadow-md transition flex items-center gap-2 ${isNearest ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}
     >
-      <Play className="w-4 h-4 ${isNearest ? 'fill-white' : ''}" />
+      <Play className={`w-4 h-4 ${isNearest ? 'fill-white' : ''}`} />
       {label}
     </button>
   );
@@ -54,12 +65,21 @@ export const LivreurView: React.FC = () => {
   const [editVehicle, setEditVehicle] = useState(currentUser?.vehicle || '');
 
   const [activeTab, setActiveTab] = useState<'active' | 'available' | 'history'>('active');
+  const [serviceMissions, setServiceMissions] = useState<ServiceMission[]>([]);
 
   const handleCompleteDelivery = (order: Order) => {
-    const defaultDistance = order.finalDistanceKm ?? order.distanceKm ?? 2;
-    const entered = window.prompt('Entrez la distance finale relevée au compteur (km)', String(defaultDistance));
+    const initialDistance = order.finalDistanceKm ?? order.distanceKm;
+    if (!initialDistance || initialDistance <= 0) {
+      window.alert('La distance réelle de la livraison est indisponible.');
+      return;
+    }
+    const entered = window.prompt('Entrez la distance finale relevée au compteur (km)', String(initialDistance));
     const finalDistanceKm = entered ? parseFloat(entered.replace(',', '.')) : undefined;
-    updateOrderStatus(order.id, 'delivered', finalDistanceKm && !Number.isNaN(finalDistanceKm) ? finalDistanceKm : defaultDistance);
+    if (!finalDistanceKm || Number.isNaN(finalDistanceKm) || finalDistanceKm <= 0) {
+      window.alert('Une distance réelle valide est nécessaire pour terminer la livraison.');
+      return;
+    }
+    updateOrderStatus(order.id, 'delivered', finalDistanceKm);
   };
 
   // Orders available for rider acceptance (where store requested a rider)
@@ -67,14 +87,16 @@ export const LivreurView: React.FC = () => {
 
   const getNearestRiderForOrder = (order: Order): User | null => {
     const riders = allUsers.filter(u => u.role === 'livreur' && u.verificationStatus === 'approved');
-    const storeLat = order.storeLat ?? currentUser?.location?.lat ?? 6.6432;
-    const storeLng = order.storeLng ?? currentUser?.location?.lng ?? 1.7145;
+    const storeLat = order.storeLat;
+    const storeLng = order.storeLng;
+    if (!isValidCoordinates(storeLat, storeLng)) return null;
 
     const nearest = riders.reduce((best, rider) => {
       const riderLat = rider.location?.lat;
       const riderLng = rider.location?.lng;
-      if (riderLat === undefined || riderLng === undefined) return best;
+      if (!isValidCoordinates(riderLat, riderLng)) return best;
       const distance = calculateHaversineDistance(storeLat, storeLng, riderLat, riderLng);
+      if (distance === null) return best;
       if (!best || distance < best.distance) {
         return { rider, distance };
       }
@@ -91,9 +113,44 @@ export const LivreurView: React.FC = () => {
 
   // Completed deliveries for stats (85% driver earnings)
   const completedOrders = orders.filter(o => o.riderId === currentUser?.id && o.status === 'delivered');
+  // Track which orders have been reviewed (frontend quick check)
+  const reviewedOrderIds = new Set<string>();
   const totalRiderEarnings = completedOrders.reduce((sum, o) => {
     return sum + (o.driverEarnings ?? Math.round(o.deliveryFee * 0.85));
   }, 0);
+
+  const [ratingStats, setRatingStats] = React.useState<{ total: number; average: number; negative_count: number }>({ total: 0, average: 0, negative_count: 0 });
+
+  React.useEffect(() => {
+    if (!currentUser) return;
+    fetch('/backend/index.php/api/reviews/driver?driver_id=' + currentUser.id, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.stats) {
+          setRatingStats(data.stats);
+        }
+      }).catch(()=>{});
+  }, [currentUser]);
+
+  const loadServiceMissions = React.useCallback(() => {
+    if (!currentUser) return;
+    fetch('/backend/index.php/api/service-express', { credentials: 'include' })
+      .then(response => response.json())
+      .then(data => { if (data.success) setServiceMissions(data.missions || []); })
+      .catch(() => undefined);
+  }, [currentUser]);
+
+  React.useEffect(() => { loadServiceMissions(); }, [loadServiceMissions]);
+
+  const updateServiceMission = (missionId: number, status: string) => {
+    fetch('/backend/index.php/api/service-express/status', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ missionId: String(missionId), status }),
+    }).then(response => response.json()).then(data => {
+      if (data.success) loadServiceMissions();
+    }).catch(() => undefined);
+  };
 
   const isPendingVerification = currentUser?.verificationStatus === 'pending';
   const isRejected = currentUser?.verificationStatus === 'rejected';
@@ -184,7 +241,7 @@ export const LivreurView: React.FC = () => {
       )}
       
       {/* Rider Status & Profile Card */}
-      <div className="bg-gradient-to-r from-emerald-700 via-emerald-800 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+      <div className="bg-linear-to-r from-emerald-700 via-emerald-800 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <img
             src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'}
@@ -198,7 +255,7 @@ export const LivreurView: React.FC = () => {
               </span>
               <span className="text-xs text-emerald-200">• {currentUser?.vehicle || 'Moto'}</span>
             </div>
-            <h1 className="text-2xl font-black text-white mt-0.5 flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-black text-white mt-0.5 flex flex-wrap items-center gap-2 wrap-break-word">
               {currentUser?.name || 'Livreur Livriko'}
               {currentUser?.verificationStatus === 'approved' && (
                 <ShieldCheck className="w-5 h-5 text-emerald-400" />
@@ -214,6 +271,14 @@ export const LivreurView: React.FC = () => {
             <span className="text-[10px] uppercase font-bold text-emerald-200 block">Gains estimées</span>
             <span className="text-xl font-black text-white">{totalRiderEarnings.toLocaleString()} FCFA</span>
           </div>
+
+            <div className="bg-white/10 backdrop-blur-xs p-3 rounded-2xl border border-white/10 text-right">
+              <span className="text-[10px] uppercase font-bold text-emerald-200 block">Ma note</span>
+              <div className="flex items-center justify-end gap-2">
+                <span className="text-xl font-black text-white">{ratingStats.average.toFixed(1)} / 5</span>
+                <span className="text-sm text-slate-200">({ratingStats.total} avis)</span>
+              </div>
+            </div>
 
           <button
             onClick={() => setIsProfileModalOpen(true)}
@@ -283,7 +348,8 @@ export const LivreurView: React.FC = () => {
             </div>
           ) : (
             myActiveOrders.map(order => {
-              const feeInfo = calculateDeliveryFee(order.distanceKm || 2.0);
+              if (!order.distanceKm || order.distanceKm <= 0) return null;
+              const feeInfo = calculateDeliveryFee(order.distanceKm);
               const totalToCollect = order.subtotal + feeInfo.deliveryFee;
 
               return (
@@ -352,20 +418,20 @@ export const LivreurView: React.FC = () => {
                         </div>
                       </div>
                       <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-xs font-bold border border-emerald-500/30">
-                        {order.distanceKm || 2.0} km • {feeInfo.deliveryFee.toLocaleString()} FCFA
+                        {order.distanceKm} km • {feeInfo.deliveryFee.toLocaleString()} FCFA
                       </span>
                     </div>
 
                     {/* Animated Route Graphic */}
                     <div className="relative h-28 bg-slate-950 rounded-xl p-4 border border-slate-800 overflow-hidden flex items-center justify-between">
                       <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-1.5 bg-slate-800 rounded-full">
-                        <div className="h-full bg-gradient-to-r from-orange-500 via-emerald-400 to-blue-500 rounded-full w-3/4 animate-pulse" />
+                        <div className="h-full bg-linear-to-r from-orange-500 via-emerald-400 to-blue-500 rounded-full w-3/4 animate-pulse" />
                       </div>
 
                       {/* Store Icon Pin */}
                       <div className="relative z-10 bg-orange-600 text-white p-2 rounded-xl shadow-md text-center">
                         <Store className="w-4 h-4 mx-auto" />
-                        <span className="text-[9px] font-bold block mt-0.5 truncate max-w-[80px]">{order.storeName}</span>
+                        <span className="text-[9px] font-bold block mt-0.5 truncate max-w-20">{order.storeName}</span>
                       </div>
 
                       {/* Rider Scooter Animated */}
@@ -376,7 +442,7 @@ export const LivreurView: React.FC = () => {
                       {/* Client Destination Pin */}
                       <div className="relative z-10 bg-blue-600 text-white p-2 rounded-xl shadow-md text-center">
                         <MapPin className="w-4 h-4 mx-auto" />
-                        <span className="text-[9px] font-bold block mt-0.5 truncate max-w-[80px]">{order.clientName}</span>
+                        <span className="text-[9px] font-bold block mt-0.5 truncate max-w-20">{order.clientName}</span>
                       </div>
                     </div>
 
@@ -442,6 +508,38 @@ export const LivreurView: React.FC = () => {
       {/* TAB 2: AVAILABLE OFFERS POOL */}
       {activeTab === 'available' && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
+          {serviceMissions.length > 0 && (
+            <div className="rounded-2xl border border-orange-200 bg-orange-50/60 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Missions Service Express</h2>
+                  <p className="text-xs text-slate-500">Demandes de colis, documents et courses à effectuer.</p>
+                </div>
+                <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">{serviceMissions.length}</span>
+              </div>
+              <div className="grid gap-3">
+                {serviceMissions.map(mission => (
+                  <div key={mission.id} className="rounded-xl border border-orange-200 bg-white p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase text-orange-600">{mission.type} • Mission #{mission.id}</p>
+                      <p className="mt-1 text-sm font-bold text-slate-900 wrap-break-word">{mission.description}</p>
+                      <p className="mt-1 text-xs text-slate-500">{mission.fromAddress} → {mission.toAddress} • {mission.distanceKm} km</p>
+                      <p className="mt-1 text-xs font-bold text-emerald-600">Gain estimé : {Math.round(mission.fee * 0.85).toLocaleString()} FCFA</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 shrink-0">
+                      {mission.status === 'searching' && <button onClick={() => { updateServiceMission(mission.id, 'assigned'); setActiveTab('active'); }} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white">Accepter la mission</button>}
+                      {mission.status === 'assigned' && <button onClick={() => updateServiceMission(mission.id, 'to_pickup')} className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white">En route vers le départ</button>}
+                      {mission.status === 'to_pickup' && <button onClick={() => updateServiceMission(mission.id, 'picked_up')} className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white">Objet récupéré</button>}
+                      {mission.status === 'picked_up' && <button onClick={() => updateServiceMission(mission.id, 'delivering')} className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white">Démarrer la livraison</button>}
+                      {mission.status === 'delivering' && <button onClick={() => updateServiceMission(mission.id, 'delivered')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white">Livraison effectuée</button>}
+                      {mission.status === 'delivered' && <button onClick={() => updateServiceMission(mission.id, 'completed')} className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white">Terminer la mission</button>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-slate-900">Demandes de Livraison Disponibles</h2>
@@ -462,7 +560,8 @@ export const LivreurView: React.FC = () => {
           ) : (
             <div className="space-y-4">
               {availableOrders.map(order => {
-                const estimatedDist = order.distanceKm || 2.0;
+                if (!order.distanceKm || order.distanceKm <= 0) return null;
+                const estimatedDist = order.distanceKm;
                 const feeInfo = calculateDeliveryFee(estimatedDist);
                 return (
                   <div key={order.id} className="p-5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-emerald-400 transition">
@@ -540,9 +639,10 @@ export const LivreurView: React.FC = () => {
           ) : (
             <div className="space-y-4">
               {completedOrders.map(order => {
-                const feeInfo = calculateDeliveryFee(order.distanceKm || 2.0);
+                if (!order.distanceKm || order.distanceKm <= 0) return null;
+                const feeInfo = calculateDeliveryFee(order.distanceKm);
                 return (
-                  <div key={order.id} className="p-5 bg-gradient-to-br from-slate-50 to-emerald-50/30 rounded-2xl border border-slate-200 space-y-4">
+                  <div key={order.id} className="p-5 bg-linear-to-br from-slate-50 to-emerald-50/30 rounded-2xl border border-slate-200 space-y-4">
                     {/* Header */}
                     <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                       <div className="flex items-center gap-2">
@@ -633,7 +733,7 @@ export const LivreurView: React.FC = () => {
 
       {/* Rider Profile Settings Modal */}
       {isProfileModalOpen && (
-        <div className="fixed inset-0 z-[1100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-1100 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-slate-900">

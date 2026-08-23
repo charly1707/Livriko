@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#34D399"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="160" rx="28" fill="#0F766E"/>
+  <rect x="8" y="8" width="144" height="144" rx="24" fill="url(#grad)"/>
+  <text x="80" y="88" text-anchor="middle" font-family="Inter, sans-serif" font-size="36" font-weight="800" fill="#fff">ESPÈCES</text>
+</svg>

@@ -12,11 +12,13 @@ class Database
     public static function getInstance(): PDO
     {
         if (self::$instance === null) {
-            $config = require __DIR__ . '/db.php';
+            $configFile = getenv('APP_ENV') === 'local' ? __DIR__ . '/db.local.php' : __DIR__ . '/db.php';
+            $config = require $configFile;
 
             try {
+                $port = !empty($config['port']) ? ';port=' . (string)$config['port'] : '';
                 self::$instance = new PDO(
-                    sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', $config['host'], $config['database']),
+                    sprintf('mysql:host=%s;dbname=%s%s;charset=utf8mb4', $config['host'], $config['database'], $port),
                     $config['username'],
                     $config['password'],
                     [
@@ -26,7 +28,8 @@ class Database
                     ]
                 );
             } catch (PDOException $exception) {
-                throw new \RuntimeException('Connexion à la base de données échouée : ' . $exception->getMessage());
+                error_log('Livriko database connection failed: ' . $exception->getMessage());
+                throw new \RuntimeException('Connexion à la base de données indisponible.');
             }
         }
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Bot } from 'lucide-react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { MessageCircle } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
@@ -7,13 +7,16 @@ import { ClientView } from './components/client/ClientView';
 import { VendeurView } from './components/vendeur/VendeurView';
 import { LivreurView } from './components/livreur/LivreurView';
 import { AdminView } from './components/admin/AdminView';
-import { CartDrawer } from './components/client/CartDrawer';
-import { OrderTrackingModal } from './components/client/OrderTrackingModal';
-import { NotificationModal } from './components/NotificationModal';
-import { AuthModal } from './components/AuthModal';
-import { UserProfileModal } from './components/UserProfileModal';
-import { ChatWidget } from './components/ChatWidget';
 import { PageScooterLoader } from './components/PageScooterLoader';
+
+const CartDrawer = lazy(() => import('./components/client/CartDrawer').then(module => ({ default: module.CartDrawer })));
+const OrderTrackingModal = lazy(() => import('./components/client/OrderTrackingModal').then(module => ({ default: module.OrderTrackingModal })));
+const NotificationModal = lazy(() => import('./components/NotificationModal').then(module => ({ default: module.NotificationModal })));
+const AuthModal = lazy(() => import('./components/AuthModal').then(module => ({ default: module.AuthModal })));
+const UserProfileModal = lazy(() => import('./components/UserProfileModal').then(module => ({ default: module.UserProfileModal })));
+const ChatWidget = lazy(() => import('./components/ChatWidget').then(module => ({ default: module.ChatWidget })));
+import WelcomePage from './components/WelcomePage';
+const ReviewModal = lazy(() => import('./components/client/ReviewModal').then(module => ({ default: module.default })));
 
 function MainAppContent() {
   const { 
@@ -23,6 +26,8 @@ function MainAppContent() {
     isAuthModalOpen,
     setIsAuthModalOpen,
     currentUser,
+    reviewModalOrderId,
+    setReviewModalOrderId,
   } = useApp();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -41,6 +46,15 @@ function MainAppContent() {
     }, 100);
     return () => clearTimeout(timer);
   }, [activeRole]);
+
+  useEffect(() => {
+    if (activeTrackingOrder?.status === 'rider_assigned' && !isChatOpen) {
+      setIsChatOpen(true);
+    }
+    if (activeTrackingOrder?.status === 'delivered' && isChatOpen) {
+      setIsChatOpen(false);
+    }
+  }, [activeTrackingOrder?.status, isChatOpen]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-900 selection:bg-blue-600 selection:text-white">
@@ -71,13 +85,13 @@ function MainAppContent() {
 
       {/* Primary Role Views */}
       <main className="flex-1 w-full pt-20 sm:pt-24">
-        {activeRole === 'client' && <ClientView onOpenCart={() => setIsCartOpen(true)} />}
-        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+        {activeRole === 'client' && <ClientView onOpenCart={() => setIsCartOpen(true)} onOpenChat={() => setIsChatOpen(true)} />}
+        <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
           {activeRole === 'vendeur' && <VendeurView />}
           {activeRole === 'livreur' && <LivreurView />}
           {activeRole === 'admin' && currentUser?.role === 'admin' && <AdminView />}
           {activeRole === 'admin' && currentUser?.role !== 'admin' && (
-            <div className="p-10 bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-700 text-sm font-bold">
+            <div className="p-6 sm:p-10 bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-700 text-sm font-bold">
               Accès réservé au Super Administrateur. Veuillez vous connecter avec un compte admin valide.
             </div>
           )}
@@ -88,30 +102,38 @@ function MainAppContent() {
       <Footer />
 
       {/* Global Modals & Drawers */}
-      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      <Suspense fallback={null}>
+        <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      </Suspense>
 
       {activeTrackingOrder && (
-        <OrderTrackingModal 
-          order={activeTrackingOrder} 
-          onClose={() => setActiveTrackingOrder(null)} 
-        />
+        <Suspense fallback={null}>
+          <OrderTrackingModal 
+            order={activeTrackingOrder} 
+            onClose={() => setActiveTrackingOrder(null)} 
+          />
+        </Suspense>
       )}
 
-      <NotificationModal isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
+      <Suspense fallback={null}>
+        <NotificationModal isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
+      </Suspense>
 
-      <ChatWidget isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <Suspense fallback={null}>
+        <ChatWidget isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      </Suspense>
 
-      {!isChatOpen && (
+      {activeTrackingOrder && ['rider_assigned', 'picked_up', 'delivering'].includes(activeTrackingOrder.status) && !isChatOpen && (
         <button
           type="button"
           onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-6 right-6 z-[1150] flex items-center gap-2 rounded-full bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-2xl shadow-orange-500/30 hover:bg-orange-600 transition"
-          title="Ouvrir le chat Livriko"
+          className="fixed bottom-6 right-6 z-1150 flex items-center gap-2 rounded-full bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-2xl shadow-orange-500/30 hover:bg-orange-600 transition"
+          title={`Ouvrir la conversation pour ${activeTrackingOrder.storeName}`}
         >
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-orange-500">
-            <Bot className="w-5 h-5" />
+            <MessageCircle className="w-5 h-5" />
           </span>
-          Chat assistant
+          {`Discussion ${activeTrackingOrder.storeName}`}
         </button>
       )}
 
@@ -126,6 +148,12 @@ function MainAppContent() {
         onClose={() => setIsUserProfileOpen(false)}
         initialTab={userProfileTab}
       />
+
+      {reviewModalOrderId && (
+        <Suspense fallback={null}>
+          <ReviewModal orderId={reviewModalOrderId} isOpen={true} onClose={() => setReviewModalOrderId(null)} />
+        </Suspense>
+      )}
     </div>
   );
 }
@@ -133,7 +161,38 @@ function MainAppContent() {
 export default function App() {
   return (
     <AppProvider>
-      <MainAppContent />
+      <AppRoot />
     </AppProvider>
   );
+}
+
+function AppRoot() {
+  const { isLoggedIn, currentUserId, currentUser } = useApp();
+  const [welcomeAuthMode, setWelcomeAuthMode] = React.useState<'register' | 'login'>('login');
+  const [welcomeAuthOpen, setWelcomeAuthOpen] = React.useState(false);
+
+  const hasValidSession = isLoggedIn || Boolean(currentUserId) || Boolean(currentUser);
+
+  if (!hasValidSession) {
+    return (
+      <>
+        <WelcomePage
+          onSeen={() => {
+            // keep the welcome flow as the required entry point for unauthenticated visitors.
+          }}
+          onOpenAuth={(mode) => {
+            setWelcomeAuthMode(mode);
+            setWelcomeAuthOpen(true);
+          }}
+        />
+        <AuthModal
+          isOpen={welcomeAuthOpen}
+          onClose={() => setWelcomeAuthOpen(false)}
+          initialMode={welcomeAuthMode}
+        />
+      </>
+    );
+  }
+
+  return <MainAppContent />;
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { 
   Phone, Mail, Globe, MapPin, ShieldCheck, Clock, Truck, 
   Utensils, Pill, ShoppingCart, Store as StoreIcon, Package, Send, 
@@ -12,10 +13,11 @@ export const Footer: React.FC = () => {
   const { setActiveCategory, setIsAuthModalOpen } = useApp();
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState('');
 
   const handleServiceClick = (category: CategoryType) => {
     setActiveCategory(category);
-    const el = document.getElementById('products-section');
+    const el = document.getElementById('entreprises-section');
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
     } else {
@@ -23,14 +25,19 @@ export const Footer: React.FC = () => {
     }
   };
 
-  const handleSubscribe = (e: React.FormEvent) => {
+  const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailOrPhone.trim()) return;
-    setIsSubscribed(true);
-    setTimeout(() => {
-      setIsSubscribed(false);
+    setSubscriptionError('');
+
+    try {
+      await axios.post('/backend/index.php/api/subscriptions', { contact: emailOrPhone.trim() }, { withCredentials: true });
+      setIsSubscribed(true);
       setEmailOrPhone('');
-    }, 4000);
+    } catch (error) {
+      const message = axios.isAxiosError(error) ? error.response?.data?.message : null;
+      setSubscriptionError(message || 'Inscription indisponible pour le moment.');
+    }
   };
 
   return (
@@ -79,6 +86,7 @@ export const Footer: React.FC = () => {
                   </button>
                 </div>
               )}
+              {subscriptionError && <p className="mt-2 text-xs font-semibold text-red-400">{subscriptionError}</p>}
             </form>
           </div>
         </div>
@@ -132,17 +140,6 @@ export const Footer: React.FC = () => {
                     <Utensils className="w-3.5 h-3.5" />
                   </div>
                   <span>Livraison Repas & Restaurants</span>
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => handleServiceClick('pharmacies')} 
-                  className="hover:text-orange-400 transition flex items-center gap-2.5 w-full text-left cursor-pointer group"
-                >
-                  <div className="w-6 h-6 rounded-lg bg-slate-800 flex items-center justify-center text-slate-300 group-hover:text-orange-400 transition">
-                    <Pill className="w-3.5 h-3.5" />
-                  </div>
-                  <span>Pharmacies de Garde</span>
                 </button>
               </li>
               <li>

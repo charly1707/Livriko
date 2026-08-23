@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import livrikoLogo from '../assets/images/livriko_logo_1785408725718.jpg';
-import riderPhoto from '../assets/images/livriko_rider_cutout_1785408944550.jpg';
 
 interface PageScooterLoaderProps {
   onComplete?: () => void;
@@ -118,7 +117,7 @@ export const PageScooterLoader: React.FC<PageScooterLoaderProps> = ({
                 
                 {/* Driver Photo Avatar Badge floating above helmet */}
                 <div className="absolute -top-10 left-4 z-20 flex items-center gap-1.5 bg-white text-slate-900 px-2 py-0.5 rounded-full shadow-lg border border-orange-400 text-[10px] font-extrabold whitespace-nowrap animate-bounce">
-                  <img src={riderPhoto} className="w-4 h-4 rounded-full object-cover" alt="Samuel" />
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[8px] text-white">S</span>
                   <span>Samuel • En route</span>
                 </div>
 

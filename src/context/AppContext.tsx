@@ -1,23 +1,26 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
 import confetti from 'canvas-confetti';
 import { 
   User, UserRole, Store, Product, Order, CartItem, NotificationItem, 
-  CategoryType, OrderStatus, ChatMessage, ChatChannel 
+  CategoryType, OrderStatus 
 } from '../types';
-import { MOCK_USERS, MOCK_STORES, MOCK_PRODUCTS, INITIAL_ORDERS } from '../data/mockData';
-import { calculateDeliveryFee, calculateRoadDistanceKm, calculateHaversineDistance } from '../utils/deliveryCalculator';
+import { normalizeUserRole } from '../utils/authFallback';
+import { buildDeliveryQuoteFromCoordinates, calculateDeliveryFee, calculateRoadDistanceKm, calculateHaversineDistance, isValidCoordinates } from '../utils/deliveryCalculator';
 
 interface AppContextType {
   isLoggedIn: boolean;
+  currentUserId: string | null;
   activeRole: UserRole;
   setActiveRole: (role: UserRole, force?: boolean) => void;
   currentUser: User | null;
   allUsers: User[];
-  loginUser: (email: string, password?: string) => { success: boolean; error?: string; user?: User };
+  loginUser: (email: string, password?: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   logoutUser: () => void;
   registerUser: (userData: {
     name: string;
     email: string;
+    password?: string;
     phone: string;
     role: UserRole;
     avatar?: string;
@@ -31,7 +34,7 @@ interface AppContextType {
     vehiclePhoto?: string;
     verificationStatus?: 'pending' | 'approved' | 'rejected';
     verificationSubmittedAt?: string;
-  }) => User;
+  }) => Promise<User>;
   updateUserProfile: (userId: string, updates: Partial<User>) => void;
   approveLivreur: (userId: string) => void;
   rejectLivreur: (userId: string, reason?: string) => void;
@@ -39,6 +42,8 @@ interface AppContextType {
   updateStore: (updatedStore: Store) => void;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
+  reviewModalOrderId: string | null;
+  setReviewModalOrderId: (id: string | null) => void;
 
   stores: Store[];
   products: Product[];
@@ -51,14 +56,6 @@ interface AppContextType {
   setSearchQuery: (query: string) => void;
   activeTrackingOrder: Order | null;
   setActiveTrackingOrder: (order: Order | null) => void;
-  chatMessages: ChatMessage[];
-  sendChatMessage: (params: {
-    orderId?: string;
-    channel: ChatChannel;
-    senderRole: UserRole | 'bot';
-    senderId?: string;
-    text: string;
-  }) => void;
   
   // Cart Actions
   addToCart: (product: Product, quantity?: number) => void;
@@ -80,14 +77,20 @@ interface AppContextType {
     clientLng?: number;
     momoTransactionRef?: string;
     paymentReceiptPhoto?: string;
-  }) => Order;
+    deliveryQuote?: {
+      distanceKm: number;
+      deliveryFee: number;
+      driverEarnings: number;
+      platformFee: number;
+    };
+  }) => Promise<Order>;
   requestRiderForOrder: (orderId: string) => void;
   acceptDeliveryOrder: (orderId: string, customRider?: User) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus, finalDistanceKm?: number, reason?: string) => void;
 
   // Product Management (Vendeur)
-  addProduct: (newProd: Omit<Product, 'id'>) => void;
-  updateProduct: (prod: Product) => void;
+  addProduct: (newProd: ProductPayload) => Promise<void>;
+  updateProduct: (prod: ProductUpdatePayload) => Promise<void>;
   deleteProduct: (id: string) => void;
 
   // Delete user account (admin or self)
@@ -100,70 +103,213 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [allUsers, setAllUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('livriko_users');
-    if (saved) {
-      try {
-        const parsed: User[] = JSON.parse(saved);
-        const merged = parsed.map(u => {
-          const mockUser = MOCK_USERS.find(mu => mu.id === u.id);
-          return mockUser ? { ...u, ...mockUser } : u;
-        });
-        for (const mockUser of MOCK_USERS) {
-          if (!merged.some(u => u.id === mockUser.id)) {
-            merged.push(mockUser);
-          }
-        }
-        return merged;
-      } catch {
-        return MOCK_USERS;
-      }
-    }
-    return MOCK_USERS;
+type ProductPayload = Omit<Product, 'id' | 'image'> & { image?: string | File };
+type ProductUpdatePayload = Omit<Product, 'image'> & { image?: string | File };
+
+const isProductionRuntime = Boolean(import.meta.env.PROD);
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+const getDefaultApiBase = () => {
+  if (typeof window === 'undefined') return '';
+  return (window.location.origin || '').replace(/\/$/, '');
+};
+const buildApiUrl = (path: string) => `${API_BASE || getDefaultApiBase()}${path}`;
+
+const uploadProductImage = async (file: File): Promise<string> => {
+  const formData = new FormData();
+  formData.append('image', file);
+
+  const res = await axios.post(buildApiUrl('/backend/index.php/api/products/upload-image'), formData, {
+    withCredentials: true,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
   });
 
+  if (!res.data?.success || !res.data.url) {
+    throw new Error(res.data?.error || res.data?.message || 'Impossible d’envoyer l’image du produit.');
+  }
+
+  return res.data.url;
+};
+
+const getApiErrorMessage = (error: any): string => {
+  const status = error?.response?.status;
+  const backendMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message;
+
+  if (!error?.response || error?.code === 'ERR_NETWORK' || error?.message === 'Network Error') {
+    return 'Le serveur Livriko est momentanément indisponible. Veuillez réessayer plus tard.';
+  }
+
+  if (status === 400 || status === 401 || status === 403 || status === 404) {
+    return backendMessage || 'Informations incorrectes. Vérifiez vos données et réessayez.';
+  }
+
+  if (status === 500) {
+    return 'Une erreur interne est survenue. Veuillez réessayer plus tard.';
+  }
+
+  return backendMessage || 'Une erreur est survenue. Veuillez réessayer.';
+};
+
+const mapApiOrder = (order: any): Order => ({
+  id: String(order.id),
+  databaseId: Number(order.databaseId || String(order.id).replace(/^ord-/, '')) || undefined,
+  code: order.code || '#LVK',
+  clientId: String(order.clientId || ''),
+  clientName: order.clientName || 'Client',
+  clientPhone: order.clientPhone || '',
+  clientAddress: order.clientAddress || '',
+  storeId: String(order.storeId || ''),
+  storeName: order.storeName || 'Boutique',
+  storeAddress: order.storeAddress || '',
+  items: Array.isArray(order.items) ? order.items : [],
+  subtotal: Number(order.subtotal) || 0,
+  deliveryFee: Number(order.deliveryFee) || 0,
+  totalAmount: Number(order.totalAmount) || 0,
+  status: order.status || 'pending',
+  paymentMethod: order.paymentMethod || 'cash',
+  paymentStatus: order.paymentStatus || 'pending',
+  createdAt: order.createdAt || '',
+  riderId: order.riderId || undefined,
+  deliveryStatus: order.deliveryStatus,
+});
+
+export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('livriko_is_logged_in') === 'true';
+    return false;
   });
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
-    if (localStorage.getItem('livriko_is_logged_in') === 'true') {
-      return localStorage.getItem('livriko_current_user_id') || null;
-    }
     return null;
   });
 
-  const [activeRole, setActiveRoleState] = useState<UserRole>('client');
-  const [stores, setStores] = useState<Store[]>(MOCK_STORES);
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
+  const [activeRole, setActiveRoleState] = useState<UserRole>(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('livriko_active_role') : null;
+    return stored && ['client', 'restaurant', 'vendeur', 'livreur', 'admin'].includes(stored) ? (stored as UserRole) : 'client';
+  });
+  const [stores, setStores] = useState<Store[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeCategory, setActiveCategory] = useState<CategoryType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTrackingOrder, setActiveTrackingOrder] = useState<Order | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [reviewModalOrderId, setReviewModalOrderId] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('livriko_users', JSON.stringify(allUsers));
-  }, [allUsers]);
-
-  useEffect(() => {
-    localStorage.setItem('livriko_is_logged_in', isLoggedIn ? 'true' : 'false');
-    if (currentUserId) {
-      localStorage.setItem('livriko_current_user_id', currentUserId);
-    } else {
-      localStorage.removeItem('livriko_current_user_id');
+    if (currentUserId && !isLoggedIn) {
+      setIsLoggedIn(true);
     }
-  }, [isLoggedIn, currentUserId]);
+  }, [currentUserId, isLoggedIn]);
+
+  useEffect(() => {
+    localStorage.setItem('livriko_active_role', activeRole);
+  }, [activeRole]);
+
+  useEffect(() => {
+    const bootstrap = async () => {
+      try {
+        const meUrl = buildApiUrl('/backend/index.php/api/auth/me');
+        const res = await axios.get(meUrl, { withCredentials: true });
+        if (res.data?.user) {
+          const user = res.data.user;
+          const userId = String(user.id);
+          setAllUsers(prev => {
+            const existing = prev.find(u => u.id === userId);
+            if (existing) {
+              return prev.map(u => u.id === userId ? { ...existing, ...user, id: userId } : u);
+            }
+            return [{
+              id: userId,
+              name: user.prenom || user.nom_utilisateur || user.email,
+              email: user.email,
+              phone: user.telephone || '',
+              role: user.role || 'client',
+              avatar: user.avatar || undefined,
+            }, ...prev];
+          });
+          setCurrentUserId(userId);
+          setIsLoggedIn(true);
+          setActiveRoleState(normalizeUserRole(user.role));
+        } else {
+          setCurrentUserId(null);
+          setIsLoggedIn(false);
+        }
+      } catch {
+        setCurrentUserId(null);
+        setIsLoggedIn(false);
+      }
+
+      try {
+        const productsUrl = buildApiUrl('/backend/index.php/api/products');
+        const res = await axios.get(productsUrl, { withCredentials: true });
+        if (res.data?.products) {
+          const mappedProducts: Product[] = res.data.products.map((p: any) => ({
+            id: String(p.id),
+            storeId: String(p.store_id || p.restaurant_id),
+            storeName: p.store_name || p.nom || 'Boutique',
+            name: p.nom,
+            description: p.description || '',
+            price: Number(p.prix) || 0,
+            category: (p.category as CategoryType) || 'restaurants',
+            image: p.image || '',
+            inStock: Boolean(p.en_stock),
+            unit: p.unit || 'portion',
+          }));
+          setProducts(mappedProducts);
+        }
+      } catch {
+        setProducts([]);
+      }
+
+      try {
+        const restaurantsUrl = buildApiUrl('/backend/index.php/api/restaurants');
+        const res = await axios.get(restaurantsUrl, { withCredentials: true });
+        const mappedStores: Store[] = (res.data?.restaurants || []).map((restaurant: any) => ({
+          id: `store-${restaurant.id}`,
+          name: restaurant.name,
+          category: 'restaurants',
+          ownerId: String(restaurant.ownerId),
+          logo: restaurant.logo || '',
+          coverImage: restaurant.logo || '',
+          rating: 0,
+          deliveryTime: '',
+          address: restaurant.address,
+          city: restaurant.city,
+          phone: restaurant.phone,
+          momoPhone: restaurant.momoPhone || undefined,
+          isOpen: Boolean(restaurant.isOpen),
+          isCertified: Boolean(restaurant.isCertified),
+          description: restaurant.description || '',
+        }));
+        setStores(mappedStores);
+      } catch {
+        setStores([]);
+      }
+
+      try {
+        const ordersUrl = buildApiUrl('/backend/index.php/api/orders');
+        const res = await axios.get(ordersUrl, { withCredentials: true });
+        if (Array.isArray(res.data?.orders)) {
+          setOrders(res.data.orders.map(mapApiOrder));
+        }
+      } catch {
+        setOrders([]);
+      }
+    };
+    bootstrap();
+  }, []);
 
   const currentUser = React.useMemo(() => {
     if (!isLoggedIn) return null;
     if (currentUserId) {
       const found = allUsers.find(u => u.id === currentUserId);
-      if (found) return found;
+      return found ?? null;
     }
-    return allUsers.length > 0 ? allUsers[0] : null;
+    return null;
   }, [isLoggedIn, currentUserId, allUsers]);
 
   const setActiveRole = (role: UserRole, force = false) => {
@@ -185,7 +331,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveRoleState(role);
   };
 
-  const loginUser = (emailOrUsername: string, password?: string): { success: boolean; error?: string; user?: User } => {
+  const loginUser = async (emailOrUsername: string, password?: string): Promise<{ success: boolean; error?: string; user?: User }> => {
     if (!emailOrUsername || !emailOrUsername.trim()) {
       return { success: false, error: "Veuillez renseigner votre adresse e-mail ou votre nom d'utilisateur." };
     }
@@ -193,45 +339,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: "Veuillez renseigner votre mot de passe." };
     }
 
-    const cleanInput = emailOrUsername.trim().toLowerCase();
-    const cleanPassword = password.trim();
-    
-    const found = allUsers.find(
-      u => u.email.toLowerCase() === cleanInput || u.name.toLowerCase() === cleanInput
-    );
+    const payload = new URLSearchParams();
+    payload.append('identifiant', emailOrUsername.trim());
+    payload.append('mot_de_passe', password.trim());
 
-    if (!found) {
-      return { success: false, error: "Aucun compte trouvé pour cet e-mail ou identifiant. Veuillez vous inscrire." };
+    try {
+      const loginUrl = buildApiUrl('/backend/index.php/api/auth/login');
+      const res = await axios.post(loginUrl, payload, { withCredentials: true });
+      if (res.data?.success && res.data.user) {
+        const userData: User = {
+          id: String(res.data.user.id),
+          name: res.data.user.prenom || res.data.user.nom_utilisateur || res.data.user.email,
+          email: res.data.user.email,
+          phone: res.data.user.telephone || '',
+          role: normalizeUserRole(res.data.user.role),
+          avatar: res.data.user.avatar || undefined,
+        };
+        setAllUsers(prev => {
+          const existing = prev.find(u => u.id === userData.id);
+          if (existing) {
+            return prev.map(u => u.id === userData.id ? { ...existing, ...userData } : u);
+          }
+          return [userData, ...prev];
+        });
+        setCurrentUserId(userData.id);
+        setIsLoggedIn(true);
+        setActiveRoleState(userData.role);
+        addNotification('Connexion réussie', `Bienvenue dans votre espace ${userData.role.toUpperCase()} !`, userData.role);
+        return { success: true, user: userData };
+      }
+
+      const apiMessage = res.data?.message || res.data?.error || 'Échec de la connexion.';
+      return { success: false, error: apiMessage };
+    } catch (error: any) {
+      return { success: false, error: getApiErrorMessage(error) };
     }
-
-    if (!found.password || found.password !== cleanPassword) {
-      return { success: false, error: "Adresse e-mail/identifiant ou mot de passe incorrect." };
-    }
-
-    if (found.verificationStatus === 'rejected') {
-      return { success: false, error: "Ce compte a été temporairement suspendu. Veuillez contacter l'administration." };
-    }
-
-    setCurrentUserId(found.id);
-    setIsLoggedIn(true);
-    setActiveRoleState(found.role);
-    addNotification(
-      'Connexion réussie',
-      `Bienvenue dans votre espace ${found.role.toUpperCase()} (${found.name}) !`,
-      found.role
-    );
-    return { success: true, user: found };
   };
 
-  const logoutUser = () => {
+  const logoutUser = async () => {
+    try {
+      const logoutUrl = buildApiUrl('/backend/index.php/api/auth/logout');
+      await axios.post(logoutUrl, new URLSearchParams(), { withCredentials: true });
+    } catch {
+      // ignore backend logout failure
+    }
+
     setIsLoggedIn(false);
     setCurrentUserId(null);
     setActiveRoleState('client');
-    addNotification(
-      'Déconnexion réussie',
-      'Vous êtes maintenant en mode visiteur non connecté.',
-      'client'
-    );
+    setIsAuthModalOpen(false);
+
+    try {
+      localStorage.removeItem('livriko_is_logged_in');
+      localStorage.removeItem('livriko_current_user_id');
+      localStorage.removeItem('livriko_seen_welcome');
+      sessionStorage.removeItem('livriko_session');
+    } catch {}
+
+    try {
+      document.cookie = 'PHPSESSID=; Max-Age=0; path=/; SameSite=Lax';
+      document.cookie = 'PHPSESSID=; Max-Age=0; path=/backend; SameSite=Lax';
+    } catch {}
+
+    addNotification('Déconnexion réussie', 'Vous êtes maintenant en mode visiteur non connecté.', 'client');
+
+    try {
+      window.location.replace('/');
+    } catch {}
   };
 
   const deleteUser = (userId: string) => {
@@ -249,7 +423,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const registerUser = (userData: {
+  const registerUser = async (userData: {
     name: string;
     email: string;
     password?: string;
@@ -266,69 +440,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     vehiclePhoto?: string;
     verificationStatus?: 'pending' | 'approved' | 'rejected';
     verificationSubmittedAt?: string;
-  }): User => {
-    const newUserId = 'u-' + userData.role + '-' + Date.now();
-    let newStoreId: string | undefined = undefined;
-
-    if (userData.role === 'vendeur') {
-      newStoreId = 'st-' + Date.now();
-      const newStore: Store = {
-        id: newStoreId,
-        name: userData.storeName || `Boutique de ${userData.name}`,
-        category: userData.storeCategory || 'restaurants',
-        ownerId: newUserId,
-        logo: userData.avatar || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=150&q=80',
-        coverImage: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80',
-        rating: 5.0,
-        deliveryTime: '20-35 min',
-        address: userData.storeAddress || 'Centre-ville, Lokossa',
-        city: userData.city || 'Lokossa',
-        phone: userData.phone,
-        isOpen: true,
-        isCertified: false,
-      };
-      setStores(prev => [newStore, ...prev]);
+  }): Promise<User> => {
+    const normalizedPassword = userData.password || '123456';
+    const payload = new URLSearchParams();
+    payload.append('prenom', userData.name);
+    payload.append('nom', userData.name);
+    payload.append('nom_utilisateur', userData.email.split('@')[0]);
+    payload.append('email', userData.email);
+    payload.append('telephone', userData.phone);
+    payload.append('mot_de_passe', normalizedPassword);
+    payload.append('role', userData.role);
+    if (userData.role === 'restaurant' || userData.role === 'vendeur') {
+      payload.append('restaurant_name', userData.storeName || `Boutique de ${userData.name}`);
+      payload.append('adresse', userData.storeAddress || 'Centre-ville, Lokossa');
+      payload.append('ville', userData.city || 'Lokossa');
+      if (userData.avatar) payload.append('logo', userData.avatar);
     }
 
-    const newUser: User = {
-      id: newUserId,
-      name: userData.name,
-      email: userData.email,
-      password: userData.password || '123456',
-      phone: userData.phone,
-      role: userData.role,
-      avatar: userData.avatar || userData.selfiePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-      vehicle: userData.vehicle,
-      city: userData.city || 'Lokossa',
-      storeId: newStoreId,
-      verificationStatus: userData.role === 'livreur' ? (userData.verificationStatus || 'pending') : 'approved',
-      selfiePhoto: userData.selfiePhoto,
-      cipPhoto: userData.cipPhoto,
-      vehiclePhoto: userData.vehiclePhoto,
-      verificationSubmittedAt: userData.verificationSubmittedAt || 'A l\'instant',
-      isCertified: userData.role !== 'livreur',
-    };
+    try {
+      const registerUrl = buildApiUrl('/backend/index.php/api/auth/register');
+      const res = await axios.post(registerUrl, payload, { withCredentials: true });
+      if (res.data?.success && res.data.user) {
+        const userDataFromApi: User = {
+          id: String(res.data.user.id),
+          name: userData.name,
+          email: userData.email,
+          phone: userData.phone,
+          role: userData.role,
+          avatar: res.data.user.avatar || userData.avatar,
+          vehicle: userData.vehicle,
+          city: userData.city,
+          storeId: ['restaurant', 'vendeur'].includes(userData.role) ? `store-${res.data.user.id}` : undefined,
+          verificationStatus: userData.verificationStatus,
+          selfiePhoto: userData.selfiePhoto,
+          cipPhoto: userData.cipPhoto,
+          vehiclePhoto: userData.vehiclePhoto,
+          verificationSubmittedAt: userData.verificationSubmittedAt,
+          isCertified: userData.role !== 'livreur',
+          password: normalizedPassword,
+        };
 
-    setAllUsers(prev => [newUser, ...prev]);
-    setCurrentUserId(newUser.id);
-    setIsLoggedIn(true);
-    setActiveRoleState(newUser.role);
+        setAllUsers(prev => [userDataFromApi, ...prev.filter(user => user.id !== userDataFromApi.id)]);
+        setCurrentUserId(userDataFromApi.id);
+        setIsLoggedIn(true);
+        setActiveRoleState(userDataFromApi.role);
 
-    addNotification(
-      'Compte créé avec succès !',
-      `Espace ${newUser.role.toUpperCase()} activé pour ${newUser.name}.`,
-      newUser.role
-    );
+        addNotification(
+          'Compte créé avec succès !',
+          `Espace ${userDataFromApi.role.toUpperCase()} activé pour ${userDataFromApi.name}.`,
+          userDataFromApi.role
+        );
 
-    if (userData.role === 'livreur') {
-      addNotification(
-        'Nouveau dossier livreur à vérifier !',
-        `Le livreur ${newUser.name} a soumis ses pièces (CIP, Moto, Selfie) pour validation sous 12h.`,
-        'admin'
-      );
+        if (userData.role === 'livreur') {
+          addNotification(
+            'Nouveau dossier livreur à vérifier !',
+            `Le livreur ${userDataFromApi.name} a soumis ses pièces (CIP, Moto, Selfie) pour validation sous 12h.`,
+            'admin'
+          );
+        }
+
+        return userDataFromApi;
+      }
+
+      const apiMessage = res.data?.message || res.data?.error || 'Échec de l’inscription côté serveur.';
+      throw new Error(apiMessage);
+    } catch (error: any) {
+      throw new Error(getApiErrorMessage(error));
     }
-
-    return newUser;
   };
 
   const updateUserProfile = (userId: string, updates: Partial<User>) => {
@@ -395,19 +573,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   ]);
 
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: 'chat-1',
-      channel: 'assistant',
-      senderRole: 'bot',
-      text: "Bonjour ! Je suis le robot assistant Livriko. Posez-moi une question sur les commandes, la livraison ou l'utilisation du site.",
-      timestamp: 'À l\'instant',
-    },
-  ]);
 
   // Cart logic
   const addToCart = (product: Product, quantity = 1) => {
     setCart(prev => {
+      const firstProduct = prev[0]?.product;
+      const sameStore = !firstProduct
+        || firstProduct.storeId === product.storeId
+        || firstProduct.storeName.toLowerCase() === product.storeName.toLowerCase();
+
+      if (!sameStore) {
+        addNotification(
+          'Panier limité à une boutique',
+          `Retirez les articles de ${firstProduct.storeName} avant d’ajouter un produit de ${product.storeName}.`,
+          'client'
+        );
+        return prev;
+      }
+
       const existing = prev.find(item => item.product.id === product.id);
       if (existing) {
         return prev.map(item =>
@@ -442,12 +625,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (cart.length === 0) return 0;
     const storeId = cart[0]?.product.storeId;
     const store = stores.find(s => s.id === storeId);
-    const storeLat = store?.lat ?? currentUser?.location?.lat ?? 6.6432;
-    const storeLng = store?.lng ?? currentUser?.location?.lng ?? 1.7145;
-    const clientLat = currentUser?.location?.lat ?? 6.6432;
-    const clientLng = currentUser?.location?.lng ?? 1.7145;
-    const distanceKm = calculateRoadDistanceKm(storeLat, storeLng, clientLat, clientLng);
-    return calculateDeliveryFee(distanceKm).deliveryFee;
+    const quote = buildDeliveryQuoteFromCoordinates(store?.lat, store?.lng, currentUser?.location?.lat, currentUser?.location?.lng);
+    return quote?.deliveryFee ?? 0;
   }, [cart, stores, currentUser?.location]);
 
   const cartTotal = cartSubtotal + cartDeliveryFee;
@@ -470,89 +649,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
-  const sendChatMessage = (params: {
-    orderId?: string;
-    channel: ChatChannel;
-    senderRole: UserRole | 'bot';
-    senderId?: string;
-    text: string;
-  }) => {
-    const timestamp = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    const newChat: ChatMessage = {
-      id: 'chat-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
-      orderId: params.orderId,
-      channel: params.channel,
-      senderRole: params.senderRole,
-      senderId: params.senderId,
-      text: params.text,
-      timestamp,
-    };
-
-    setChatMessages(prev => [...prev, newChat]);
-
-    // generate a contextual bot reply and enqueue it (only reply to human messages)
-    if (params.senderRole !== 'bot') {
-      const generateBotReply = (channel: ChatChannel, senderRole: UserRole | 'bot', text: string) => {
-        const lower = text.toLowerCase();
-        if (channel === 'assistant') {
-          if (lower.includes('commande')) return 'Je peux vous aider à suivre une commande, vérifier votre panier ou expliquer les étapes de livraison.';
-          if (lower.includes('livreur') || lower.includes('course') || lower.includes('distance')) return 'Le livreur est affecté une fois que le restaurant a confirmé la commande. La distance finale est validée au compteur.';
-          if (lower.includes('momo') || lower.includes('paiement') || lower.includes('reçu') || lower.includes('carte')) return 'Vous pouvez payer avec MoMo, Moov, Celtis Cash ou en espèces. Attachez le reçu si nécessaire.';
-          if (lower.includes('restaurant') || lower.includes('vendeur')) return 'Le restaurant confirme d’abord la commande, puis demande un livreur après préparation.';
-          return 'Je suis le robot assistant Livriko. Posez-moi une question sur votre commande, la livraison, ou le fonctionnement du site.';
-        }
-        if (channel === 'client-vendeur') {
-          if (senderRole === 'client') {
-            if (lower.includes('heure')) return 'Le restaurant prépare votre commande et vous confirme dès que c’est prêt.';
-            return 'Merci pour la précision, nous préparons votre commande et vous contactons si nécessaire.';
-          }
-          if (senderRole === 'vendeur') {
-            if (lower.includes('retard')) return 'La préparation prend un peu plus de temps, je vous informe dès que c’est prêt.';
-            return 'Commande bien reçue, je confirme la préparation dès que possible.';
-          }
-        }
-        if (channel === 'vendeur-livreur') {
-          if (senderRole === 'vendeur') {
-            if (lower.includes('presque')) return 'Je serai sur place dans quelques minutes pour récupérer le colis.';
-            return 'Je prends la demande de livraison et je vous confirme l’arrivée au restaurant.';
-          }
-          if (senderRole === 'livreur') {
-            if (lower.includes('retard') || lower.includes('traffic')) return 'Je suis en route, je prévois un léger retard à cause du trafic.';
-            return 'Je prends en charge la commande, j’arrive au restaurant dans quelques minutes.';
-          }
-        }
-        if (channel === 'livreur-client') {
-          if (senderRole === 'client') {
-            if (lower.includes('attendez') || lower.includes('ou')) return 'Je suis à proximité, j’arrive à votre adresse bientôt.';
-            return 'Merci, je vous préviens dès que je suis devant la porte.';
-          }
-          if (senderRole === 'livreur') {
-            if (lower.includes('arrivé') || lower.includes('devant')) return 'Je suis arrivé devant votre adresse, descendez s’il vous plaît.';
-            return 'Je suis en route avec votre commande, je vous préviens à l’arrivée.';
-          }
-        }
-        return 'Message reçu. Nous revenons vers vous très vite.';
-      };
-
-      const replyText = generateBotReply(params.channel, params.senderRole, params.text);
-      setTimeout(() => {
-        setChatMessages(prev => [
-          ...prev,
-          {
-            id: 'chat-bot-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
-            orderId: params.orderId,
-            channel: params.channel,
-            senderRole: 'bot',
-            text: replyText,
-            timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-          },
-        ]);
-      }, 800);
-    }
-  };
-
   // Place Order (Client)
-  const placeOrder = (details: {
+  const placeOrder = async (details: {
     paymentMethod: 'cash' | 'momo_mtn' | 'momo_moov' | 'orange_money' | 'celtis_cash';
     storePaymentMode?: 'online' | 'delivery';
     clientName: string;
@@ -563,18 +661,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     clientLng?: number;
     momoTransactionRef?: string;
     paymentReceiptPhoto?: string;
-  }): Order => {
+    deliveryQuote?: {
+      distanceKm: number;
+      deliveryFee: number;
+      driverEarnings: number;
+      platformFee: number;
+    };
+  }): Promise<Order> => {
+    if (cart.length === 0) {
+      throw new Error('Votre panier est vide. Ajoutez au moins un produit pour finaliser la commande.');
+    }
+
     const storeId = cart[0]?.product.storeId ?? 'unknown-store';
     const storeName = cart[0]?.product.storeName ?? 'Boutique';
     const store = stores.find(s => s.id === storeId);
 
-    const storeLat = store?.lat ?? currentUser?.location?.lat ?? 6.6432;
-    const storeLng = store?.lng ?? currentUser?.location?.lng ?? 1.7145;
-    const clientLat = details.clientLat ?? currentUser?.location?.lat ?? 6.6432;
-    const clientLng = details.clientLng ?? currentUser?.location?.lng ?? 1.7145;
+    const storeLat = store?.lat;
+    const storeLng = store?.lng;
+    const clientLat = details.clientLat ?? currentUser?.location?.lat;
+    const clientLng = details.clientLng ?? currentUser?.location?.lng;
+    if (!isValidCoordinates(storeLat, storeLng) || !isValidCoordinates(clientLat, clientLng)) {
+      throw new Error('La position réelle de la boutique et du client est nécessaire pour calculer la distance.');
+    }
 
-    const calculatedDistanceKm = calculateRoadDistanceKm(storeLat, storeLng, clientLat, clientLng);
-    const feeInfo = calculateDeliveryFee(calculatedDistanceKm);
+    const calculatedQuote = buildDeliveryQuoteFromCoordinates(storeLat, storeLng, clientLat, clientLng);
+    if (!calculatedQuote) {
+      throw new Error('Service GPS indisponible : impossible de calculer la distance réelle.');
+    }
+    const resolvedQuote = details.deliveryQuote && Number.isFinite(details.deliveryQuote.distanceKm) && details.deliveryQuote.distanceKm > 0
+      ? {
+          distanceKm: details.deliveryQuote.distanceKm,
+          deliveryFee: details.deliveryQuote.deliveryFee,
+          driverEarnings: details.deliveryQuote.driverEarnings,
+          platformFee: details.deliveryQuote.platformFee,
+          ratePerKm: Math.round((details.deliveryQuote.deliveryFee / details.deliveryQuote.distanceKm) * 10) / 10,
+          tierLabel: 'Distance verrouillée par le système GPS',
+        }
+      : calculatedQuote;
 
     const items = cart.map(item => ({
       productId: item.product.id,
@@ -605,26 +728,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       storeLng,
       items,
       subtotal: cartSubtotal,
-      deliveryFee: feeInfo.deliveryFee,
-      distanceKm: feeInfo.distanceKm,
-      driverEarnings: feeInfo.driverEarnings,
-      platformFee: feeInfo.platformFee,
+      deliveryFee: resolvedQuote.deliveryFee,
+      estimatedDeliveryFee: resolvedQuote.deliveryFee,
+      finalDeliveryFee: undefined,
+      distanceKm: resolvedQuote.distanceKm,
+      driverEarnings: resolvedQuote.driverEarnings,
+      platformFee: resolvedQuote.platformFee,
       storeCommissionFee,
       storeNetEarnings,
-      totalAmount: cartSubtotal + feeInfo.deliveryFee,
+      totalAmount: cartSubtotal + resolvedQuote.deliveryFee,
       status: 'pending',
       paymentMethod: details.paymentMethod,
       storePaymentMode: details.storePaymentMode ?? (details.paymentMethod === 'cash' ? 'delivery' : 'online'),
-      paymentStatus: (details.storePaymentMode ?? (details.paymentMethod === 'cash' ? 'delivery' : 'online')) === 'online' ? 'paid' : 'pending',
+      paymentStatus: 'pending',
       deliveryFeePaymentStatus: 'pending',
       momoTransactionRef: details.momoTransactionRef,
       paymentReceiptPhoto: details.paymentReceiptPhoto,
       createdAt: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       notes: details.notes,
-      estimatedMinutes: Math.round(10 + calculatedDistanceKm * 4),
+      estimatedMinutes: Math.round(10 + resolvedQuote.distanceKm * 4),
     };
 
-    setOrders(prev => [newOrder, ...prev]);
+    const payload = new URLSearchParams();
+    payload.append('items', JSON.stringify(items));
+    payload.append('clientAddress', details.clientAddress);
+    payload.append('deliveryFee', String(resolvedQuote.deliveryFee));
+    payload.append('distanceKm', String(resolvedQuote.distanceKm));
+    payload.append('paymentMethod', details.paymentMethod);
+    payload.append('paymentStatus', newOrder.paymentStatus);
+
+    try {
+      const response = await axios.post(buildApiUrl('/backend/index.php/api/orders'), payload, { withCredentials: true });
+      const persistedOrder = response.data?.order ? mapApiOrder(response.data.order) : newOrder;
+
+      if (newOrder.storePaymentMode === 'online' && details.paymentMethod !== 'cash') {
+        if (!persistedOrder.databaseId) {
+          throw new Error('La commande a été créée sans identifiant serveur exploitable pour le paiement.');
+        }
+
+        await axios.post(buildApiUrl('/backend/index.php/api/payments/transactions'), new URLSearchParams({
+          orderId: String(persistedOrder.databaseId),
+          phone: details.clientPhone || '',
+          provider: details.paymentMethod === 'momo_mtn' ? 'mtn_momo' : details.paymentMethod,
+          idempotencyKey: `order-${persistedOrder.databaseId}-${details.paymentMethod}`,
+        }), { withCredentials: true });
+      }
+
+      setOrders(prev => [persistedOrder, ...prev.filter(order => order.id !== persistedOrder.id)]);
+      setActiveTrackingOrder(persistedOrder);
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error));
+    }
     clearCart();
 
     try {
@@ -644,12 +798,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newOrder.id
     );
 
-    setActiveTrackingOrder(newOrder);
     return newOrder;
   };
 
   // Request Rider (Vendeur)
   const requestRiderForOrder = (orderId: string) => {
+    void axios.post(buildApiUrl('/backend/index.php/api/orders/status'), new URLSearchParams([
+      ['orderId', String(orderId).replace(/^ord-/, '')],
+      ['status', 'rider_requested'],
+    ]), { withCredentials: true }).catch(error => console.error('Order rider request failed', error));
+
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
         return { ...o, status: 'rider_requested' };
@@ -677,8 +835,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const order = orders.find(o => o.id === orderId);
     if (!order || order.status !== 'rider_requested') return;
 
-    const storeLat = order.storeLat ?? currentUser?.location?.lat ?? 6.6432;
-    const storeLng = order.storeLng ?? currentUser?.location?.lng ?? 1.7145;
+    const storeLat = order.storeLat;
+    const storeLng = order.storeLng;
+    if (!isValidCoordinates(storeLat, storeLng)) {
+      addNotification('Localisation indisponible', 'La position réelle de la boutique est nécessaire pour rechercher un livreur.', 'vendeur', orderId);
+      return;
+    }
 
     const eligibleRiders = allUsers.filter(u => u.role === 'livreur' && u.verificationStatus === 'approved');
     if (eligibleRiders.length === 0) {
@@ -692,13 +854,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const getRiderDistance = (rider: User) => {
-      const riderLat = rider.location?.lat ?? storeLat;
-      const riderLng = rider.location?.lng ?? storeLng;
+      const riderLat = rider.location?.lat;
+      const riderLng = rider.location?.lng;
+      if (!isValidCoordinates(riderLat, riderLng)) return null;
       return calculateHaversineDistance(storeLat, storeLng, riderLat, riderLng);
     };
 
     const nearestRider = eligibleRiders.reduce((closest, rider) => {
       const distance = getRiderDistance(rider);
+      if (distance === null) return closest;
       if (!closest || distance < closest.distance) {
         return { rider, distance };
       }
@@ -718,6 +882,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    void axios.post(buildApiUrl('/backend/index.php/api/orders/status'), new URLSearchParams([
+      ['orderId', String(orderId).replace(/^ord-/, '')],
+      ['status', 'rider_assigned'],
+    ]), { withCredentials: true }).catch(error => console.error('Order rider assignment failed', error));
+
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
         if (o.status === 'rider_assigned' || o.status === 'delivering' || o.status === 'delivered') return o;
@@ -729,9 +898,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           riderPhone: activeRider?.phone,
           riderPhoto: activeRider?.avatar,
           riderVehicle: activeRider?.vehicle || 'Moto TVS HLX 125',
-          currentRiderLat: o.storeLat || 6.6385,
-          currentRiderLng: o.storeLng || 1.7170,
-          estimatedMinutes: Math.round(8 + (o.distanceKm || 2) * 3),
+          currentRiderLat: activeRider.location?.lat,
+          currentRiderLng: activeRider.location?.lng,
+          estimatedMinutes: o.distanceKm ? Math.round(8 + o.distanceKm * 3) : undefined,
         };
       }
       return o;
@@ -756,6 +925,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateOrderStatus = (orderId: string, status: OrderStatus, finalDistanceKm?: number, reason?: string) => {
     const nowTimeString = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
+    if (status !== 'pending') {
+      void axios.post(buildApiUrl('/backend/index.php/api/orders/status'), new URLSearchParams([
+        ['orderId', String(orderId).replace(/^ord-/, '')],
+        ['status', status],
+      ]), { withCredentials: true }).catch(error => console.error('Order status update failed', error));
+    }
+
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
         const updated: Order = { ...o, status };
@@ -771,9 +947,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!updated.deliveredAt) {
             updated.deliveredAt = nowTimeString;
           }
-          updated.durationMinutes = updated.startedAt ? Math.max(5, Math.round(12 + (updated.distanceKm || 2.5) * 2)) : 15;
-          updated.paymentStatus = 'paid';
-          updated.deliveryFeePaymentStatus = 'paid';
+          updated.durationMinutes = updated.startedAt && updated.distanceKm ? Math.max(5, Math.round(12 + updated.distanceKm * 2)) : undefined;
           if (finalDistanceKm !== undefined && finalDistanceKm > 0) {
             updated.finalDistanceKm = finalDistanceKm;
           }
@@ -782,7 +956,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (finalDistanceKm !== undefined && finalDistanceKm > 0) {
           const feeInfo = calculateDeliveryFee(finalDistanceKm);
           updated.distanceKm = feeInfo.distanceKm;
-          updated.deliveryFee = feeInfo.deliveryFee;
+          updated.finalDeliveryFee = feeInfo.deliveryFee;
           updated.driverEarnings = feeInfo.driverEarnings;
           updated.platformFee = feeInfo.platformFee;
           updated.totalAmount = o.subtotal + feeInfo.deliveryFee;
@@ -791,6 +965,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return o;
     }));
+
+    // If order delivered, and current user is the client of that order, prompt for review
+    if (status === 'delivered') {
+      const deliveredOrder = orders.find(o => o.id === orderId);
+      if (deliveredOrder && currentUser && String(deliveredOrder.clientId) === String(currentUser.id)) {
+        try {
+          setReviewModalOrderId(orderId);
+        } catch {}
+      }
+    }
 
     const statusLabels: Record<OrderStatus, string> = {
       pending: 'En attente de validation du restaurant',
@@ -816,31 +1000,102 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status,
         ...(reason ? { cancellationReason: reason } : {}),
         ...(status === 'delivering' && !prev.startedAt ? { startedAt: nowTimeString } : {}),
-        ...(status === 'delivered' ? { deliveredAt: nowTimeString, paymentStatus: 'paid' } : {})
+        ...(status === 'delivered' ? { deliveredAt: nowTimeString } : {})
       } : null);
     }
   };
 
   // Product management for Vendeur
-  const addProduct = (newProd: Omit<Product, 'id'>) => {
-    const p: Product = {
-      ...newProd,
-      id: 'p-' + Date.now(),
-    };
-    setProducts(prev => [p, ...prev]);
+  const addProduct = async (newProd: ProductPayload) => {
+    try {
+      let imageValue = typeof newProd.image === 'string' ? newProd.image : '';
+      if (newProd.image instanceof File) {
+        imageValue = await uploadProductImage(newProd.image);
+      }
+
+      const payload = new URLSearchParams();
+      payload.append('nom', newProd.name);
+      payload.append('description', newProd.description || '');
+      payload.append('prix', String(newProd.price));
+      payload.append('image', imageValue || '');
+      payload.append('category', newProd.category || 'restaurants');
+      payload.append('en_stock', String(Boolean(newProd.inStock)));
+
+      const res = await axios.post(buildApiUrl('/backend/index.php/api/products'), payload, { withCredentials: true });
+      if (res.data?.success && res.data.product) {
+        const savedProduct: Product = {
+          id: String(res.data.product.id),
+          storeId: String(res.data.product.store_id || newProd.storeId),
+          storeName: res.data.product.store_name || newProd.storeName,
+          name: res.data.product.nom || newProd.name,
+          description: res.data.product.description || newProd.description,
+          price: Number(res.data.product.prix || newProd.price),
+          category: (res.data.product.category as CategoryType) || newProd.category,
+          image: res.data.product.image || imageValue || newProd.image || '',
+          inStock: Boolean(res.data.product.en_stock ?? newProd.inStock),
+          unit: newProd.unit || 'portion',
+        };
+        setProducts(prev => [savedProduct, ...prev.filter(item => item.id !== savedProduct.id)]);
+        return;
+      }
+
+      throw new Error(res.data?.message || 'Impossible d’ajouter le produit.');
+    } catch (error: any) {
+      console.error('addProduct failed', error);
+      throw new Error(getApiErrorMessage(error));
+    }
   };
 
-  const updateProduct = (updated: Product) => {
-    setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
+  const updateProduct = async (updated: ProductUpdatePayload) => {
+    try {
+      let imageValue = typeof updated.image === 'string' ? updated.image : '';
+      if (updated.image instanceof File) {
+        imageValue = await uploadProductImage(updated.image);
+      }
+
+      const payload = new URLSearchParams();
+      payload.append('id', String(updated.id));
+      payload.append('nom', updated.name);
+      payload.append('description', updated.description || '');
+      payload.append('prix', String(updated.price));
+      payload.append('image', imageValue);
+      payload.append('category', updated.category || 'restaurants');
+      payload.append('en_stock', String(Boolean(updated.inStock)));
+
+      const res = await axios.post(buildApiUrl('/backend/index.php/api/products/update'), payload, { withCredentials: true });
+      if (res.data?.success) {
+        const savedProduct: Product = {
+          ...updated,
+          image: typeof res.data.product?.image === 'string' ? res.data.product.image : imageValue,
+        };
+        setProducts(prev => prev.map(p => p.id === updated.id ? savedProduct : p));
+        return;
+      }
+
+      throw new Error(res.data?.message || 'Impossible de modifier le produit.');
+    } catch (error: any) {
+      console.error('updateProduct failed', error);
+      throw new Error(getApiErrorMessage(error));
+    }
   };
 
-  const deleteProduct = (id: string) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
+  const deleteProduct = async (id: string) => {
+    try {
+      const payload = new URLSearchParams();
+      payload.append('id', String(id));
+      await axios.post(buildApiUrl('/backend/index.php/api/products/delete'), payload, { withCredentials: true });
+      setProducts(prev => prev.filter(p => p.id !== id));
+    } catch (error: any) {
+      console.error('deleteProduct failed', error);
+      throw new Error(getApiErrorMessage(error));
+    }
   };
 
   return (
     <AppContext.Provider
       value={{
+        isLoggedIn,
+        currentUserId,
         activeRole,
         setActiveRole,
         currentUser,
@@ -866,8 +1121,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSearchQuery,
         activeTrackingOrder,
         setActiveTrackingOrder,
-        chatMessages,
-        sendChatMessage,
+        reviewModalOrderId,
+        setReviewModalOrderId,
         addToCart,
         removeFromCart,
         updateCartQuantity,

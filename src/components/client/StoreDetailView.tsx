@@ -11,6 +11,7 @@ interface StoreDetailViewProps {
   products: Product[];
   onBack: () => void;
   onOpenCart: () => void;
+  onOpenChat: () => void;
   autoAddedProduct?: Product | null;
 }
 
@@ -19,6 +20,7 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
   products,
   onBack,
   onOpenCart,
+  onOpenChat,
   autoAddedProduct
 }) => {
   const { cart, addToCart, updateCartQuantity, cartTotal, cartDeliveryFee, clearCart } = useApp();
@@ -142,14 +144,13 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <a 
-              href={`https://wa.me/${store.phone.replace(/[^0-9]/g, '')}?text=Bonjour%20${encodeURIComponent(store.name)},%20je%20souhaite%20commander`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 sm:flex-initial text-center px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition"
+            <button
+              type="button"
+              onClick={onOpenChat}
+              className="flex-1 sm:flex-initial text-center px-4 py-2.5 rounded-2xl bg-orange-500 hover:bg-orange-400 text-white font-bold text-xs shadow-md transition"
             >
-              💬 Contacter sur WhatsApp
-            </a>
+              💬 Ouvrir la discussion interne
+            </button>
           </div>
         </div>
 

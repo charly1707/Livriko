@@ -7,6 +7,29 @@ export interface DeliveryFeeBreakdown {
   tierLabel: string;
 }
 
+export interface DeliveryQuote extends DeliveryFeeBreakdown {
+  storeLat: number;
+  storeLng: number;
+  clientLat: number;
+  clientLng: number;
+}
+
+export interface Coordinates {
+  lat: number;
+  lng: number;
+}
+
+export function isValidCoordinates(lat: unknown, lng: unknown): lat is number {
+  return typeof lat === 'number'
+    && Number.isFinite(lat)
+    && typeof lng === 'number'
+    && Number.isFinite(lng)
+    && lat >= -90
+    && lat <= 90
+    && lng >= -180
+    && lng <= 180;
+}
+
 /**
  * Calculates delivery fee based on automatic GPS distance in Lokossa
  * according to the official Livriko tariff grid:
@@ -74,24 +97,22 @@ export function calculateDeliveryFee(distanceKm: number): DeliveryFeeBreakdown {
  * Calculates GPS Haversine distance in kilometers between two lat/lng coordinates
  */
 export function calculateRoadDistanceKm(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-): number {
-  // In a production environment, this wrapper should call a routing API
-  // (Google Maps / OpenStreetMap / OpenRouteservice) to compute real road distance.
-  // For this demo, the platform uses an automatic GPS-based fallback.
+  lat1: number | null | undefined,
+  lng1: number | null | undefined,
+  lat2: number | null | undefined,
+  lng2: number | null | undefined
+): number | null {
+  if (!isValidCoordinates(lat1, lng1) || !isValidCoordinates(lat2, lng2)) return null;
   return calculateHaversineDistance(lat1, lng1, lat2, lng2);
 }
 
 export function calculateHaversineDistance(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-): number {
-  if (!lat1 || !lng1 || !lat2 || !lng2) return 2.0;
+  lat1: number | null | undefined,
+  lng1: number | null | undefined,
+  lat2: number | null | undefined,
+  lng2: number | null | undefined
+): number | null {
+  if (!isValidCoordinates(lat1, lng1) || !isValidCoordinates(lat2, lng2)) return null;
   const R = 6371; // Earth radius in km
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
@@ -104,6 +125,26 @@ export function calculateHaversineDistance(
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c;
   return Math.max(0.3, Math.round(distance * 10) / 10);
+}
+
+export function buildDeliveryQuoteFromCoordinates(
+  storeLat: number | null | undefined,
+  storeLng: number | null | undefined,
+  clientLat: number | null | undefined,
+  clientLng: number | null | undefined
+): DeliveryQuote | null {
+  if (!isValidCoordinates(storeLat, storeLng) || !isValidCoordinates(clientLat, clientLng)) return null;
+  const distanceKm = calculateRoadDistanceKm(storeLat, storeLng, clientLat, clientLng);
+  if (distanceKm === null) return null;
+  const breakdown = calculateDeliveryFee(distanceKm);
+
+  return {
+    ...breakdown,
+    storeLat,
+    storeLng,
+    clientLat,
+    clientLng,
+  };
 }
 
 /**

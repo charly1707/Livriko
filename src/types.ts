@@ -1,6 +1,14 @@
-export type UserRole = 'client' | 'vendeur' | 'livreur' | 'admin';
+export type UserRole = 'client' | 'restaurant' | 'vendeur' | 'livreur' | 'admin';
 
-export type CategoryType = 'restaurants' | 'boutiques' | 'pharmacies' | 'supermarches' | 'autres';
+export type CategoryType =
+  | 'restaurants'
+  | 'boutiques'
+  | 'supermarches'
+  | 'autres'
+  | 'mode'
+  | 'electronique'
+  | 'beaute'
+  | 'services';
 
 export interface User {
   id: string;
@@ -83,6 +91,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
+  databaseId?: number;
   code: string; // e.g. #LVK-8921
   clientId: string;
   clientName: string;
@@ -98,6 +107,8 @@ export interface Order {
   items: OrderItem[];
   subtotal: number;
   deliveryFee: number;
+  estimatedDeliveryFee?: number;
+  finalDeliveryFee?: number;
   distanceKm?: number;
   driverEarnings?: number;
   platformFee?: number;
@@ -122,23 +133,12 @@ export interface Order {
   riderPhone?: string;
   riderPhoto?: string;
   riderVehicle?: string;
+  deliveryStatus?: string;
   currentRiderLat?: number; // Live GPS latitude of rider during trip
   currentRiderLng?: number; // Live GPS longitude of rider during trip
   cancellationReason?: string;
   notes?: string;
   estimatedMinutes?: number;
-}
-
-export type ChatChannel = 'client-vendeur' | 'vendeur-livreur' | 'livreur-client' | 'assistant';
-
-export interface ChatMessage {
-  id: string;
-  orderId?: string;
-  channel: ChatChannel;
-  senderRole: UserRole | 'bot';
-  senderId?: string;
-  text: string;
-  timestamp: string;
 }
 
 export interface NotificationItem {

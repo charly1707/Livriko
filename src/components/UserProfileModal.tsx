@@ -96,12 +96,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     e.preventDefault();
     updateUserProfile(currentUser.id, {
       city,
-      location: {
-        address: savedAddress,
-        city,
-        lat: 6.365,
-        lng: 2.418
-      }
+      ...(currentUser.location ? {
+        location: {
+          ...currentUser.location,
+          address: savedAddress,
+        }
+      } : {})
     });
     setIsAddressSaved(true);
     setTimeout(() => setIsAddressSaved(false), 2000);
@@ -136,7 +136,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const firstName = currentUser.name.split(' ')[0] || currentUser.name;
 
   return (
-    <div className="fixed inset-0 z-[1100] bg-slate-950/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-1100 bg-slate-950/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
       <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[88vh] overflow-y-auto shadow-2xl border border-slate-100 relative animate-in fade-in zoom-in-95 duration-200 mx-3 sm:mx-0">
         
         {/* Header */}
@@ -377,6 +377,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         </div>
                         <p className="text-xs font-bold text-slate-800 mt-1">{order.storeName}</p>
                         <p className="text-[11px] text-slate-500">{order.items.length} article(s) • {order.totalAmount.toLocaleString()} FCFA</p>
+                        <p className="text-[11px] text-slate-500 mt-1">📍 {order.distanceKm ?? 2} km • 💰 {(order.finalDeliveryFee ?? order.estimatedDeliveryFee ?? order.deliveryFee).toLocaleString()} FCFA</p>
                       </div>
 
                       <button

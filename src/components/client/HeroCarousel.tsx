@@ -3,8 +3,9 @@ import {
   ArrowRight, ChevronLeft, ChevronRight, Phone, Truck, CreditCard, Headphones, Sparkles
 } from 'lucide-react';
 import { CategoryType } from '../../types';
-import riderHeroBg from '../../assets/images/livriko_rider_branded_hero_1785411575207.jpg';
-import carouselBanner from '../../assets/images/livriko_carousel_banner_1785408958309.jpg';
+import riderHeroBg from '../../assets/images/livriko_rider_branded_hero_1785411575207.png';
+import carouselBanner from '../../assets/images/livriko_rider_hero_bg_1785410590188.jpg';
+import clientPhoto from '../../assets/images/cliente.png';
 
 interface HeroCarouselProps {
   onSelectCategory: (category: CategoryType | 'all') => void;
@@ -22,7 +23,7 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelectCategory, on
       title: 'Tout votre marché local,',
       titleHighlight: 'livré en un éclair à votre porte !',
       subtitle: 'La 1ère plateforme tout-en-un de livraison ultra-rapide à Lokossa.',
-      description: 'Vos courses de supermarché, plats chauds du maquis, médicaments et colis livrés en toute sérénité.',
+      description: 'Vos courses de supermarché, plats chauds du maquis et colis livrés en toute sérénité.',
       badgePrice: 'Dès 450 FCFA',
       ctaText: 'Commander maintenant',
       ctaCategory: 'all' as CategoryType,
@@ -43,19 +44,6 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelectCategory, on
       bgImage: carouselBanner,
     },
     {
-      id: 'pharmacies',
-      tag: 'Santé & Pharmacies de Garde',
-      title: 'Vos Urgences Médicales,',
-      titleHighlight: 'prises en charge 24h/7j.',
-      subtitle: 'Pharmacies de garde & médicaments à votre porte en toute confidentialité.',
-      description: 'Transmission sécurisée d\'ordonnances et livraison express jour et nuit par nos coursiers certifiés.',
-      badgePrice: 'Urgence 24h/7j',
-      ctaText: 'Commander vos Médicaments',
-      ctaCategory: 'pharmacies' as CategoryType,
-      whatsappPhone: '+229 01 96 73 03 53',
-      bgImage: 'https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&w=1920&q=80',
-    },
-    {
       id: 'coursier',
       tag: 'Expédition & Coursier Express',
       title: 'Expédiez vos Plis & Colis,',
@@ -66,16 +54,16 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelectCategory, on
       ctaText: 'Envoyer un Colis',
       ctaCategory: 'autres' as CategoryType,
       whatsappPhone: '+229 01 96 73 03 53',
-      bgImage: 'https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=1920&q=80',
+      bgImage: clientPhoto,
     },
   ];
 
-  // Carousel autoplay timer (5 seconds)
+  // Carousel autoplay timer (3 seconds)
   useEffect(() => {
     if (isPaused) return;
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
-    }, 5000);
+    }, 3000);
     return () => clearInterval(timer);
   }, [isPaused, slides.length]);
 
@@ -99,7 +87,7 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelectCategory, on
       {slides.map((s, idx) => (
         <div 
           key={s.id}
-          className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+          className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
             idx === currentSlide ? 'opacity-100 z-0 scale-100' : 'opacity-0 z-0 pointer-events-none scale-105'
           }`}
           style={{
@@ -140,7 +128,7 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelectCategory, on
       {/* Main Text & Action Buttons directly on top of the image - Expanded Spacing across entire width */}
       <div className="relative z-10 max-w-7xl mx-auto w-full px-8 sm:px-16 pt-28 sm:pt-36 pb-16 my-auto flex flex-col justify-center">
         
-        <div className="max-w-4xl w-full space-y-6 animate-in fade-in slide-in-from-left duration-700">
+        <div className="max-w-4xl w-full space-y-6 animate-in fade-in slide-in-from-left duration-500">
 
           {/* Titre raffiné, accrocheur et professionnel */}
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-[1.12] drop-shadow-xl">
@@ -162,12 +150,10 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelectCategory, on
               onClick={() => {
                 if (slide.id === 'restaurants') {
                   onSelectCategory('restaurants');
-                } else if (slide.id === 'pharmacies') {
-                  onSelectCategory('pharmacies');
                 } else {
                   onSelectCategory(slide.ctaCategory);
                 }
-                const el = document.getElementById('products-section') || document.getElementById('categories-section');
+                const el = document.getElementById('entreprises-section') || document.getElementById('categories-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
               className="px-7 py-3.5 rounded-lg bg-orange-500 hover:bg-orange-600 active:scale-95 text-white text-xs sm:text-sm font-bold transition flex items-center gap-2.5 shadow-lg shadow-orange-500/30 tracking-wide cursor-pointer"
@@ -220,11 +206,11 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onSelectCategory, on
 
       {/* Bottom Center Indicator Dots */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 bg-slate-950/70 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 shadow-md">
-        {slides.map((_, idx) => (
+            {slides.map((_, idx) => (
           <button
             key={idx}
             onClick={() => setCurrentSlide(idx)}
-            className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                className={`h-1.5 rounded-full transition-all duration-200 cursor-pointer ${
               idx === currentSlide 
                 ? 'w-5 bg-orange-500 shadow-sm shadow-orange-500/50' 
                 : 'w-1.5 bg-white/50 hover:bg-white'

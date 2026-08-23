@@ -12,7 +12,7 @@ export const NotificationModal: React.FC<{ isOpen: boolean; onClose: () => void 
   );
 
   return (
-    <div className="fixed inset-0 z-[1100] bg-slate-900/60 backdrop-blur-xs flex justify-end">
+    <div className="fixed inset-0 z-1100 bg-slate-900/60 backdrop-blur-xs flex justify-end">
       <div className="bg-white w-full max-w-sm h-full flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-right duration-300">
         
         <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">

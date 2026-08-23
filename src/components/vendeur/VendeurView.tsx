@@ -24,6 +24,30 @@ export const VendeurView: React.FC = () => {
 
   const currentStore = stores.find(s => s.id === currentUser?.storeId || s.ownerId === currentUser?.id);
 
+  const storeProducts = products.filter(p => p.storeId === currentStore?.id);
+  const storeOrders = orders.filter(o => o.storeId === currentStore?.id);
+
+  // Modal for editing store profile & user avatar
+  const [isStoreProfileModalOpen, setIsStoreProfileModalOpen] = useState(false);
+  const [storeName, setStoreName] = useState(currentStore?.name || '');
+  const [storePhone, setStorePhone] = useState(currentStore?.phone || '');
+  const [storeAddress, setStoreAddress] = useState(currentStore?.address || '');
+  const [storeLogo, setStoreLogo] = useState(currentStore?.logo || '');
+  const [userAvatar, setUserAvatar] = useState(currentUser?.avatar || '');
+  const [storeIsOpen, setStoreIsOpen] = useState(currentStore?.isOpen || false);
+
+  // Modal for adding/editing product
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState(1500);
+  const [category, setCategory] = useState<CategoryType>('restaurants');
+  const [image, setImage] = useState('https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80');
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+
   if (!currentStore) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
@@ -37,27 +61,25 @@ export const VendeurView: React.FC = () => {
     );
   }
 
-  const storeProducts = products.filter(p => p.storeId === currentStore.id);
-  const storeOrders = orders.filter(o => o.storeId === currentStore.id);
-
-  // Modal for editing store profile & user avatar
-  const [isStoreProfileModalOpen, setIsStoreProfileModalOpen] = useState(false);
-  const [storeName, setStoreName] = useState(currentStore.name);
-  const [storePhone, setStorePhone] = useState(currentStore.phone);
-  const [storeAddress, setStoreAddress] = useState(currentStore.address);
-  const [storeLogo, setStoreLogo] = useState(currentStore.logo);
-  const [userAvatar, setUserAvatar] = useState(currentUser?.avatar || '');
-  const [storeIsOpen, setStoreIsOpen] = useState(currentStore.isOpen);
-
-  // Modal for adding/editing product
-  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [price, setPrice] = useState(1500);
-  const [category, setCategory] = useState<CategoryType>('restaurants');
-  const [image, setImage] = useState('https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80');
+  const handleProductImageSelect = (file: File | null) => {
+    setImageError(null);
+    if (!file) {
+      return;
+    }
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setImageError('Format d’image non pris en charge. Utilisez JPEG, PNG ou WEBP.');
+      return;
+    }
+    setSelectedImageFile(file);
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setImage(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const openAddModal = () => {
     setEditingProduct(null);
@@ -65,6 +87,7 @@ export const VendeurView: React.FC = () => {
     setDescription('');
     setPrice(1500);
     setCategory(currentStore.category || 'restaurants');
+    setSelectedImageFile(null);
     setImage('https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80');
     setIsProductModalOpen(true);
   };
@@ -75,6 +98,7 @@ export const VendeurView: React.FC = () => {
     setDescription(prod.description);
     setPrice(prod.price);
     setCategory(prod.category);
+    setSelectedImageFile(null);
     setImage(prod.image);
     setIsProductModalOpen(true);
   };
@@ -95,31 +119,37 @@ export const VendeurView: React.FC = () => {
     setIsStoreProfileModalOpen(false);
   };
 
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingProduct) {
-      updateProduct({
-        ...editingProduct,
-        name,
-        description,
-        price: Number(price),
-        category,
-        image,
-      });
-    } else {
-      addProduct({
-        storeId: currentStore.id,
-        storeName: currentStore.name,
-        name,
-        description,
-        price: Number(price),
-        category,
-        image,
-        inStock: true,
-        unit: 'portion',
-      });
+    const payloadImage = selectedImageFile ?? image;
+
+    try {
+      if (editingProduct) {
+        await updateProduct({
+          ...editingProduct,
+          name,
+          description,
+          price: Number(price),
+          category,
+          image: payloadImage,
+        });
+      } else {
+        await addProduct({
+          storeId: currentStore.id,
+          storeName: currentStore.name,
+          name,
+          description,
+          price: Number(price),
+          category,
+          image: payloadImage,
+          inStock: true,
+          unit: 'portion',
+        });
+      }
+      setIsProductModalOpen(false);
+    } catch (error: any) {
+      setImageError(error.message || 'Impossible d’enregistrer le produit.');
     }
-    setIsProductModalOpen(false);
   };
 
   // Stats
@@ -161,7 +191,7 @@ export const VendeurView: React.FC = () => {
               </span>
             )}
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800 font-bold text-[10px] uppercase">
                 {currentStore.category}
@@ -171,7 +201,7 @@ export const VendeurView: React.FC = () => {
                 {currentStore.isOpen ? 'Ouvert' : 'Fermé'}
               </span>
             </div>
-            <h1 className="text-2xl font-black text-slate-900 mt-0.5 flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5 flex flex-wrap items-center gap-2 wrap-break-word">
               {currentStore.name}
               {currentStore.isCertified && (
                 <span className="text-xs text-emerald-600 font-bold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
@@ -180,7 +210,7 @@ export const VendeurView: React.FC = () => {
                 </span>
               )}
             </h1>
-            <p className="text-xs text-slate-500">{currentStore.address} • Contact : {currentStore.phone}</p>
+            <p className="text-xs text-slate-500 wrap-break-word">{currentStore.address} • Contact : {currentStore.phone}</p>
           </div>
         </div>
 
@@ -204,7 +234,7 @@ export const VendeurView: React.FC = () => {
       </div>
 
       {/* Zero Subscription Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-orange-950 text-white rounded-3xl p-5 shadow-sm border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-linear-to-r from-slate-900 via-slate-800 to-orange-950 text-white rounded-3xl p-5 shadow-sm border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-2xl bg-orange-500/20 border border-orange-500/40 text-orange-400 flex items-center justify-center shrink-0">
             <ShieldCheck className="w-5 h-5" />
@@ -230,44 +260,44 @@ export const VendeurView: React.FC = () => {
 
       {/* Analytics KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3 sm:gap-4 min-w-0">
           <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg">
             <DollarSign className="w-6 h-6" />
           </div>
-          <div>
-            <p className="text-xs text-slate-500 font-medium">Ventes Brutes (Subtotal)</p>
-            <h3 className="text-xl font-black text-slate-900">{totalRevenue.toLocaleString()} FCFA</h3>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-slate-500 font-medium wrap-break-word">Ventes Brutes (Subtotal)</p>
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 wrap-break-word">{totalRevenue.toLocaleString()} FCFA</h3>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3 sm:gap-4 min-w-0">
           <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg">
             <CheckCircle2 className="w-6 h-6" />
           </div>
-          <div>
-            <p className="text-xs text-slate-500 font-medium">Revenu Net Boutique (95%)</p>
-            <h3 className="text-xl font-black text-emerald-600">{Math.round(totalRevenue * 0.95).toLocaleString()} FCFA</h3>
-            <span className="text-[10px] text-slate-400 font-medium">Commission 5%: {Math.round(totalRevenue * 0.05).toLocaleString()} F</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-slate-500 font-medium wrap-break-word">Revenu Net Boutique (95%)</p>
+            <h3 className="text-lg sm:text-xl font-black text-emerald-600 wrap-break-word">{Math.round(totalRevenue * 0.95).toLocaleString()} FCFA</h3>
+            <span className="text-[10px] text-slate-400 font-medium wrap-break-word">Commission 5%: {Math.round(totalRevenue * 0.05).toLocaleString()} F</span>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3 sm:gap-4 min-w-0">
           <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center font-bold text-lg">
             <Clock className="w-6 h-6" />
           </div>
-          <div>
-            <p className="text-xs text-slate-500 font-medium">Commandes à Traiter</p>
-            <h3 className="text-xl font-black text-orange-600">{pendingOrdersCount} en attente</h3>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-slate-500 font-medium wrap-break-word">Commandes à Traiter</p>
+            <h3 className="text-lg sm:text-xl font-black text-orange-600 wrap-break-word">{pendingOrdersCount} en attente</h3>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3 sm:gap-4 min-w-0">
           <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-lg">
             <Package className="w-6 h-6" />
           </div>
-          <div>
-            <p className="text-xs text-slate-500 font-medium">Catalogue Produits</p>
-            <h3 className="text-xl font-black text-slate-900">{storeProducts.length} référence(s)</h3>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-slate-500 font-medium wrap-break-word">Catalogue Produits</p>
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 wrap-break-word">{storeProducts.length} référence(s)</h3>
           </div>
         </div>
       </div>
@@ -316,7 +346,7 @@ export const VendeurView: React.FC = () => {
                       Net Reçu (95%) : {Math.round(order.subtotal * 0.95).toLocaleString()} FCFA
                     </span>
                     <span className="text-[10px] text-slate-400 block pt-0.5">Commission Livriko (5%) : {Math.round(order.subtotal * 0.05).toLocaleString()} F</span>
-                    <span className="text-[10px] text-orange-600 font-medium block">+ {order.deliveryFee.toLocaleString()} F Livraison ({order.distanceKm || 2} km)</span>
+                    <span className="text-[10px] text-orange-600 font-medium block">+ {order.deliveryFee.toLocaleString()} F Livraison ({order.distanceKm ? `${order.distanceKm} km` : 'distance indisponible'})</span>
                   </div>
 
                   {/* Accept / Reject / Request Rider Buttons */}
@@ -424,7 +454,7 @@ export const VendeurView: React.FC = () => {
 
       {/* Store & Profile Settings Modal */}
       {isStoreProfileModalOpen && (
-        <div className="fixed inset-0 z-[1100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+        <div className="fixed inset-0 z-1100 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden my-auto">
             <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-white shrink-0">
               <h3 className="text-base font-bold text-slate-900">
@@ -526,11 +556,11 @@ export const VendeurView: React.FC = () => {
 
       {/* Product Add / Edit Modal */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-[1100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+        <div className="fixed inset-0 z-1100 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden my-auto">
             <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-white shrink-0">
               <h3 className="text-base font-bold text-slate-900">
-                {editingProduct ? 'Modifier le Produit' : 'Nouveau Produit'}
+                {editingProduct ? 'Modifier le produit' : 'Ajouter un produit'}
               </h3>
               <button onClick={() => setIsProductModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
                 <X className="w-5 h-5" />
@@ -587,14 +617,29 @@ export const VendeurView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">URL de l'image</label>
-                  <input
-                    type="url"
-                    required
-                    value={image}
-                    onChange={e => setImage(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500"
-                  />
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Photo du produit</label>
+                  <div className="flex flex-col gap-3">
+                    <img
+                      src={image}
+                      alt="Aperçu du produit"
+                      className="w-full h-40 rounded-3xl object-cover border border-slate-200 bg-slate-100"
+                    />
+
+                    <label className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-2xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-200 transition">
+                      <ImageIcon className="w-4 h-4" />
+                      Ajouter une photo (galerie ou caméra)
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => handleProductImageSelect(e.target.files?.[0] || null)}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {imageError && (
+                      <p className="text-[11px] text-rose-600">{imageError}</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -611,7 +656,7 @@ export const VendeurView: React.FC = () => {
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-md transition cursor-pointer"
                 >
-                  Enregistrer
+                  {editingProduct ? 'Enregistrer les modifications' : 'Ajouter le produit'}
                 </button>
               </div>
             </form>

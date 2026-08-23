@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { Icon } from '@iconify/react';
 import { 
   ShoppingBag, ShoppingCart, Truck, ShieldCheck, User, Bell, Search, ChevronDown, CheckCircle2, Store as StoreIcon, LogOut, ArrowLeft, Menu, X, MapPin, Phone, MessageCircle
 } from 'lucide-react';
@@ -36,7 +37,8 @@ export const Header: React.FC<{
     currentUser,
     isLoggedIn,
     logoutUser,
-    setIsAuthModalOpen
+    setIsAuthModalOpen,
+    activeTrackingOrder,
   } = useApp();
 
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -90,10 +92,12 @@ export const Header: React.FC<{
   const currentUserLabel = currentUser?.name || currentUser?.email || 'Mon compte';
   const currentUserStatus = currentUser ? {
     client: 'Client',
+    restaurant: 'Restaurant',
     vendeur: 'Restaurant',
     livreur: 'Livreur',
     admin: 'Administrateur',
   }[currentUser.role] : '';
+  const hasActiveChatOrder = Boolean(activeTrackingOrder && ['rider_assigned', 'picked_up', 'delivering'].includes(activeTrackingOrder.status));
 
   const roleLabels: Record<UserRole, { label: string; icon: React.ReactNode; color: string; desc: string }> = {
     client: { 
@@ -101,6 +105,12 @@ export const Header: React.FC<{
       icon: <ShoppingCart className="w-4 h-4 text-blue-600" />,
       color: 'bg-blue-50 text-blue-700 border-blue-200',
       desc: 'Commander & Suivre la livraison'
+    },
+    restaurant: {
+      label: 'Restaurant',
+      icon: <StoreIcon className="w-4 h-4 text-orange-500" />,
+      color: 'bg-orange-50 text-orange-700 border-orange-200',
+      desc: 'Gérer produits & Demander un livreur'
     },
     vendeur: { 
       label: 'Restaurant', 
@@ -136,7 +146,7 @@ export const Header: React.FC<{
       label: 'Boutiques', 
       action: () => { 
         setActiveCategory('all'); 
-        const el = document.getElementById('boutiques-section'); 
+        const el = document.getElementById('entreprises-section'); 
         if (el) el.scrollIntoView({ behavior: 'smooth' }); 
       } 
     },
@@ -171,13 +181,12 @@ export const Header: React.FC<{
     { id: 'all', label: 'Tout le marché' },
     { id: 'restaurants', label: 'Restaurants' },
     { id: 'boutiques', label: 'Boutiques' },
-    { id: 'pharmacies', label: 'Pharmacies' },
     { id: 'supermarches', label: 'Supermarchés' },
     { id: 'autres', label: 'Services Express' },
   ];
 
   return (
-    <header className={`fixed top-0 left-0 right-0 z-[1000] w-full bg-slate-950 text-white transition-all duration-300 ${
+    <header className={`fixed top-0 left-0 right-0 z-1000 w-full bg-slate-950 text-white transition-all duration-300 ${
       isScrolled 
         ? 'border-b border-slate-800 shadow-2xl py-0' 
         : 'border-b border-slate-800/80'
@@ -185,7 +194,7 @@ export const Header: React.FC<{
       {/* Top Utility Strip (Matches screenshot top bar) */}
       <div className="bg-slate-900 text-slate-300 text-xs px-3 sm:px-8 py-1.5 sm:py-2 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 sm:gap-2 font-medium truncate">
-          <span className="text-orange-400 shrink-0">📍</span>
+          <Icon icon="mdi:map-marker" aria-hidden="true" className="text-orange-400 shrink-0" width="16" height="16" />
           <span className="truncate text-[11px] sm:text-xs">Livraison express à Lokossa dès 300 FCFA (Tarif au km)</span>
         </div>
 
@@ -300,37 +309,20 @@ export const Header: React.FC<{
             </button>
           )}
 
-          <button
-            onClick={onOpenChat}
-            className="relative p-1.5 sm:p-2 text-slate-200 hover:text-white transition cursor-pointer"
-            title="Ouvrir le chat LivriKo"
-          >
-            <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6" />
-          </button>
+          {hasActiveChatOrder && activeTrackingOrder && (
+            <button
+              onClick={onOpenChat}
+              className="relative p-1.5 sm:p-2 text-slate-200 hover:text-white transition cursor-pointer"
+              title={`Ouvrir la conversation de ${activeTrackingOrder.storeName}`}
+            >
+              <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
+          )}
 
-          {/* Auth State: BEFORE Connection vs AFTER Connection */}
+          {/* Auth actions are only on the welcome page; header stays for connected users only */}
           {!isUserConnected ? (
-            /* BEFORE CONNECTION: Se Connecter & S'inscrire buttons */
-            <div className="flex items-center gap-1 sm:gap-2">
-              <button
-                onClick={() => onOpenAuth('login')}
-                className="px-2.5 py-1 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] sm:text-xs border border-slate-700 transition cursor-pointer shrink-0"
-                title="Se connecter à votre compte"
-              >
-                <span className="hidden sm:inline">Se connecter</span>
-                <span className="sm:hidden">Connexion</span>
-              </button>
-
-              <button
-                onClick={() => onOpenAuth('register')}
-                className="hidden sm:inline-flex px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-md shadow-orange-500/20 transition cursor-pointer shrink-0"
-                title="Créer un nouveau compte"
-              >
-                S'inscrire
-              </button>
-            </div>
+            <div className="hidden" aria-hidden="true" />
           ) : (
-            /* AFTER CONNECTION: Se connecter & S'inscrire disappear. Display Connected User Name & Dropdown */
             <div className="relative" ref={profileWrapperRef}>
               <button 
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
@@ -348,7 +340,7 @@ export const Header: React.FC<{
                 {/* User First Name / Username */}
                 <div className="text-left flex items-center gap-1">
                   <span className="text-slate-400 text-xs">👤</span>
-                  <span className="font-black text-white text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[160px]">
+                  <span className="font-black text-white text-xs sm:text-sm truncate max-w-30 sm:max-w-40">
                     {currentUserLabel}
                   </span>
                   <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isProfileDropdownOpen ? 'rotate-180 text-orange-400' : ''}`} />
@@ -360,8 +352,8 @@ export const Header: React.FC<{
                 <div className={`${isProfileDropdownOpenUp ? 'absolute right-2 sm:right-0 bottom-full mb-2' : 'absolute right-2 sm:right-0 top-full mt-2'} w-[min(320px,90vw)] max-w-[320px] md:w-72 lg:w-80 max-h-[calc(100vh-80px)] overflow-y-auto bg-slate-900 border border-slate-800 text-white rounded-2xl shadow-2xl z-50 p-2.5 space-y-1 animate-in fade-in zoom-in-95 whitespace-normal`}>
                   {/* User Header Info */}
                   <div className="px-3 py-2 border-b border-slate-800">
-                    <div className="font-black text-xs text-white break-words">{currentUserLabel}</div>
-                    <div className="text-[10px] text-slate-400 break-words">{currentUser.email}</div>
+                    <div className="font-black text-xs text-white wrap-break-word">{currentUserLabel}</div>
+                    <div className="text-[10px] text-slate-400 wrap-break-word">{currentUser.email}</div>
                   </div>
 
                   {/* Dropdown Items */}
@@ -370,7 +362,7 @@ export const Header: React.FC<{
                       setIsProfileDropdownOpen(false);
                       onOpenUserProfile('profil');
                     }}
-                    className="w-full min-h-[44px] px-3 py-3 rounded-xl hover:bg-slate-800 text-slate-200 text-xs font-bold transition text-left flex items-center gap-2 cursor-pointer"
+                    className="w-full min-h-11 px-3 py-3 rounded-xl hover:bg-slate-800 text-slate-200 text-xs font-bold transition text-left flex items-center gap-2 cursor-pointer"
                   >
                     <span>👤</span>
                     <span>Mon profil</span>
@@ -382,7 +374,7 @@ export const Header: React.FC<{
                       setActiveRole(currentUser.role || 'client');
                       if (onTriggerScooterLoader) onTriggerScooterLoader();
                     }}
-                    className="w-full min-h-[44px] px-3 py-3 rounded-xl hover:bg-slate-800 text-slate-200 text-xs font-bold transition text-left flex items-center justify-between cursor-pointer"
+                    className="w-full min-h-11 px-3 py-3 rounded-xl hover:bg-slate-800 text-slate-200 text-xs font-bold transition text-left flex items-center justify-between cursor-pointer"
                   >
                     <div className="flex flex-1 flex-wrap items-center gap-2">
                       <span>📊</span>
@@ -396,7 +388,7 @@ export const Header: React.FC<{
                       setIsProfileDropdownOpen(false);
                       onOpenUserProfile('parametres');
                     }}
-                    className="w-full min-h-[44px] px-3 py-3 rounded-xl hover:bg-slate-800 text-slate-200 text-xs font-bold transition text-left flex items-center gap-2 cursor-pointer"
+                    className="w-full min-h-11 px-3 py-3 rounded-xl hover:bg-slate-800 text-slate-200 text-xs font-bold transition text-left flex items-center gap-2 cursor-pointer"
                   >
                     <span>⚙️</span>
                     <span>Paramètres</span>
@@ -407,7 +399,7 @@ export const Header: React.FC<{
                       setIsProfileDropdownOpen(false);
                       onOpenUserProfile('commandes');
                     }}
-                    className="w-full min-h-[44px] px-3 py-3 rounded-xl hover:bg-slate-800 text-slate-200 text-xs font-bold transition text-left flex items-center justify-between cursor-pointer"
+                    className="w-full min-h-11 px-3 py-3 rounded-xl hover:bg-slate-800 text-slate-200 text-xs font-bold transition text-left flex items-center justify-between cursor-pointer"
                   >
                     <div className="flex flex-1 flex-wrap items-center gap-2">
                       <span>🔔</span>
@@ -422,7 +414,7 @@ export const Header: React.FC<{
                         setIsProfileDropdownOpen(false);
                         logoutUser();
                       }}
-                      className="w-full min-h-[44px] px-3 py-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs font-bold transition flex items-center gap-2 cursor-pointer"
+                      className="w-full min-h-11 px-3 py-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs font-bold transition flex items-center gap-2 cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Déconnexion</span>
@@ -475,7 +467,7 @@ export const Header: React.FC<{
                   onClick={() => {
                     setActiveCategory(cat.id);
                     setIsMobileMenuOpen(false);
-                    const el = document.getElementById('products-section');
+                    const el = document.getElementById('entreprises-section');
                     if (el) el.scrollIntoView({ behavior: 'smooth' });
                   }}
                   className={`p-2 rounded-xl text-left text-xs font-bold transition cursor-pointer ${
@@ -488,28 +480,9 @@ export const Header: React.FC<{
             </div>
           </div>
 
-          {/* Quick Auth / Account buttons on Mobile */}
+          {/* Quick Account buttons on Mobile only for connected users */}
           {!isUserConnected ? (
-            <div className="pt-3 border-t border-slate-800 grid grid-cols-2 gap-2">
-              <button
-                onClick={() => {
-                  onOpenAuth('login');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="py-2.5 rounded-xl bg-slate-800 text-white font-bold text-xs border border-slate-700 cursor-pointer text-center"
-              >
-                Se connecter
-              </button>
-              <button
-                onClick={() => {
-                  onOpenAuth('register');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="py-2.5 rounded-xl bg-orange-500 text-white font-bold text-xs shadow-md cursor-pointer text-center"
-              >
-                S'inscrire
-              </button>
-            </div>
+            <div className="hidden" aria-hidden="true" />
           ) : (
             <div className="pt-3 border-t border-slate-800 space-y-1">
               <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-2">Mon Compte ({currentUserLabel})</p>

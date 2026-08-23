@@ -8,8 +8,9 @@ import { CATEGORIES } from '../../data/mockData';
 import { HeroCarousel } from './HeroCarousel';
 import { OrderTrackingModal } from './OrderTrackingModal';
 import { StoreDetailView } from './StoreDetailView';
+import { ServiceExpressView } from './ServiceExpressView';
 
-export const ClientView: React.FC<{ onOpenCart: () => void }> = ({ onOpenCart }) => {
+export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => void }> = ({ onOpenCart, onOpenChat }) => {
   const { 
     stores, 
     products, 
@@ -26,20 +27,46 @@ export const ClientView: React.FC<{ onOpenCart: () => void }> = ({ onOpenCart })
   const [viewingStore, setViewingStore] = useState<Store | null>(null);
   const [autoAddedProduct, setAutoAddedProduct] = useState<Product | null>(null);
 
-  // Filter products
-  const filteredProducts = products.filter(p => {
-    const matchesCategory = activeCategory === 'all' || p.category === activeCategory;
-    const matchesSearch = searchQuery === '' || 
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.storeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.description.toLowerCase().includes(searchQuery.toLowerCase());
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  // Keep the company-first flow usable while store records are loading from the API.
+  const storesFromProducts = products.reduce<Store[]>((result, product) => {
+    if (result.some(store => store.id === product.storeId)) return result;
+    result.push({
+      id: product.storeId,
+      name: product.storeName || 'Boutique Livriko',
+      category: product.category,
+      ownerId: product.storeId.replace(/^store-/, ''),
+      logo: product.image,
+      coverImage: product.image,
+      rating: 5,
+      deliveryTime: '30-45 min',
+      address: 'Lokossa',
+      city: 'Lokossa',
+      phone: '',
+      isOpen: true,
+      isCertified: false,
+    });
+    return result;
+  }, []);
+
+  const allStores = [...stores, ...storesFromProducts.filter(productStore => !stores.some(store => store.id === productStore.id))];
+  const filteredStores = allStores.filter(store => {
+    const storeProducts = products.filter(product => product.storeId === store.id);
+    const matchesCategory = activeCategory === 'all' || store.category === activeCategory || storeProducts.some(product => product.category === activeCategory);
+    const matchesSearch = !normalizedSearch || store.name.toLowerCase().includes(normalizedSearch) || storeProducts.some(product =>
+      product.name.toLowerCase().includes(normalizedSearch) || product.description.toLowerCase().includes(normalizedSearch)
+    );
     return matchesCategory && matchesSearch;
   });
 
-  // Filter stores
-  const filteredStores = stores.filter(s => {
-    return activeCategory === 'all' || s.category === activeCategory;
-  });
+  const matchingProducts = products.filter(product => normalizedSearch && (
+    product.name.toLowerCase().includes(normalizedSearch)
+    || product.description.toLowerCase().includes(normalizedSearch)
+    || product.storeName.toLowerCase().includes(normalizedSearch)
+  ));
+
+  const filteredProducts: Product[] = [];
 
   const handleAddToCart = (e: React.MouseEvent, p: Product) => {
     e.stopPropagation();
@@ -53,17 +80,36 @@ export const ClientView: React.FC<{ onOpenCart: () => void }> = ({ onOpenCart })
   const handleSelectProductAndGoToStore = (product: Product) => {
     const foundStore = stores.find(
       s => s.id === product.storeId || s.name.toLowerCase() === product.storeName.toLowerCase()
-    ) ?? null;
+    );
 
-    addToCart(product, 1);
-    setAutoAddedProduct(product);
-    setViewingStore(foundStore);
+    const storeFromProduct: Store = foundStore || {
+      id: product.storeId,
+      name: product.storeName || 'Boutique Livriko',
+      category: product.category,
+      ownerId: product.storeId.replace(/^store-/, ''),
+      logo: '',
+      coverImage: product.image,
+      rating: 5,
+      deliveryTime: '30-45 min',
+      address: 'Lokossa',
+      city: 'Lokossa',
+      phone: '',
+      isOpen: true,
+      isCertified: false,
+    };
+
+    setAutoAddedProduct(null);
+    setViewingStore(storeFromProduct);
     setSelectedProduct(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Find latest client order for floating live tracking bar
   const activeOrder = orders[0];
+
+  if (activeCategory === 'autres') {
+    return <ServiceExpressView onBack={() => setActiveCategory('all')} />;
+  }
 
   // If currently viewing a dedicated store space
   if (viewingStore) {
@@ -77,6 +123,7 @@ export const ClientView: React.FC<{ onOpenCart: () => void }> = ({ onOpenCart })
             setAutoAddedProduct(null);
           }}
           onOpenCart={onOpenCart}
+          onOpenChat={onOpenChat}
           autoAddedProduct={autoAddedProduct}
         />
       </div>
@@ -146,17 +193,17 @@ export const ClientView: React.FC<{ onOpenCart: () => void }> = ({ onOpenCart })
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {CATEGORIES.map(cat => {
             const isSelected = activeCategory === cat.id;
-            const count = products.filter(p => p.category === cat.id).length;
+            const count = allStores.filter(store => store.category === cat.id).length;
 
             return (
               <button
                 key={cat.id}
                 onClick={() => {
                   setActiveCategory(cat.id);
-                  const el = document.getElementById('products-section');
+                  const el = document.getElementById('entreprises-section');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
                 }}
                 className={`p-4 rounded-2xl text-left border transition flex flex-col justify-between h-32 relative overflow-hidden group cursor-pointer ${
@@ -184,12 +231,14 @@ export const ClientView: React.FC<{ onOpenCart: () => void }> = ({ onOpenCart })
         </div>
       </div>
 
-      {/* Featured Stores Section */}
-      <div id="boutiques-section" className="scroll-mt-28">
+      {/* Company Directory */}
+      <div id="entreprises-section" className="scroll-mt-28">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Commerces & Boutiques Partenaires</h2>
-            <p className="text-xs text-slate-500">Sélectionnés pour la qualité et la rapidité de préparation</p>
+            <h2 className="text-lg font-bold text-slate-900">
+              {normalizedSearch ? `Entreprises et résultats pour « ${searchQuery} »` : 'Entreprises disponibles'}
+            </h2>
+            <p className="text-xs text-slate-500">Choisissez une entreprise pour consulter son catalogue complet</p>
           </div>
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
@@ -228,6 +277,18 @@ export const ClientView: React.FC<{ onOpenCart: () => void }> = ({ onOpenCart })
                   </div>
                 </div>
 
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
+                  <span className="text-orange-600 font-semibold">{CATEGORIES.find(category => category.id === store.category)?.label || 'Autres services'}</span>
+                  <span>⭐ {store.rating.toFixed(1)} (avis)</span>
+                  <span>{store.isOpen ? '🟢 Ouvert' : '🔴 Fermé'}</span>
+                </div>
+
+                {normalizedSearch && matchingProducts.filter(product => product.storeId === store.id).length > 0 && (
+                  <p className="text-[10px] text-slate-500 truncate">
+                    Produit correspondant : {matchingProducts.filter(product => product.storeId === store.id).map(product => product.name).join(', ')}
+                  </p>
+                )}
+
                 <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-100 text-slate-600">
                   <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-slate-400" /> {store.deliveryTime}</span>
                   <span className="text-orange-600 font-semibold flex items-center gap-1">Voir la boutique →</span>
@@ -238,7 +299,8 @@ export const ClientView: React.FC<{ onOpenCart: () => void }> = ({ onOpenCart })
         </div>
       </div>
 
-      {/* Products Catalog Grid */}
+      {/* Products are intentionally shown only inside StoreDetailView. */}
+      {false && <>
       <div id="products-section" className="scroll-mt-28">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
@@ -333,7 +395,7 @@ export const ClientView: React.FC<{ onOpenCart: () => void }> = ({ onOpenCart })
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleSelectProductAndGoToStore(product);
+                        handleAddToCart(e, product);
                       }}
                       className="px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs bg-orange-500 hover:bg-orange-600 text-white cursor-pointer"
                     >
@@ -348,6 +410,8 @@ export const ClientView: React.FC<{ onOpenCart: () => void }> = ({ onOpenCart })
           </div>
         )}
       </div>
+
+      </>}
 
       {/* Product Quick View Modal */}
       {selectedProduct && (

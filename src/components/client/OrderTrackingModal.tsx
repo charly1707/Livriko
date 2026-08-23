@@ -9,6 +9,9 @@ export const OrderTrackingModal: React.FC<{ order: Order; onClose: () => void }>
   const { updateOrderStatus } = useApp();
   const [riderProgress, setRiderProgress] = useState(65); // percentage along route
 
+  const displayDistanceKm = order.distanceKm ?? 2;
+  const displayDeliveryFee = order.finalDeliveryFee ?? order.estimatedDeliveryFee ?? order.deliveryFee;
+
   const steps: { status: OrderStatus; label: string; desc: string }[] = [
     { status: 'pending', label: 'Commande envoyée', desc: 'Reçue par le commerçant' },
     { status: 'confirmed', label: 'En préparation', desc: 'Le vendeur prépare vos articles' },
@@ -23,11 +26,11 @@ export const OrderTrackingModal: React.FC<{ order: Order; onClose: () => void }>
 
 
   return (
-    <div className="fixed inset-0 z-[1100] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-1100 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100 my-auto">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-5 sm:p-6 relative">
+        <div className="bg-linear-to-r from-blue-600 to-blue-700 text-white p-5 sm:p-6 relative">
           <div className="flex items-center justify-between gap-2 mb-2">
             <button
               onClick={onClose}
@@ -63,8 +66,8 @@ export const OrderTrackingModal: React.FC<{ order: Order; onClose: () => void }>
         <div className="relative bg-slate-100 h-48 border-b border-slate-200 overflow-hidden flex items-center justify-center">
           
           {/* Decorative Map Grid & Roads */}
-          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px]" />
-          <svg className="absolute inset-0 w-full h-full stroke-blue-300 stroke-[3] fill-none" opacity="0.4">
+          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] bg-size-[16px_16px]" />
+          <svg className="absolute inset-0 w-full h-full stroke-blue-300 stroke-3 fill-none" opacity="0.4">
             <path d="M 40 120 Q 150 40 300 120 T 600 80" />
             <path d="M 80 180 L 250 30 L 500 160" stroke="#f97316" strokeDasharray="4 4" />
           </svg>
@@ -84,7 +87,7 @@ export const OrderTrackingModal: React.FC<{ order: Order; onClose: () => void }>
             <div className="w-10 h-10 rounded-full bg-white border-2 border-blue-600 flex items-center justify-center shadow-md">
               <MapPin className="w-5 h-5 text-blue-600" />
             </div>
-            <span className="text-[10px] font-bold bg-white/90 px-1.5 py-0.5 rounded shadow-xs mt-1 inline-block text-slate-800 truncate max-w-[120px]">
+            <span className="text-[10px] font-bold bg-white/90 px-1.5 py-0.5 rounded shadow-xs mt-1 inline-block text-slate-800 truncate max-w-30">
               {order.clientAddress}
             </span>
           </div>
@@ -108,6 +111,29 @@ export const OrderTrackingModal: React.FC<{ order: Order; onClose: () => void }>
           <div className="absolute bottom-3 left-4 bg-slate-900/90 text-white px-3 py-1.5 rounded-xl text-xs flex items-center gap-2 backdrop-blur-xs">
             <Clock className="w-3.5 h-3.5 text-orange-400" />
             <span>Temps estimé : <strong>~{order.estimatedMinutes || 15} minutes</strong></span>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 border-b border-slate-200 p-4 sm:p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">🚚 Livraison</p>
+              <h3 className="text-base font-black text-slate-900 mt-1">
+                {order.riderName ? '🚴 Votre livreur est en route' : '📍 Distance estimée et tarif calculés automatiquement'}
+              </h3>
+            </div>
+            <span className="rounded-full bg-orange-100 text-orange-700 px-2.5 py-1 text-[10px] font-bold">{displayDistanceKm.toFixed(1)} km</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
+              <p className="text-[10px] font-bold uppercase text-slate-500">📍 Distance estimée</p>
+              <p className="mt-1 text-sm font-black text-slate-900">{displayDistanceKm.toFixed(1)} km</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
+              <p className="text-[10px] font-bold uppercase text-slate-500">💰 Frais de livraison</p>
+              <p className="mt-1 text-sm font-black text-orange-600">{displayDeliveryFee.toLocaleString()} FCFA</p>
+            </div>
           </div>
         </div>
 
@@ -191,9 +217,9 @@ export const OrderTrackingModal: React.FC<{ order: Order; onClose: () => void }>
             </div>
             <div className="flex justify-between items-center text-slate-600">
               <span className="flex items-center gap-1">
-                Frais de livraison ({order.distanceKm || 2} km) :
+                Frais de livraison ({displayDistanceKm.toFixed(1)} km) :
               </span>
-              <span className="font-semibold text-orange-600">{order.deliveryFee.toLocaleString()} FCFA</span>
+              <span className="font-semibold text-orange-600">{displayDeliveryFee.toLocaleString()} FCFA</span>
             </div>
             <div className="flex justify-between items-center pt-2 border-t border-slate-100 font-bold text-slate-900 text-sm">
               <span>Total à payer à la livraison :</span>

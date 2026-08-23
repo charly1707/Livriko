@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS `roles` (
 INSERT IGNORE INTO `roles` (`code`, `libelle`, `description`) VALUES
 ('client', 'Client Acheteur', 'Passe des commandes et suit la livraison'),
 ('restaurant', 'Restaurant / Boutique', 'Gère son catalogue et prépare les commandes'),
+('vendeur', 'Vendeur / Boutique', 'Gère son catalogue, prépare et vend des produits'),
 ('livreur', 'Livreur / Coursier', 'Effectue le ramassage et la livraison à destination'),
 ('administrateur', 'Administrateur', 'Supervision globale et gestion des utilisateurs');
 
@@ -156,6 +157,7 @@ CREATE TABLE IF NOT EXISTS `categories_produits` (
 CREATE TABLE IF NOT EXISTS `produits` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `restaurant_id` INT NOT NULL,
+  `category` VARCHAR(50) NULL,
   `category_id` INT NULL,
   `nom` VARCHAR(150) NOT NULL,
   `description` TEXT NULL,
@@ -298,6 +300,39 @@ CREATE TABLE IF NOT EXISTS `livraisons` (
   FOREIGN KEY (`livreur_id`) REFERENCES `livreurs`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- Missions Service Express, indépendantes des commandes de restaurants
+CREATE TABLE IF NOT EXISTS `service_express_missions` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `client_id` INT NOT NULL,
+  `livreur_id` INT NULL,
+  `type_service` VARCHAR(50) NOT NULL,
+  `description` TEXT NOT NULL,
+  `depart_nom` VARCHAR(150) NULL,
+  `depart_adresse` TEXT NOT NULL,
+  `depart_telephone` VARCHAR(30) NULL,
+  `depart_notes` TEXT NULL,
+  `destination_nom` VARCHAR(150) NULL,
+  `destination_adresse` TEXT NOT NULL,
+  `destination_telephone` VARCHAR(30) NULL,
+  `destination_notes` TEXT NULL,
+  `details_json` JSON NULL,
+  `distance_km` DECIMAL(8,2) NOT NULL,
+  `frais_service` DECIMAL(10,2) NOT NULL,
+  `statut` ENUM('pending','searching','assigned','to_pickup','picked_up','delivering','delivered','completed','cancelled') DEFAULT 'searching',
+  `date_creation` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `date_completion` DATETIME NULL,
+  FOREIGN KEY (`client_id`) REFERENCES `utilisateurs`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`livreur_id`) REFERENCES `livreurs`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `historique_service_express` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `mission_id` INT NOT NULL,
+  `statut` VARCHAR(50) NOT NULL,
+  `date_creation` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`mission_id`) REFERENCES `service_express_missions`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS `historique_livraisons` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `livraison_id` INT NOT NULL,
@@ -343,6 +378,48 @@ CREATE TABLE IF NOT EXISTS `paiements` (
   FOREIGN KEY (`methode_id`) REFERENCES `methodes_paiement`(`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS `payment_transactions` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `order_id` INT NOT NULL,
+  `user_id` INT NOT NULL,
+  `provider` VARCHAR(50) NOT NULL,
+  `provider_transaction_id` VARCHAR(255) NULL,
+  `idempotency_key` VARCHAR(255) NOT NULL,
+  `customer_phone` VARCHAR(30) NULL,
+  `amount` DECIMAL(12,2) NOT NULL,
+  `currency` VARCHAR(10) NOT NULL DEFAULT 'XOF',
+  `status` ENUM('pending','successful','failed','cancelled') NOT NULL DEFAULT 'pending',
+  `provider_payload` JSON NULL,
+  `failure_reason` VARCHAR(255) NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uniq_idempotency` (`idempotency_key`),
+  KEY `idx_order_id` (`order_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_provider_transaction` (`provider`, `provider_transaction_id`)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `webhook_events` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `provider` VARCHAR(50) NOT NULL,
+  `event_id` VARCHAR(255) NOT NULL,
+  `signature_valid` TINYINT(1) NOT NULL DEFAULT 0,
+  `payload` JSON NULL,
+  `processed_at` DATETIME NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uniq_event` (`provider`, `event_id`)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `sms_logs` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `phone` VARCHAR(30) NOT NULL,
+  `message` TEXT NOT NULL,
+  `provider` VARCHAR(50) NOT NULL,
+  `status` ENUM('queued','sent','failed') NOT NULL DEFAULT 'queued',
+  `response_payload` JSON NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS `commissions` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `commande_id` INT NOT NULL,
@@ -381,6 +458,37 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `date_envoi` DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`expediteur_id`) REFERENCES `utilisateurs`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- New order-based conversation tables (one conversation per order)
+CREATE TABLE IF NOT EXISTS `order_conversations` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `order_id` INT NOT NULL UNIQUE,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`order_id`) REFERENCES `commandes`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `conversation_participants` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `conversation_id` INT NOT NULL,
+  `user_id` INT NOT NULL,
+  `role` ENUM('client','restaurant','livreur') NOT NULL,
+  `added_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `conversation_user` (`conversation_id`,`user_id`),
+  FOREIGN KEY (`conversation_id`) REFERENCES `order_conversations`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`user_id`) REFERENCES `utilisateurs`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `conversation_messages` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `conversation_id` INT NOT NULL,
+  `sender_id` INT NOT NULL,
+  `message` TEXT NULL,
+  `message_type` ENUM('text','image','emoji') DEFAULT 'text',
+  `is_read` TINYINT(1) DEFAULT 0,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`conversation_id`) REFERENCES `order_conversations`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`sender_id`) REFERENCES `utilisateurs`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `avis` (
@@ -423,6 +531,15 @@ CREATE TABLE IF NOT EXISTS `publicites` (
   `image` VARCHAR(255) NULL,
   `date_debut` DATETIME NOT NULL,
   `date_fin` DATETIME NOT NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `newsletter_subscribers` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `contact` VARCHAR(191) NOT NULL UNIQUE,
+  `contact_type` ENUM('email','whatsapp') NOT NULL,
+  `status` ENUM('active','unsubscribed') NOT NULL DEFAULT 'active',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NULL ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `signalements` (
