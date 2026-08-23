@@ -16,6 +16,7 @@ const AuthModal = lazy(() => import('./components/AuthModal').then(module => ({ 
 const UserProfileModal = lazy(() => import('./components/UserProfileModal').then(module => ({ default: module.UserProfileModal })));
 const ChatWidget = lazy(() => import('./components/ChatWidget').then(module => ({ default: module.ChatWidget })));
 import WelcomePage from './components/WelcomePage';
+import { readPersistedSession } from './utils/authFallback';
 const ReviewModal = lazy(() => import('./components/client/ReviewModal').then(module => ({ default: module.default })));
 
 function MainAppContent() {
@@ -32,7 +33,13 @@ function MainAppContent() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [showScooterLoader, setShowScooterLoader] = useState(true);
+  const [showScooterLoader, setShowScooterLoader] = useState(() => {
+    try {
+      return !sessionStorage.getItem('livriko_loader_shown');
+    } catch {
+      return false;
+    }
+  });
 
   // User Profile Modal state
   const [isUserProfileOpen, setIsUserProfileOpen] = useState(false);
@@ -61,7 +68,14 @@ function MainAppContent() {
       {/* Scooter Page Loading Animation */}
       {showScooterLoader && (
         <PageScooterLoader 
-          onComplete={() => setShowScooterLoader(false)}
+          onComplete={() => {
+            try {
+              sessionStorage.setItem('livriko_loader_shown', '1');
+            } catch {
+              // ignore storage errors
+            }
+            setShowScooterLoader(false);
+          }}
           duration={2000}
         />
       )}
@@ -80,7 +94,9 @@ function MainAppContent() {
           setAuthModalMode(mode);
           setIsAuthModalOpen(true);
         }}
-        onTriggerScooterLoader={() => setShowScooterLoader(true)}
+        onTriggerScooterLoader={() => {
+          setShowScooterLoader(true);
+        }}
       />
 
       {/* Primary Role Views */}
@@ -167,11 +183,27 @@ export default function App() {
 }
 
 function AppRoot() {
-  const { isLoggedIn, currentUserId, currentUser } = useApp();
+  const { authReady, isLoggedIn, currentUserId, currentUser } = useApp();
   const [welcomeAuthMode, setWelcomeAuthMode] = React.useState<'register' | 'login'>('login');
   const [welcomeAuthOpen, setWelcomeAuthOpen] = React.useState(false);
 
   const hasValidSession = isLoggedIn || Boolean(currentUserId) || Boolean(currentUser);
+  const hasPersistedSession = readPersistedSession().isLoggedIn;
+
+  if (!authReady) {
+    if (hasPersistedSession) {
+      return <MainAppContent />;
+    }
+
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="mx-auto h-10 w-10 rounded-full border-2 border-orange-400 border-t-transparent animate-spin" />
+          <p className="text-sm font-semibold text-slate-300">Chargement de votre session...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!hasValidSession) {
     return (

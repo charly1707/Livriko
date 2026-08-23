@@ -5,12 +5,13 @@ import {
   User, UserRole, Store, Product, Order, CartItem, NotificationItem, 
   CategoryType, OrderStatus 
 } from '../types';
-import { normalizeUserRole } from '../utils/authFallback';
+import { normalizeUserRole, readPersistedSession, readPersistedUserSnapshot, readStoredActiveRole, resolveActiveRole, persistSession, clearPersistedSession, ACTIVE_ROLE_KEY } from '../utils/authFallback';
 import { uploadImageFile, uploadProductImageFile } from '../utils/imageUpload';
 import { buildDeliveryQuoteFromCoordinates, calculateDeliveryFee, calculateRoadDistanceKm, calculateHaversineDistance, isValidCoordinates } from '../utils/deliveryCalculator';
 
 interface AppContextType {
   isLoggedIn: boolean;
+  authReady: boolean;
   currentUserId: string | null;
   activeRole: UserRole;
   setActiveRole: (role: UserRole, force?: boolean) => void;
@@ -165,25 +166,34 @@ const mapApiOrder = (order: any): Order => ({
   notes: order.notes || undefined,
 });
 
+const CART_STORAGE_KEY = 'livriko_cart';
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const persistedSession = readPersistedSession();
+  const persistedUser = readPersistedUserSnapshot();
 
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return false;
-  });
+  const [allUsers, setAllUsers] = useState<User[]>(() => (
+    persistedUser ? [persistedUser] : []
+  ));
 
-  const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
-    return null;
-  });
+  const [authReady, setAuthReady] = useState(false);
 
-  const [activeRole, setActiveRoleState] = useState<UserRole>(() => {
-    const stored = typeof window !== 'undefined' ? localStorage.getItem('livriko_active_role') : null;
-    return stored && ['client', 'restaurant', 'vendeur', 'livreur', 'admin'].includes(stored) ? (stored as UserRole) : 'client';
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => persistedSession.isLoggedIn);
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => persistedSession.userId);
+
+  const [activeRole, setActiveRoleState] = useState<UserRole>(() => readStoredActiveRole());
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    try {
+      const raw = localStorage.getItem(CART_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
   const [activeCategory, setActiveCategory] = useState<CategoryType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTrackingOrder, setActiveTrackingOrder] = useState<Order | null>(null);
@@ -197,8 +207,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUserId, isLoggedIn]);
 
   useEffect(() => {
-    localStorage.setItem('livriko_active_role', activeRole);
+    localStorage.setItem(ACTIVE_ROLE_KEY, activeRole);
   }, [activeRole]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    } catch {
+      // ignore storage errors
+    }
+  }, [cart]);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -208,30 +226,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (res.data?.user) {
           const user = res.data.user;
           const userId = String(user.id);
+          const userData: User = {
+            id: userId,
+            name: user.prenom || user.nom_utilisateur || user.email,
+            email: user.email,
+            phone: user.telephone || '',
+            role: normalizeUserRole(user.role),
+            avatar: user.avatar || undefined,
+          };
           setAllUsers(prev => {
             const existing = prev.find(u => u.id === userId);
             if (existing) {
-              return prev.map(u => u.id === userId ? { ...existing, ...user, id: userId } : u);
+              return prev.map(u => u.id === userId ? { ...existing, ...userData } : u);
             }
-            return [{
-              id: userId,
-              name: user.prenom || user.nom_utilisateur || user.email,
-              email: user.email,
-              phone: user.telephone || '',
-              role: user.role || 'client',
-              avatar: user.avatar || undefined,
-            }, ...prev];
+            return [userData, ...prev];
           });
           setCurrentUserId(userId);
           setIsLoggedIn(true);
-          setActiveRoleState(normalizeUserRole(user.role));
+          persistSession(userData);
+          setActiveRoleState(resolveActiveRole(userData.role));
         } else {
           setCurrentUserId(null);
           setIsLoggedIn(false);
+          clearPersistedSession();
         }
       } catch {
         setCurrentUserId(null);
         setIsLoggedIn(false);
+        clearPersistedSession();
+      } finally {
+        setAuthReady(true);
       }
 
       try {
@@ -357,6 +381,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         setCurrentUserId(userData.id);
         setIsLoggedIn(true);
+        persistSession(userData);
         setActiveRoleState(userData.role);
         addNotification('Connexion réussie', `Bienvenue dans votre espace ${userData.role.toUpperCase()} !`, userData.role);
         return { success: true, user: userData };
@@ -381,13 +406,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUserId(null);
     setActiveRoleState('client');
     setIsAuthModalOpen(false);
-
-    try {
-      localStorage.removeItem('livriko_is_logged_in');
-      localStorage.removeItem('livriko_current_user_id');
-      localStorage.removeItem('livriko_seen_welcome');
-      sessionStorage.removeItem('livriko_session');
-    } catch {}
+    clearPersistedSession();
 
     try {
       document.cookie = 'PHPSESSID=; Max-Age=0; path=/; SameSite=Lax';
@@ -480,6 +499,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setAllUsers(prev => [userDataFromApi, ...prev.filter(user => user.id !== userDataFromApi.id)]);
         setCurrentUserId(userDataFromApi.id);
         setIsLoggedIn(true);
+        persistSession(userDataFromApi);
         setActiveRoleState(userDataFromApi.role);
 
         addNotification(
@@ -1092,6 +1112,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider
       value={{
         isLoggedIn,
+        authReady,
         currentUserId,
         activeRole,
         setActiveRole,
