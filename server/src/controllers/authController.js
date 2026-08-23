@@ -162,6 +162,13 @@ export async function updateProfile(req, res) {
     if (next.length < 8) {
       return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 8 caractères.' });
     }
+    const currentPassword = String(payload.currentPassword || payload.mot_de_passe_actuel || '');
+    if (currentPassword) {
+      const ok = await bcrypt.compare(currentPassword, user.motDePasse);
+      if (!ok) {
+        return res.status(401).json({ success: false, message: 'Mot de passe actuel incorrect.' });
+      }
+    }
     user.motDePasse = await bcrypt.hash(next, 10);
   }
 

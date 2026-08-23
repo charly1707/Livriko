@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Store as StoreIcon, Package, Plus, Edit3, Trash2, Truck, CheckCircle2, AlertCircle, Clock, DollarSign, Eye, ToggleLeft, ToggleRight, X, Image as ImageIcon, ShieldCheck, XCircle, Settings, User, ArrowLeft
+  Store as StoreIcon, Package, Plus, Edit3, Trash2, Truck, CheckCircle2, AlertCircle, Clock, DollarSign, Eye, ToggleLeft, ToggleRight, X, Image as ImageIcon, ShieldCheck, XCircle, Settings, User, ArrowLeft, MessageCircle
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Product, Order, CategoryType, Store } from '../../types';
@@ -21,6 +21,7 @@ export const VendeurView: React.FC = () => {
     deleteProduct,
     updateUserProfile,
     updateStore,
+    setActiveTrackingOrder,
   } = useApp();
 
   const currentStore = stores.find(s => s.id === currentUser?.storeId || s.ownerId === currentUser?.id);
@@ -387,6 +388,19 @@ export const VendeurView: React.FC = () => {
                   <div className="text-xs text-slate-500 pt-1">
                     Articles : {order.items.map(i => `${i.quantity}x ${i.productName}`).join(', ')}
                   </div>
+
+                  {['confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(order.status) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTrackingOrder(order);
+                      }}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-bold hover:bg-blue-100 transition cursor-pointer"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      Discuter avec le client
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex flex-col items-end gap-2">

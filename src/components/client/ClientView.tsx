@@ -9,6 +9,7 @@ import { HeroCarousel } from './HeroCarousel';
 import { OrderTrackingModal } from './OrderTrackingModal';
 import { StoreDetailView } from './StoreDetailView';
 import { ServiceExpressView } from './ServiceExpressView';
+import { onImageError } from '../../utils/media';
 
 export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => void }> = ({ onOpenCart, onOpenChat }) => {
   const { 
@@ -19,7 +20,8 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
     searchQuery, 
     addToCart,
     orders,
-    setActiveTrackingOrder
+    setActiveTrackingOrder,
+    currentUser,
   } = useApp();
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -105,7 +107,11 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
   };
 
   // Find latest client order for floating live tracking bar
-  const activeOrder = orders[0];
+  const activeOrder = orders.find(
+    (o) =>
+      String(o.clientId) === String(currentUser?.id) &&
+      !['delivered', 'cancelled'].includes(o.status),
+  );
 
   if (activeCategory === 'autres') {
     return <ServiceExpressView onBack={() => setActiveCategory('all')} />;
@@ -261,7 +267,7 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
               className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition cursor-pointer group"
             >
               <div className="h-28 relative">
-                <img src={store.coverImage} alt={store.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                <img src={store.coverImage || store.logo} alt={store.name} onError={onImageError} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
                 <span className="absolute top-2 right-2 bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded-full text-[10px] font-bold text-slate-800 flex items-center gap-1 shadow-xs">
                   <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                   {store.rating}
@@ -270,7 +276,7 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
 
               <div className="p-4 space-y-2">
                 <div className="flex items-center gap-2">
-                  <img src={store.logo} alt={store.name} className="w-8 h-8 rounded-lg object-cover border border-slate-200" />
+                  <img src={store.logo || store.coverImage} alt={store.name} onError={onImageError} className="w-8 h-8 rounded-lg object-cover border border-slate-200" />
                   <div className="min-w-0 flex-1">
                     <h3 className="text-xs font-bold text-slate-900 truncate group-hover:text-orange-500 transition">{store.name}</h3>
                     <p className="text-[10px] text-slate-500 truncate">{store.address}</p>
@@ -418,7 +424,7 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
         <div className="fixed inset-0 z-[1100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100 my-auto">
             <div className="h-48 sm:h-64 relative bg-slate-100">
-              <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-cover" />
+              <img src={selectedProduct.image} alt={selectedProduct.name} onError={onImageError} className="w-full h-full object-cover" />
               <button
                 onClick={() => setSelectedProduct(null)}
                 className="absolute top-4 right-4 w-9 h-9 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white flex items-center justify-center transition p-1"

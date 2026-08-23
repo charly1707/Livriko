@@ -69,7 +69,7 @@ interface AppContextType {
   
   // Order Lifecycle
   placeOrder: (details: {
-    paymentMethod: 'cash' | 'momo_mtn' | 'momo_moov' | 'orange_money' | 'celtis_cash';
+    paymentMethod: 'cash' | 'momo_mtn' | 'momo_moov' | 'orange_money' | 'celtis_cash' | 'wallet';
     storePaymentMode?: 'online' | 'delivery';
     clientName: string;
     clientPhone: string;
@@ -243,6 +243,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             phone: user.telephone || '',
             role: normalizeUserRole(user.role),
             avatar: user.avatar || undefined,
+            walletBalance: Number(user.walletBalance || 0),
           };
           loggedInRole = userData.role;
           setAllUsers(prev => {
@@ -408,6 +409,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           phone: res.data.user.telephone || '',
           role: normalizeUserRole(res.data.user.role),
           avatar: res.data.user.avatar || undefined,
+          walletBalance: Number(res.data.user.walletBalance || 0),
         };
         setAllUsers(prev => {
           const existing = prev.find(u => u.id === userData.id);
@@ -576,6 +578,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.city) payload.append('city', updates.city);
     if (updates.vehicle) payload.append('vehicle', updates.vehicle);
     if (updates.password) payload.append('newPassword', updates.password);
+    if ((updates as any).currentPassword) payload.append('currentPassword', String((updates as any).currentPassword));
 
     try {
       const res = await axios.post(buildApiUrl('/backend/index.php/api/auth/profile'), payload, { withCredentials: true });
@@ -899,12 +902,60 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       persistedOrder = response.data?.order ? mapApiOrder(response.data.order) : newOrder;
 
       if (details.paymentMethod === 'momo_mtn' && persistedOrder.databaseId) {
-        await axios.post(buildApiUrl('/backend/index.php/api/payments/transactions'), new URLSearchParams({
+        const txRes = await axios.post(buildApiUrl('/backend/index.php/api/payments/transactions'), new URLSearchParams({
           orderId: String(persistedOrder.databaseId),
           phone: details.clientPhone || '',
           provider: 'mtn_momo',
           idempotencyKey: `order-${persistedOrder.databaseId}-mtn`,
         }), { withCredentials: true });
+
+        const transactionId = txRes.data?.transaction?.id;
+        if (transactionId) {
+          addNotification(
+            'Paiement MTN MoMo',
+            'Validez la demande sur votre téléphone. Nous confirmons le paiement côté serveur…',
+            'client',
+            persistedOrder.id,
+          );
+
+          // Polling serveur (jamais faire confiance au navigateur seul).
+          const maxAttempts = 24;
+          for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+            await new Promise((r) => setTimeout(r, 5000));
+            try {
+              const statusRes = await axios.get(buildApiUrl('/backend/index.php/api/payments/status'), {
+                params: { transactionId },
+                withCredentials: true,
+              });
+              const status = String(statusRes.data?.transaction?.status || 'pending');
+              if (status === 'successful') {
+                persistedOrder = { ...persistedOrder, paymentStatus: 'paid' };
+                addNotification('Paiement confirmé', 'Votre paiement MTN MoMo a été validé.', 'client', persistedOrder.id);
+                break;
+              }
+              if (status === 'failed' || status === 'cancelled') {
+                persistedOrder = { ...persistedOrder, paymentStatus: 'failed' as any };
+                addNotification('Paiement échoué', 'Le paiement Mobile Money a échoué ou a été annulé.', 'client', persistedOrder.id);
+                break;
+              }
+            } catch {
+              // continuer le polling
+            }
+          }
+        }
+      }
+
+      if (details.paymentMethod === 'wallet') {
+        // Solde mis à jour côté serveur ; rafraîchir le profil
+        try {
+          const meRes = await axios.get(buildApiUrl('/backend/index.php/api/auth/me'), { withCredentials: true });
+          if (meRes.data?.user && currentUserId) {
+            const bal = Number(meRes.data.user.walletBalance || 0);
+            setAllUsers(prev => prev.map(u => u.id === currentUserId ? { ...u, walletBalance: bal } : u));
+          }
+        } catch {
+          // ignore
+        }
       }
 
       setOrders(prev => [persistedOrder, ...prev.filter(order => order.id !== persistedOrder.id)]);

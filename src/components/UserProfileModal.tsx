@@ -4,6 +4,36 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { uploadImageFile } from '../utils/imageUpload';
+import { buildApiUrl } from '../utils/media';
+import axios from 'axios';
+
+function WalletHistory() {
+  const [txs, setTxs] = React.useState<any[]>([]);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    axios.get(buildApiUrl('/backend/index.php/api/wallet'), { withCredentials: true })
+      .then((res) => {
+        if (res.data?.success) setTxs(res.data.transactions || []);
+      })
+      .catch((e) => setError(e?.response?.data?.message || 'Historique indisponible'));
+  }, []);
+
+  if (error) return <p className="text-[10px] text-rose-600">{error}</p>;
+  if (txs.length === 0) return <p className="text-[10px] text-teal-700">Aucune transaction pour le moment.</p>;
+
+  return (
+    <div className="max-h-28 overflow-y-auto space-y-1">
+      {txs.slice(0, 8).map((tx) => (
+        <div key={tx.id} className="flex items-center justify-between text-[10px] text-teal-900 bg-white/70 rounded-lg px-2 py-1 border border-teal-100">
+          <span className="font-bold uppercase">{tx.type}</span>
+          <span>{Number(tx.amount).toLocaleString()} F</span>
+          <span className="text-teal-600">{tx.status}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -111,30 +141,33 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     setTimeout(() => setIsAddressSaved(false), 2000);
   };
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPassword || !newPassword || !confirmPassword) {
       setPasswordMessage('Veuillez remplir tous les champs du mot de passe.');
-      return;
-    }
-    if (currentPassword !== currentUser.password) {
-      setPasswordMessage('Le mot de passe actuel est incorrect.');
       return;
     }
     if (newPassword !== confirmPassword) {
       setPasswordMessage('Les nouveaux mots de passe ne correspondent pas.');
       return;
     }
-    if (newPassword.length < 6) {
-      setPasswordMessage('Le mot de passe doit contenir au moins 6 caractères.');
+    if (newPassword.length < 8) {
+      setPasswordMessage('Le mot de passe doit contenir au moins 8 caractères.');
       return;
     }
 
-    updateUserProfile(currentUser.id, { password: newPassword });
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordMessage('Mot de passe mis à jour avec succès.');
+    try {
+      await updateUserProfile(currentUser.id, {
+        password: newPassword,
+        currentPassword,
+      } as any);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordMessage('Mot de passe mis à jour avec succès.');
+    } catch (error: any) {
+      setPasswordMessage(error.message || 'Impossible de mettre à jour le mot de passe.');
+    }
   };
 
   const firstName = currentUser.name.split(' ')[0] || currentUser.name;
@@ -179,6 +212,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-slate-400 truncate">{currentUser.email}</p>
+              {currentUser.role === 'client' && (
+                <p className="text-[11px] text-emerald-400 font-bold mt-0.5">
+                  Portefeuille : {(currentUser.walletBalance ?? 0).toLocaleString()} FCFA
+                </p>
+              )}
             </div>
           </div>
 
@@ -292,6 +330,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </div>
 
               {/* Special Pro Badge info */}
+              {currentUser.role === 'client' && (
+                <div className="p-3.5 bg-teal-50 border border-teal-200 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-teal-900">Portefeuille Livriko</div>
+                      <div className="text-[11px] text-teal-700">Solde contrôlé côté serveur — utilisable au paiement.</div>
+                    </div>
+                    <span className="text-sm font-black text-teal-800">
+                      {(currentUser.walletBalance ?? 0).toLocaleString()} FCFA
+                    </span>
+                  </div>
+                  <WalletHistory />
+                </div>
+              )}
+
               {currentUser.role !== 'client' && (
                 <div className="p-3.5 bg-orange-50 border border-orange-200 rounded-2xl flex items-center justify-between">
                   <div>

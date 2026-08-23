@@ -17,20 +17,19 @@ export const AdminView: React.FC = () => {
     deleteUser,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'verifications' | 'stores' | 'orders'>('verifications');
-  const [activeTab2, setActiveTab2] = useState<'verifications' | 'stores' | 'orders' | 'reviews'>('verifications');
+  const [activeTab, setActiveTab] = useState<'verifications' | 'stores' | 'orders' | 'reviews'>('verifications');
   const [reviews, setReviews] = useState<any[]>([]);
   const [reviewFilters, setReviewFilters] = useState({ driver_id: '', rating: '' });
 
   React.useEffect(() => {
-    if (activeTab2 !== 'reviews') return;
+    if (activeTab !== 'reviews') return;
     const params = new URLSearchParams();
     if (reviewFilters.driver_id) params.append('driver_id', reviewFilters.driver_id);
     if (reviewFilters.rating) params.append('rating', reviewFilters.rating);
     fetch('/backend/index.php/api/reviews/admin?' + params.toString(), { credentials: 'include' })
       .then(r => r.json())
       .then(data => { if (data.success) setReviews(data.reviews || []); });
-  }, [activeTab2, reviewFilters]);
+  }, [activeTab, reviewFilters]);
 
   const totalGMV = orders.reduce((sum, o) => sum + o.totalAmount, 0);
   const totalCommission = Math.round(totalGMV * 0.10); // 10% platform commission
@@ -133,7 +132,7 @@ export const AdminView: React.FC = () => {
       {/* Navigation Sub-Tabs */}
       <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none gap-2 rounded-2xl bg-slate-100 p-1 max-w-xl">
         <button
-          onClick={() => { setActiveTab('verifications'); setActiveTab2('verifications'); }}
+          onClick={() => setActiveTab('verifications')}
           className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'verifications' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
           }`}
@@ -143,7 +142,7 @@ export const AdminView: React.FC = () => {
         </button>
 
         <button
-          onClick={() => { setActiveTab('stores'); setActiveTab2('stores'); }}
+          onClick={() => setActiveTab('stores')}
           className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'stores' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
           }`}
@@ -153,7 +152,7 @@ export const AdminView: React.FC = () => {
         </button>
 
         <button
-          onClick={() => { setActiveTab('orders'); setActiveTab2('orders'); }}
+          onClick={() => setActiveTab('orders')}
           className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'orders' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
           }`}
@@ -166,8 +165,8 @@ export const AdminView: React.FC = () => {
       {/* Extra Tab: Reviews */}
       <div className="mt-3">
         <button
-          onClick={() => setActiveTab2('reviews')}
-          className={`py-2 px-3 rounded-xl text-xs font-bold ${activeTab2 === 'reviews' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+          onClick={() => setActiveTab('reviews')}
+          className={`py-2 px-3 rounded-xl text-xs font-bold ${activeTab === 'reviews' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
         >
           Évaluations des livreurs
         </button>
@@ -278,7 +277,7 @@ export const AdminView: React.FC = () => {
         </div>
       )}
 
-      {activeTab2 === 'reviews' && (
+      {activeTab === 'reviews' && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4 mt-4">
           <h2 className="text-lg font-bold text-slate-900">Évaluations des livreurs</h2>
           <div className="flex items-center gap-2">
@@ -308,7 +307,7 @@ export const AdminView: React.FC = () => {
               <tbody className="divide-y divide-slate-100 font-medium">
                 {reviews.map(r=> (
                   <tr key={r.id} className="hover:bg-slate-50/80">
-                    <td className="py-3 text-slate-600">{r.created_at}</td>
+                    <td className="py-3 text-slate-600">{r.createdAt || r.created_at || '—'}</td>
                     <td className="py-3 font-mono text-blue-600">{r.code_commande || r.order_id}</td>
                     <td className="py-3">{r.client_nom} {r.client_prenom}</td>
                     <td className="py-3">{r.driver_nom} {r.driver_prenom}</td>
@@ -376,20 +375,13 @@ export const AdminView: React.FC = () => {
                         if (!ownerId) return;
                         const ok = window.confirm(`Supprimer le compte du propriétaire de ${store.name} ? Cette action supprimera également la boutique.`);
                         if (!ok) return;
-                        deleteUser(ownerId);
+                        void deleteUser(ownerId);
                       }}
                       className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition"
                     >
                       Supprimer le propriétaire
                     </button>
                   </div>
-                  <button
-                    onClick={() => downloadDossier(store, `dossier-boutique-${store.id}.json`)}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition"
-                  >
-                    <Download className="w-4 h-4" />
-                    Télécharger le dossier
-                  </button>
                 </div>
               </div>
             ))}

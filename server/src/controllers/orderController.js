@@ -6,6 +6,8 @@ import { currentUser, currentUserId } from '../middleware/auth.js';
 import { getPayload, isAdmin, isSeller, parseJsonField } from '../utils/http.js';
 import { orderPublicId, publicId, storePublicId, toObjectId } from '../utils/ids.js';
 import { defaultStoreCoordinates } from '../utils/geo.js';
+import { calculateDeliveryFee, haversineKm, isValidLatLng } from '../utils/deliveryPricing.js';
+import { getRoute } from '../services/maps.js';
 import { payWithWallet } from './walletController.js';
 
 const STATUS_TRANSITIONS = {
@@ -130,8 +132,6 @@ export async function createOrder(req, res) {
       });
     }
 
-    const deliveryFee = Math.max(0, Number(payload.deliveryFee || 0));
-    const total = subtotal + deliveryFee;
     const allowedPayments = ['cash', 'momo_mtn', 'momo_moov', 'orange_money', 'celtis_cash', 'wallet'];
     const paymentMethod = allowedPayments.includes(payload.paymentMethod) ? payload.paymentMethod : 'cash';
     const address = String(payload.clientAddress || '').trim();
@@ -142,6 +142,26 @@ export async function createOrder(req, res) {
     const store = await Store.findById(storeId);
     const user = await User.findById(userId);
     const storeCoords = defaultStoreCoordinates(store?.lat, store?.lng);
+    const clientLat = payload.clientLat != null ? Number(payload.clientLat) : null;
+    const clientLng = payload.clientLng != null ? Number(payload.clientLng) : null;
+    if (!isValidLatLng(clientLat, clientLng)) {
+      return res.status(400).json({ success: false, message: 'Position GPS de livraison invalide.' });
+    }
+
+    // Recalcul serveur : distance (OSRM si possible, sinon Haversine) + barème officiel.
+    let distanceKm = haversineKm(storeCoords.lat, storeCoords.lng, clientLat, clientLng);
+    try {
+      const routeBody = await getRoute(storeCoords.lat, storeCoords.lng, clientLat, clientLng);
+      const meters = routeBody?.routes?.[0]?.distance;
+      if (Number.isFinite(meters) && meters > 0) {
+        distanceKm = Math.max(0.1, Math.round((meters / 1000) * 10) / 10);
+      }
+    } catch {
+      // fallback Haversine déjà calculé
+    }
+    const feeBreakdown = calculateDeliveryFee(distanceKm);
+    const deliveryFee = feeBreakdown.deliveryFee;
+    const total = subtotal + deliveryFee;
     const code = `#LVK-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(10 + Math.random() * 90)}`;
 
     let paymentStatus = 'pending';
@@ -154,8 +174,8 @@ export async function createOrder(req, res) {
       clientName: payload.clientName || (user ? `${user.prenom} ${user.nom}`.trim() : 'Client'),
       clientPhone: payload.clientPhone || user?.telephone || '',
       clientAddress: address,
-      clientLat: payload.clientLat ? Number(payload.clientLat) : null,
-      clientLng: payload.clientLng ? Number(payload.clientLng) : null,
+      clientLat,
+      clientLng,
       storeName: store?.nom || 'Boutique',
       storeAddress: store?.adresse || '',
       storeLat: storeCoords.lat,
@@ -170,7 +190,7 @@ export async function createOrder(req, res) {
       momoTransactionRef: payload.momoTransactionRef || payload.momo_tx_ref || null,
       notes: payload.notes || '',
       delivery: {
-        distanceKm: payload.distanceKm ? Number(payload.distanceKm) : null,
+        distanceKm: feeBreakdown.distanceKm,
         status: null,
       },
       history: [{ status: 'pending', at: new Date() }],

@@ -22,6 +22,7 @@ export function sessionUser(user) {
     telephone: user.telephone || '',
     role: user.role || 'client',
     avatar: user.avatar || null,
+    walletBalance: Number(user.walletBalance || 0),
   };
 }
 

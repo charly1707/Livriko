@@ -58,7 +58,12 @@ function MainAppContent() {
   useEffect(() => {
     const status = activeTrackingOrder?.status;
     const orderId = activeTrackingOrder?.id;
-    if (status === 'rider_assigned' && orderId && chatAutoOpenedRef.current !== orderId) {
+    if (
+      orderId
+      && status
+      && ['confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(status)
+      && chatAutoOpenedRef.current !== orderId
+    ) {
       chatAutoOpenedRef.current = orderId;
       setIsChatOpen(true);
     }
@@ -143,7 +148,7 @@ function MainAppContent() {
         <ChatWidget isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
       </Suspense>
 
-      {activeTrackingOrder && ['rider_assigned', 'picked_up', 'delivering'].includes(activeTrackingOrder.status) && !isChatOpen && (
+      {activeTrackingOrder && ['confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(activeTrackingOrder.status) && !isChatOpen && (
         <button
           type="button"
           onClick={() => setIsChatOpen(true)}

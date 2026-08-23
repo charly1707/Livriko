@@ -93,5 +93,27 @@ export async function paymentStatus(req, res) {
   if (!transaction) {
     return res.status(404).json({ success: false, message: 'Transaction introuvable.' });
   }
+
+  // Rafraîchir auprès de MTN si encore en attente (ne pas se fier uniquement au navigateur).
+  if (transaction.status === 'pending' && transaction.provider === 'mtn_momo' && transaction.providerTransactionId) {
+    try {
+      const provider = new MtnMomoProvider(mtnConfig());
+      const remote = await provider.getPaymentStatus(transaction.providerTransactionId);
+      if (remote.status && remote.status !== transaction.status) {
+        transaction.status = remote.status === 'successful' ? 'successful' : remote.status;
+        transaction.providerPayload = remote.raw || transaction.providerPayload;
+        await transaction.save();
+
+        if (remote.status === 'successful') {
+          await Order.findByIdAndUpdate(transaction.orderId, { paymentStatus: 'paid' });
+        } else if (['failed', 'cancelled'].includes(remote.status)) {
+          await Order.findByIdAndUpdate(transaction.orderId, { paymentStatus: 'failed' });
+        }
+      }
+    } catch (error) {
+      console.warn('MTN status refresh failed:', error.message);
+    }
+  }
+
   return res.json({ success: true, transaction: publicTransaction(transaction) });
 }

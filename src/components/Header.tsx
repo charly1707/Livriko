@@ -136,7 +136,8 @@ export const Header: React.FC<{
     { 
       id: 'accueil', 
       label: 'Accueil', 
-      action: () => { 
+      action: () => {
+        if (activeRole !== 'client') setActiveRole('client');
         setActiveCategory('all'); 
         window.scrollTo({ top: 0, behavior: 'smooth' }); 
       } 
@@ -144,19 +145,25 @@ export const Header: React.FC<{
     { 
       id: 'boutiques', 
       label: 'Boutiques', 
-      action: () => { 
-        setActiveCategory('all'); 
-        const el = document.getElementById('entreprises-section'); 
-        if (el) el.scrollIntoView({ behavior: 'smooth' }); 
+      action: () => {
+        if (activeRole !== 'client') setActiveRole('client');
+        setTimeout(() => {
+          setActiveCategory('all'); 
+          const el = document.getElementById('entreprises-section'); 
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 80);
       } 
     },
     { 
       id: 'categories', 
       label: 'Catégories', 
-      action: () => { 
-        setActiveCategory('all'); 
-        const el = document.getElementById('categories-section'); 
-        if (el) el.scrollIntoView({ behavior: 'smooth' }); 
+      action: () => {
+        if (activeRole !== 'client') setActiveRole('client');
+        setTimeout(() => {
+          setActiveCategory('all'); 
+          const el = document.getElementById('categories-section'); 
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 80);
       } 
     },
     { 

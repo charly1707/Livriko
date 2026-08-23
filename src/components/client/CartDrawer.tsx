@@ -72,36 +72,35 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     setIsAuthModalOpen,
   } = useApp();
 
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'momo_mtn' | 'momo_moov' | 'orange_money' | 'celtis_cash'>('momo_mtn');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'momo_mtn' | 'momo_moov' | 'orange_money' | 'celtis_cash' | 'wallet'>('momo_mtn');
   const [storePaymentMode, setStorePaymentMode] = useState<'online' | 'delivery'>('online');
 
   const paymentMethodOptions = [
     {
-      id: 'momo_mtn',
+      id: 'momo_mtn' as const,
       name: 'MTN MoMo',
       logoUrl: '/mtn-momo.svg',
       accent: 'bg-[#F7C600] text-slate-900 border-[#F7C600]',
     },
     {
-      id: 'momo_moov',
-      name: 'Moov Money',
-      logoUrl: '/moov-money.svg',
-      accent: 'bg-[#1E40AF] text-white border-[#1E40AF]',
+      id: 'wallet' as const,
+      name: 'Portefeuille',
+      logoUrl: '/wallet.svg',
+      accent: 'bg-[#0F766E] text-white border-[#0F766E]',
     },
     {
-      id: 'celtis_cash',
-      name: 'Celtis Cash',
-      logoUrl: '/celtis-cash.svg',
-      accent: 'bg-[#7C3AED] text-white border-[#7C3AED]',
-    },
-    {
-      id: 'cash',
+      id: 'cash' as const,
       name: 'Espèces',
       logoUrl: '/cash.svg',
       accent: 'bg-[#10B981] text-white border-[#10B981]',
     },
-  ] as const;
-  const [paymentSource, setPaymentSource] = useState<'direct_momo' | 'wallet'>('direct_momo');
+    {
+      id: 'momo_moov' as const,
+      name: 'Moov Money',
+      logoUrl: '/moov-money.svg',
+      accent: 'bg-[#1E40AF] text-white border-[#1E40AF]',
+    },
+  ];
   const [momoTxRef, setMomoTxRef] = useState('');
   const [paymentReceiptPhoto, setPaymentReceiptPhoto] = useState('');
   const [copiedPhone, setCopiedPhone] = useState(false);
@@ -155,38 +154,50 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     }
   }, [paymentMethod]);
 
+  const [geoError, setGeoError] = useState<string | null>(null);
+
   const handleGetGPS = () => {
-    if ('geolocation' in navigator) {
-      setIsGeolocating(true);
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          setClientCoords(coords);
-          setMapZoom(15);
-          if (currentUser) {
-            updateUserProfile(currentUser.id, {
-              location: {
-                lat: coords.lat,
-                lng: coords.lng,
-                address,
-              },
-            });
-          }
-          setIsGeolocating(false);
-        },
-        () => {
-          setIsGeolocating(false);
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
+    if (!('geolocation' in navigator)) {
+      setGeoError('La géolocalisation n’est pas supportée par ce navigateur. Saisissez votre adresse et placez le pin manuellement sur la carte.');
+      return;
     }
+    setIsGeolocating(true);
+    setGeoError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setClientCoords(coords);
+        setMapZoom(15);
+        if (currentUser) {
+          void updateUserProfile(currentUser.id, {
+            location: {
+              lat: coords.lat,
+              lng: coords.lng,
+              address,
+            },
+          });
+        }
+        setIsGeolocating(false);
+      },
+      (err) => {
+        setIsGeolocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setGeoError('Autorisation GPS refusée. Activez la localisation ou placez le pin manuellement sur la carte.');
+        } else if (err.code === err.TIMEOUT) {
+          setGeoError('Délai GPS dépassé. Réessayez ou placez le pin manuellement.');
+        } else {
+          setGeoError('Position indisponible. Saisissez votre adresse et ajustez le pin sur la carte.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
+    );
   };
 
   const storeId = cart[0]?.product.storeId;
   const store = stores.find(s => s.id === storeId);
   const storeName = store?.name ?? cart[0]?.product.storeName ?? 'Boutique Livriko';
-  const storeLat = store?.lat;
-  const storeLng = store?.lng;
+  const storeLat = store?.lat ?? 6.3833;
+  const storeLng = store?.lng ?? 1.7167;
   const distanceKm = calculateRoadDistanceKm(storeLat, storeLng, clientCoords?.lat, clientCoords?.lng);
   const deliveryInfo = distanceKm === null ? null : calculateDeliveryFee(distanceKm);
   const cartSubtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
@@ -207,7 +218,11 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     }
 
     if (paymentMethod === 'momo_moov' || paymentMethod === 'orange_money' || paymentMethod === 'celtis_cash') {
-      setSubmissionError('Ce moyen de paiement n’est pas encore activé. Choisissez MTN MoMo ou espèces.');
+      setSubmissionError('Ce moyen de paiement n’est pas encore activé. Choisissez MTN MoMo, portefeuille ou espèces.');
+      return;
+    }
+    if (paymentMethod === 'wallet' && (currentUser?.walletBalance ?? 0) < (cartSubtotal + cartDeliveryFee)) {
+      setSubmissionError('Solde portefeuille insuffisant.');
       return;
     }
 
@@ -496,6 +511,12 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                       {isGeolocating ? 'Localisation...' : 'Ma position GPS'}
                     </button>
                   </div>
+                  {geoError && (
+                    <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2 mb-2">{geoError}</p>
+                  )}
+                  <p className="text-[10px] text-slate-400 mb-2">
+                    Astuce : vous pouvez aussi cliquer sur la carte pour placer le point de livraison.
+                  </p>
 
                   {submissionError && (
                     <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700 text-[12px]">
@@ -630,6 +651,19 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                   </div>
                 )}
 
+                {paymentMethod === 'wallet' && (
+                  <div className="space-y-2 rounded-2xl border border-teal-200 bg-teal-50 p-3">
+                    <p className="text-[11px] text-teal-900 font-semibold">
+                      Solde portefeuille : {(currentUser?.walletBalance ?? 0).toLocaleString()} FCFA
+                    </p>
+                    {(currentUser?.walletBalance ?? 0) < (cartSubtotal + cartDeliveryFee) && (
+                      <p className="text-[11px] text-rose-700">
+                        Solde insuffisant pour cette commande. Rechargez ou choisissez un autre moyen.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {paymentMethod === 'cash' && (
                   <p className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
                     Paiement en espèces à la livraison. Préparez le montant exact si possible.
@@ -638,7 +672,7 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
                 {(paymentMethod === 'momo_moov' || paymentMethod === 'orange_money' || paymentMethod === 'celtis_cash') && (
                   <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">
-                    Ce moyen de paiement sera disponible prochainement. Utilisez MTN MoMo ou espèces pour le moment.
+                    Ce moyen de paiement sera disponible prochainement. Utilisez MTN MoMo, portefeuille ou espèces.
                   </p>
                 )}
               </div>

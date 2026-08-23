@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Send, MessageCircle } from 'lucide-react';
+import { X, Send, MessageCircle, Check, AlertCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import axios from 'axios';
+import { buildApiUrl } from '../utils/media';
 
 const roleNames: Record<string, string> = {
   client: 'Client',
@@ -16,45 +17,51 @@ export const ChatWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   const [draft, setDraft] = useState('');
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
-
-  const handleSend = async () => {
-    const text = draft.trim();
-    if (!text) return;
-
-    if (!activeTrackingOrder?.databaseId || !currentUser) {
-      return;
-    }
-
-    if (!conversationId) return;
-
-    try {
-      await axios.post('/backend/index.php/api/chat/send', new URLSearchParams({
-        conversation_id: String(conversationId),
-        message: text,
-        message_type: 'text'
-      }), { withCredentials: true });
-      setDraft('');
-      fetchMessages();
-    } catch (e) {
-      console.error('Chat send failed', e);
-    }
-  };
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendState, setSendState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
 
   const fetchMessages = async () => {
-    if (!isOpen) return;
-
-    if (!activeTrackingOrder?.databaseId || !currentUser) return;
-
+    if (!isOpen || !activeTrackingOrder?.databaseId || !currentUser) return;
     try {
-      const params: any = { order_id: activeTrackingOrder.databaseId };
-      const res = await axios.get('/backend/index.php/api/chat/messages', { params, withCredentials: true });
+      const res = await axios.get(buildApiUrl('/backend/index.php/api/chat/messages'), {
+        params: { order_id: activeTrackingOrder.databaseId },
+        withCredentials: true,
+      });
       const chatMessages = res.data.messages || [];
       setMessages(chatMessages);
       if (chatMessages.length > 0 && !conversationId && chatMessages[0].conversation_id) {
-        setConversationId(chatMessages[0].conversation_id);
+        setConversationId(String(chatMessages[0].conversation_id));
       }
     } catch (e) {
       console.error('Chat fetch failed', e);
+    }
+  };
+
+  const handleSend = async () => {
+    const text = draft.trim();
+    if (!text || !activeTrackingOrder?.databaseId || !currentUser) return;
+    if (!conversationId) {
+      setSendError('Conversation en cours de création… réessayez.');
+      return;
+    }
+    setSendState('sending');
+    setSendError(null);
+    try {
+      await axios.post(
+        buildApiUrl('/backend/index.php/api/chat/send'),
+        new URLSearchParams({
+          conversation_id: String(conversationId),
+          message: text,
+          message_type: 'text',
+        }),
+        { withCredentials: true },
+      );
+      setDraft('');
+      setSendState('sent');
+      await fetchMessages();
+    } catch (e: any) {
+      setSendState('failed');
+      setSendError(e?.response?.data?.message || e?.response?.data?.error || 'Envoi échoué.');
     }
   };
 
@@ -64,33 +71,31 @@ export const ChatWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       setMessages([]);
       return;
     }
-
     setConversationId(null);
     setMessages([]);
-    const createConv = async () => {
+    setSendError(null);
+    (async () => {
       try {
-        const res = await axios.post('/backend/index.php/api/chat/create', new URLSearchParams({ order_id: String(activeTrackingOrder.databaseId) }), { withCredentials: true });
-        if (res.data && res.data.id) {
-          setConversationId(res.data.id);
-        }
-      } catch (e) {
-        console.error('Chat create failed', e);
+        const res = await axios.post(
+          buildApiUrl('/backend/index.php/api/chat/create'),
+          new URLSearchParams({ order_id: String(activeTrackingOrder.databaseId) }),
+          { withCredentials: true },
+        );
+        if (res.data?.id) setConversationId(String(res.data.id));
+      } catch (e: any) {
+        setSendError(e?.response?.data?.message || 'Impossible d’ouvrir la conversation.');
       }
-    };
-
-    createConv();
-  }, [activeTrackingOrder]);
+    })();
+  }, [activeTrackingOrder?.databaseId, currentUser?.id]);
 
   useEffect(() => {
     if (!isOpen) return;
-    fetchMessages();
-    const interval = setInterval(() => fetchMessages(), 2500);
+    void fetchMessages();
+    const interval = setInterval(() => { void fetchMessages(); }, 2500);
     return () => clearInterval(interval);
-  }, [isOpen, activeTrackingOrder, conversationId]);
+  }, [isOpen, activeTrackingOrder?.databaseId, conversationId]);
 
   if (!isOpen) return null;
-
-  const orderCode = activeTrackingOrder?.code ?? 'commande';
 
   return (
     <div className="fixed inset-0 z-1200 bg-slate-900/60 backdrop-blur-sm flex items-end justify-end p-4 sm:p-6">
@@ -99,72 +104,65 @@ export const ChatWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
           <div className="flex items-center gap-3">
             <MessageCircle className="w-5 h-5 text-orange-400" />
             <div>
-              <p className="text-sm font-black">Conversation avec le {orderCode}</p>
-              <p className="text-[11px] text-slate-300">Discussion partagée entre le client, le restaurant et le livreur.</p>
+              <p className="text-sm font-black">Discussion {activeTrackingOrder?.code ?? 'commande'}</p>
+              <p className="text-[11px] text-slate-400">
+                {conversationId ? 'Connecté' : 'Connexion…'}
+                {sendState === 'sent' ? ' · Envoyé' : ''}
+                {sendState === 'failed' ? ' · Échec' : ''}
+              </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-2xl bg-slate-900/80 hover:bg-slate-800 transition flex items-center justify-center"
-          >
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} className="p-2 rounded-full hover:bg-slate-800">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-100">
-          {(!activeTrackingOrder || messages.length === 0) ? (
-            <div className="text-center text-slate-500 text-sm leading-relaxed space-y-3 py-10">
-              <MessageCircle className="mx-auto w-10 h-10 text-orange-500" />
-              {!activeTrackingOrder || !currentUser ? (
-                <>
-                  <p>Une commande active et une session authentifiée sont nécessaires.</p>
-                  <p>Les conversations sont enregistrées sur le serveur.</p>
-                </>
-              ) : (
-                <>
-                  <p>Aucun message pour le moment.</p>
-                  <p>Envoyez un message pour démarrer cette conversation de commande.</p>
-                </>
-              )}
-            </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+          {messages.length === 0 ? (
+            <p className="text-xs text-slate-500 text-center py-8">Aucun message. Écrivez le premier.</p>
           ) : (
-            messages.map(message => {
-              const isMine = String(message.sender_id) === String(currentUser?.id);
+            messages.map((msg, idx) => {
+              const mine = String(msg.sender_id || msg.senderId) === String(currentUser?.id);
               return (
-                <div key={message.id} className={`max-w-[85%] ${isMine ? 'ml-auto text-right' : 'mr-auto text-left'}`}>
-                  <div className={`inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.15em] ${isMine ? 'justify-end' : 'justify-start'}`}>
-                    <span>{roleNames[message.role] || roleNames[message.sender_role] || 'Participant'}</span>
-                    <span className="text-slate-400">• {message.created_at || message.timestamp}</span>
-                  </div>
-                  <div className={`mt-2 rounded-3xl p-4 text-sm leading-6 ${isMine ? 'bg-orange-500 text-white' : 'bg-white text-slate-800 border border-slate-200'}`}>
-                    {message.message || message.text}
+                <div key={msg.id || idx} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs ${mine ? 'bg-orange-500 text-white' : 'bg-white border border-slate-200 text-slate-800'}`}>
+                    <p className="font-bold text-[10px] opacity-80 mb-0.5">
+                      {roleNames[msg.sender_role || msg.senderRole] || 'Utilisateur'}
+                    </p>
+                    <p>{msg.message || msg.content}</p>
+                    {mine && (
+                      <span className="inline-flex items-center gap-1 mt-1 text-[9px] opacity-80">
+                        <Check className="w-3 h-3" /> Envoyé
+                      </span>
+                    )}
                   </div>
                 </div>
               );
             })
           )}
+          {sendError && (
+            <p className="text-[11px] text-rose-600 flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5" /> {sendError}
+            </p>
+          )}
         </div>
 
-        <div className="p-4 border-t border-slate-200 bg-white">
-          <div className="flex flex-col sm:flex-row items-center gap-3">
-            <div className="flex-1 relative">
-              <textarea
-                rows={2}
-                value={draft}
-                onChange={e => setDraft(e.target.value)}
-                placeholder="Écrire un message..."
-                className="w-full min-h-12 resize-none rounded-3xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-orange-400"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={handleSend}
-              className="inline-flex items-center gap-2 rounded-3xl bg-orange-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600 transition disabled:bg-slate-300 disabled:text-slate-500"
-            >
-              <Send className="w-4 h-4" />
-              Envoyer
-            </button>
-          </div>
+        <div className="p-3 border-t border-slate-200 flex items-center gap-2 bg-white">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void handleSend(); }}
+            placeholder="Écrire un message…"
+            className="flex-1 p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:border-orange-400"
+          />
+          <button
+            type="button"
+            onClick={() => void handleSend()}
+            disabled={sendState === 'sending'}
+            className="p-2.5 rounded-xl bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50"
+          >
+            <Send className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>
