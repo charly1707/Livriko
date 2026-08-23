@@ -1,4 +1,3 @@
-import bcrypt from 'bcryptjs';
 import { User } from '../models/User.js';
 import { Store } from '../models/Store.js';
 import { Order } from '../models/Order.js';
@@ -7,6 +6,7 @@ import { Conversation } from '../models/Conversation.js';
 import { getPayload } from '../utils/http.js';
 import { publicId, toObjectId } from '../utils/ids.js';
 import { sessionUser } from '../utils/http.js';
+import { ensureDefaultAdmin } from '../utils/ensureAdmin.js';
 
 function serializeAdminUser(user) {
   return {
@@ -145,34 +145,25 @@ export async function deleteUserAccount(req, res) {
 }
 
 export async function seedAdmin(_req, res) {
-  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_ADMIN_SEED !== 'true') {
-    return res.status(403).json({ success: false, message: 'Seed admin désactivé en production.' });
+  try {
+    const result = await ensureDefaultAdmin();
+    if (!result.ensured) {
+      return res.status(400).json({
+        success: false,
+        message: 'Définissez ADMIN_PASSWORD dans les variables d’environnement Render.',
+        email: result.email,
+      });
+    }
+
+    const user = await User.findOne({ email: result.email });
+    return res.json({
+      success: true,
+      message: result.created ? 'Compte admin créé.' : 'Compte admin synchronisé.',
+      email: result.email,
+      user: user ? sessionUser(user) : null,
+    });
+  } catch (error) {
+    console.error('Seed admin error:', error);
+    return res.status(500).json({ success: false, message: 'Impossible d’initialiser le compte admin.' });
   }
-
-  const email = String(process.env.ADMIN_EMAIL || 'admin@livriko.com').toLowerCase();
-  const password = String(process.env.ADMIN_PASSWORD || 'LivrikoAdmin2026!');
-  const existing = await User.findOne({ email });
-  if (existing) {
-    return res.json({ success: true, message: 'Compte admin déjà présent.', email });
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const admin = await User.create({
-    role: 'administrateur',
-    nom: 'Admin',
-    prenom: 'Livriko',
-    nomUtilisateur: 'livriko_admin',
-    email,
-    motDePasse: hashedPassword,
-    telephone: '+22900000000',
-    statut: 'actif',
-    documentsValide: true,
-  });
-
-  return res.status(201).json({
-    success: true,
-    message: 'Compte admin créé.',
-    user: sessionUser(admin),
-    email,
-  });
 }

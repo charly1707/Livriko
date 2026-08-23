@@ -23,3 +23,7 @@ services:
         value: https://router.project-osrm.org
       - key: PAYMENT_CURRENCY
         value: XOF
+      - key: ADMIN_EMAIL
+        value: auriol@gmail.com
+      - key: ADMIN_PASSWORD
+        sync: false

@@ -11,6 +11,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import { createApiRouter } from './routes.js';
 import './config/cloudinary.js';
+import { ensureDefaultAdmin } from './utils/ensureAdmin.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '../..');
@@ -31,6 +32,7 @@ if (!MONGODB_URI) {
 async function start() {
   await mongoose.connect(MONGODB_URI);
   console.log('MongoDB connecté');
+  await ensureDefaultAdmin();
 
   const app = express();
   app.set('trust proxy', 1);
