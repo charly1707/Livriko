@@ -1,8 +1,9 @@
+import './sanitizeEnv.js';
 import { v2 as cloudinary } from 'cloudinary';
 
-const cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
-const apiKey = process.env.CLOUDINARY_API_KEY || '';
-const apiSecret = process.env.CLOUDINARY_API_SECRET || '';
+const cloudName = String(process.env.CLOUDINARY_CLOUD_NAME || '').trim();
+const apiKey = String(process.env.CLOUDINARY_API_KEY || '').trim();
+const apiSecret = String(process.env.CLOUDINARY_API_SECRET || '').trim();
 
 if (cloudName && apiKey && apiSecret) {
   cloudinary.config({
@@ -14,11 +15,14 @@ if (cloudName && apiKey && apiSecret) {
 } else if (process.env.CLOUDINARY_URL) {
   cloudinary.config({ secure: true });
 } else {
-  console.warn('Cloudinary non configuré : ajoutez CLOUDINARY_URL ou CLOUDINARY_* dans .env');
+  console.warn('Cloudinary non configuré : définissez CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY et CLOUDINARY_API_SECRET sur Render.');
 }
 
 export { cloudinary };
 
 export function isCloudinaryConfigured() {
-  return Boolean(process.env.CLOUDINARY_URL || (cloudName && apiKey && apiSecret));
+  return Boolean(
+    (cloudName && apiKey && apiSecret)
+    || process.env.CLOUDINARY_URL,
+  );
 }

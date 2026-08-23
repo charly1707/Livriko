@@ -34,6 +34,8 @@ Le dépôt cible : https://github.com/charly1707/Livriko
 | `MAPS_API_URL` | non | `https://router.project-osrm.org` |
 | `PAYMENT_CURRENCY` | non | `XOF` |
 
+Utilisez les **3 variables Cloudinary séparées** ci-dessus. Ne définissez pas `CLOUDINARY_URL` sur Render sauf si elle est complète (`cloudinary://key:secret@cloud`).
+
 Ne commitez jamais `.env` sur GitHub.
 
 ## 4. MongoDB Atlas

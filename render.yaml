@@ -19,8 +19,6 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
-      - key: CLOUDINARY_URL
-        sync: false
       - key: MAPS_API_URL
         value: https://router.project-osrm.org
       - key: PAYMENT_CURRENCY
