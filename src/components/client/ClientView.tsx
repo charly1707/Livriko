@@ -217,13 +217,21 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
               </div>
             </div>
 
+            <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => { setActiveTrackingOrder(activeOrder); onOpenChat(); }}
+              className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold flex items-center gap-2 transition"
+            >
+              <span>Discuter</span>
+            </button>
             <button
               onClick={() => setActiveTrackingOrder(activeOrder)}
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 transition shrink-0"
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 transition"
             >
               <span>Suivre la livraison</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
+            </div>
           </div>
         )}
 

@@ -7,7 +7,7 @@ import { Product, Order, CategoryType, Store } from '../../types';
 import { CATEGORIES } from '../../data/mockData';
 import { uploadImageFile } from '../../utils/imageUpload';
 
-export const VendeurView: React.FC = () => {
+export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat }) => {
   const { 
     currentUser, 
     setActiveRole,
@@ -389,11 +389,12 @@ export const VendeurView: React.FC = () => {
                     Articles : {order.items.map(i => `${i.quantity}x ${i.productName}`).join(', ')}
                   </div>
 
-                  {['confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(order.status) && (
+                  {['pending', 'confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(order.status) && (
                     <button
                       type="button"
                       onClick={() => {
                         setActiveTrackingOrder(order);
+                        onOpenChat?.();
                       }}
                       className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-bold hover:bg-blue-100 transition cursor-pointer"
                     >

@@ -61,7 +61,7 @@ function MainAppContent() {
     if (
       orderId
       && status
-      && ['confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(status)
+      && ['pending', 'confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(status)
       && chatAutoOpenedRef.current !== orderId
     ) {
       chatAutoOpenedRef.current = orderId;
@@ -112,8 +112,8 @@ function MainAppContent() {
       <main className="flex-1 w-full pt-20 sm:pt-24">
         {activeRole === 'client' && <ClientView onOpenCart={() => setIsCartOpen(true)} onOpenChat={() => setIsChatOpen(true)} />}
         <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
-          {activeRole === 'vendeur' && <VendeurView />}
-          {activeRole === 'livreur' && <LivreurView />}
+          {activeRole === 'vendeur' && <VendeurView onOpenChat={() => setIsChatOpen(true)} />}
+          {activeRole === 'livreur' && <LivreurView onOpenChat={() => setIsChatOpen(true)} />}
           {activeRole === 'admin' && currentUser?.role === 'admin' && <AdminView />}
           {activeRole === 'admin' && currentUser?.role !== 'admin' && (
             <div className="p-6 sm:p-10 bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-700 text-sm font-bold">
@@ -131,7 +131,7 @@ function MainAppContent() {
         <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
       </Suspense>
 
-      {activeTrackingOrder && (
+      {activeTrackingOrder && activeRole === 'client' && (
         <Suspense fallback={null}>
           <OrderTrackingModal 
             order={activeTrackingOrder} 
@@ -148,7 +148,7 @@ function MainAppContent() {
         <ChatWidget isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
       </Suspense>
 
-      {activeTrackingOrder && ['confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(activeTrackingOrder.status) && !isChatOpen && (
+      {activeTrackingOrder && ['pending', 'confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(activeTrackingOrder.status) && !isChatOpen && (
         <button
           type="button"
           onClick={() => setIsChatOpen(true)}

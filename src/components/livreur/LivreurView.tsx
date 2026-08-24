@@ -46,7 +46,7 @@ const RiderAcceptButton: React.FC<RiderAcceptButtonProps> = ({ order, currentUse
   );
 };
 
-export const LivreurView: React.FC = () => {
+export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat }) => {
   const { 
     currentUser, 
     allUsers,
@@ -56,6 +56,7 @@ export const LivreurView: React.FC = () => {
     updateOrderStatus,
     approveLivreur,
     updateUserProfile,
+    setActiveTrackingOrder,
   } = useApp();
 
   const [isOnline, setIsOnline] = useState(true);
@@ -378,6 +379,16 @@ export const LivreurView: React.FC = () => {
                       <Phone className="w-4 h-4" />
                       Appeler le client ({order.clientName})
                     </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTrackingOrder(order);
+                        onOpenChat?.();
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-md flex items-center gap-2 transition"
+                    >
+                      Discuter
+                    </button>
                   </div>
 
                   {/* Waypoints Grid */}

@@ -24,7 +24,7 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
   onOpenChat,
   autoAddedProduct
 }) => {
-  const { cart, addToCart, updateCartQuantity, cartTotal, cartDeliveryFee, clearCart } = useApp();
+  const { cart, addToCart, updateCartQuantity, cartTotal, cartDeliveryFee, clearCart, orders, currentUser, setActiveTrackingOrder } = useApp();
 
   const [recentlyAddedId, setRecentlyAddedId] = useState<string | null>(
     autoAddedProduct ? autoAddedProduct.id : null
@@ -158,10 +158,18 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
-              onClick={onOpenChat}
+              onClick={() => {
+                const related = orders.find(o =>
+                  (o.storeId === store.id || o.storeId.replace(/^store-/, '') === store.id.replace(/^store-/, ''))
+                  && o.clientId === currentUser?.id
+                  && !['cancelled'].includes(o.status)
+                );
+                if (related) setActiveTrackingOrder(related);
+                onOpenChat();
+              }}
               className="flex-1 sm:flex-initial text-center px-4 py-2.5 rounded-2xl bg-orange-500 hover:bg-orange-400 text-white font-bold text-xs shadow-md transition"
             >
-              💬 Ouvrir la discussion interne
+              💬 Discuter de ma commande
             </button>
           </div>
         </div>

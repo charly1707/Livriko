@@ -2,12 +2,13 @@ import { Conversation } from '../models/Conversation.js';
 import { Order } from '../models/Order.js';
 import { Store } from '../models/Store.js';
 import { User } from '../models/User.js';
-import { currentUserId } from '../middleware/auth.js';
-import { getPayload } from '../utils/http.js';
+import { currentUser, currentUserId } from '../middleware/auth.js';
+import { getPayload, isAdmin } from '../utils/http.js';
 import { publicId, toObjectId } from '../utils/ids.js';
 import { uploadImageBuffer } from '../services/cloudinaryUpload.js';
 
-const ACTIVE_STATUSES = ['confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'];
+const CHAT_OPEN_STATUSES = ['pending', 'confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'];
+const CHAT_READ_STATUSES = [...CHAT_OPEN_STATUSES, 'delivered'];
 
 function isParticipant(conversation, userId) {
   return (conversation.participants || []).some((participant) => String(participant.userId) === String(userId));
@@ -27,56 +28,127 @@ async function orderParticipants(order) {
   return participants;
 }
 
+function canAccessOrder(order, store, userId, role) {
+  if (isAdmin(role)) return true;
+  if (String(order.clientId) === String(userId)) return true;
+  if (store?.ownerId && String(store.ownerId) === String(userId)) return true;
+  if (order.delivery?.riderId && String(order.delivery.riderId) === String(userId)) return true;
+  return false;
+}
+
+function participantRoleForUser(order, store, userId, role) {
+  if (String(order.clientId) === String(userId)) return 'client';
+  if (store?.ownerId && String(store.ownerId) === String(userId)) return 'restaurant';
+  if (order.delivery?.riderId && String(order.delivery.riderId) === String(userId)) return 'livreur';
+  if (role === 'vendeur' || role === 'restaurant') return 'restaurant';
+  if (role === 'livreur') return 'livreur';
+  return 'client';
+}
+
+async function syncParticipants(conversation, order) {
+  const next = await orderParticipants(order);
+  const byUser = new Map((conversation.participants || []).map((p) => [String(p.userId), p]));
+  for (const participant of next) {
+    byUser.set(String(participant.userId), participant);
+  }
+  conversation.participants = [...byUser.values()];
+  return conversation;
+}
+
 function serializeMessage(message, conversationId, sender, role) {
+  const senderRole = role || 'client';
   return {
     id: publicId(message),
     conversation_id: String(conversationId),
     sender_id: String(message.senderId),
+    senderId: String(message.senderId),
     message: message.message,
+    content: message.message,
     message_type: message.messageType,
     is_read: message.isRead,
     created_at: message.createdAt,
     nom: sender?.nom || '',
     prenom: sender?.prenom || '',
     avatar: sender?.avatar || null,
-    role: role || 'client',
+    role: senderRole,
+    sender_role: senderRole,
+    senderRole: senderRole,
   };
 }
 
-export async function getOrCreateConversation(req, res) {
-  const payload = getPayload(req);
-  const orderId = toObjectId(payload.order_id);
-  if (!orderId) {
-    return res.status(400).json({ error: 'Missing order_id' });
-  }
-
-  const order = await Order.findById(orderId);
-  if (!order) {
-    return res.status(404).json({ error: 'Order not found' });
-  }
-
-  const participants = await orderParticipants(order);
+async function loadConversationContext(req, orderIdValue, convIdValue) {
   const userId = currentUserId(req);
-  if (!participants.some((participant) => String(participant.userId) === String(userId))) {
-    return res.status(403).json({ error: 'Access denied' });
+  const role = currentUser(req)?.role;
+  const orderId = toObjectId(orderIdValue);
+  let convId = toObjectId(convIdValue);
+  let conversation = convId ? await Conversation.findById(convId) : null;
+
+  if (!conversation && orderId) {
+    conversation = await Conversation.findOne({ orderId });
   }
 
-  let conversation = await Conversation.findOne({ orderId });
-  if (conversation) {
-    if (!ACTIVE_STATUSES.includes(order.status)) {
-      return res.status(403).json({ error: 'Chat unavailable for current order status' });
+  const resolvedOrderId = conversation?.orderId || orderId;
+  if (!resolvedOrderId) return { error: { status: 400, body: { error: 'Missing order_id' } } };
+
+  const order = await Order.findById(resolvedOrderId);
+  if (!order) return { error: { status: 404, body: { error: 'Commande introuvable' } } };
+
+  const store = await Store.findById(order.storeId);
+  if (!canAccessOrder(order, store, userId, role)) {
+    return { error: { status: 403, body: { error: 'Accès refusé à cette conversation' } } };
+  }
+
+  if (!conversation) {
+    try {
+      conversation = await Conversation.create({
+        orderId: order._id,
+        participants: await orderParticipants(order),
+        messages: [],
+      });
+    } catch {
+      conversation = await Conversation.findOne({ orderId: order._id });
+      if (!conversation) {
+        return { error: { status: 500, body: { error: 'Impossible d’ouvrir la conversation.' } } };
+      }
     }
-    conversation.participants = participants;
+  } else {
+    await syncParticipants(conversation, order);
+    if (!isParticipant(conversation, userId) && !isAdmin(role)) {
+      conversation.participants.push({
+        userId,
+        role: participantRoleForUser(order, store, userId, role),
+      });
+    }
     await conversation.save();
-    return res.json({ id: publicId(conversation), order_id: String(orderId) });
   }
 
-  if (!ACTIVE_STATUSES.includes(order.status)) {
-    return res.status(403).json({ error: 'Chat unavailable for current order status' });
-  }
+  return { conversation, order, store, userId, role };
+}
 
-  conversation = await Conversation.create({ orderId, participants, messages: [] });
-  return res.json({ id: publicId(conversation), order_id: String(orderId) });
+export async function getOrCreateConversation(req, res) {
+  try {
+    const payload = getPayload(req);
+    const loaded = await loadConversationContext(req, payload.order_id, payload.conversation_id);
+    if (loaded.error) {
+      return res.status(loaded.error.status).json(loaded.error.body);
+    }
+
+    const { conversation, order } = loaded;
+    if (!CHAT_READ_STATUSES.includes(order.status)) {
+      return res.status(403).json({ error: 'Le chat n’est plus disponible pour cette commande.' });
+    }
+
+    return res.json({
+      id: publicId(conversation),
+      order_id: String(order._id),
+      order_code: order.code,
+      order_status: order.status,
+      can_send: CHAT_OPEN_STATUSES.includes(order.status),
+    });
+  } catch (error) {
+    console.error('Chat create error:', error);
+    return res.status(500).json({ error: 'Impossible d’ouvrir la conversation.' });
+  }
 }
 
 export async function addParticipant(req, res) {
@@ -113,78 +185,83 @@ export async function addParticipant(req, res) {
 }
 
 export async function sendMessage(req, res) {
-  const payload = getPayload(req);
-  const convId = toObjectId(payload.conversation_id);
-  const message = String(payload.message || '').trim();
-  const type = payload.message_type || 'text';
-  if (!convId || (type !== 'image' && message === '')) {
-    return res.status(400).json({ error: 'Missing data' });
-  }
+  try {
+    const payload = getPayload(req);
+    const message = String(payload.message || '').trim();
+    const type = payload.message_type || 'text';
+    if (type !== 'image' && message === '') {
+      return res.status(400).json({ error: 'Écrivez un message.' });
+    }
 
-  const conversation = await Conversation.findById(convId).populate('orderId');
-  if (!conversation || !isParticipant(conversation, currentUserId(req))) {
-    return res.status(403).json({ error: 'Access denied' });
-  }
-  const orderStatus = conversation.orderId?.status;
-  if (!ACTIVE_STATUSES.includes(orderStatus)) {
-    return res.status(403).json({ error: 'Cannot send messages for inactive order' });
-  }
+    const loaded = await loadConversationContext(req, payload.order_id, payload.conversation_id);
+    if (loaded.error) {
+      return res.status(loaded.error.status).json(loaded.error.body);
+    }
 
-  conversation.messages.push({
-    senderId: currentUserId(req),
-    message,
-    messageType: type,
-  });
-  await conversation.save();
-  const saved = conversation.messages[conversation.messages.length - 1];
-  return res.json({
-    id: publicId(saved),
-    conversation_id: publicId(conversation),
-    sender_id: String(currentUserId(req)),
-    message,
-    message_type: type,
-    created_at: saved.createdAt,
-  });
+    const { conversation, order, userId } = loaded;
+    if (!CHAT_OPEN_STATUSES.includes(order.status)) {
+      return res.status(403).json({ error: 'Cette commande est terminée : envoi désactivé.' });
+    }
+
+    conversation.messages.push({
+      senderId: userId,
+      message,
+      messageType: type,
+    });
+    await conversation.save();
+    const saved = conversation.messages[conversation.messages.length - 1];
+    return res.json({
+      id: publicId(saved),
+      conversation_id: publicId(conversation),
+      sender_id: String(userId),
+      senderId: String(userId),
+      message,
+      content: message,
+      message_type: type,
+      created_at: saved.createdAt,
+      sender_role: currentUser(req)?.role || 'client',
+    });
+  } catch (error) {
+    console.error('Chat send error:', error);
+    return res.status(500).json({ error: 'Envoi du message impossible.' });
+  }
 }
 
 export async function getMessages(req, res) {
-  const payload = getPayload(req);
-  let convId = toObjectId(payload.conversation_id);
-  const orderId = toObjectId(payload.order_id);
-
-  if (orderId && !convId) {
-    const conversation = await Conversation.findOne({ orderId });
-    if (!conversation) {
-      return res.json({ messages: [] });
+  try {
+    const payload = getPayload(req);
+    const loaded = await loadConversationContext(req, payload.order_id, payload.conversation_id);
+    if (loaded.error) {
+      if (loaded.error.status === 400) {
+        return res.json({ messages: [] });
+      }
+      return res.status(loaded.error.status).json({ messages: [], error: loaded.error.body.error });
     }
-    convId = conversation._id;
-  }
 
-  if (!convId) {
-    return res.json({ messages: [] });
-  }
+    const { conversation, order } = loaded;
+    if (!CHAT_READ_STATUSES.includes(order.status)) {
+      return res.json({ messages: [], conversation_id: publicId(conversation), can_send: false });
+    }
 
-  const conversation = await Conversation.findById(convId).populate('orderId');
-  if (!conversation || !isParticipant(conversation, currentUserId(req))) {
-    return res.status(403).json({ messages: [] });
-  }
-  if (!ACTIVE_STATUSES.includes(conversation.orderId?.status)) {
-    return res.status(403).json({ messages: [] });
-  }
+    const senderIds = [...new Set(conversation.messages.map((message) => String(message.senderId)))];
+    const senders = senderIds.length ? await User.find({ _id: { $in: senderIds } }) : [];
+    const senderMap = new Map(senders.map((sender) => [String(sender._id), sender]));
+    const roleMap = new Map(conversation.participants.map((participant) => [String(participant.userId), participant.role]));
 
-  const senderIds = [...new Set(conversation.messages.map((message) => String(message.senderId)))];
-  const senders = await User.find({ _id: { $in: senderIds } });
-  const senderMap = new Map(senders.map((sender) => [String(sender._id), sender]));
-  const roleMap = new Map(conversation.participants.map((participant) => [String(participant.userId), participant.role]));
-
-  return res.json({
-    messages: conversation.messages.map((message) => serializeMessage(
-      message,
-      conversation._id,
-      senderMap.get(String(message.senderId)),
-      roleMap.get(String(message.senderId)),
-    )),
-  });
+    return res.json({
+      conversation_id: publicId(conversation),
+      can_send: CHAT_OPEN_STATUSES.includes(order.status),
+      messages: conversation.messages.map((message) => serializeMessage(
+        message,
+        conversation._id,
+        senderMap.get(String(message.senderId)),
+        roleMap.get(String(message.senderId)),
+      )),
+    });
+  } catch (error) {
+    console.error('Chat messages error:', error);
+    return res.status(500).json({ messages: [], error: 'Impossible de charger les messages.' });
+  }
 }
 
 export async function markRead(req, res) {
@@ -195,9 +272,6 @@ export async function markRead(req, res) {
   const conversation = await Conversation.findById(convId).populate('orderId');
   if (!conversation || !isParticipant(conversation, currentUserId(req))) {
     return res.status(403).json({ error: 'Access denied' });
-  }
-  if (!ACTIVE_STATUSES.includes(conversation.orderId?.status)) {
-    return res.status(403).json({ error: 'Cannot mark messages for inactive order' });
   }
   conversation.messages.forEach((message) => {
     message.isRead = true;
@@ -215,7 +289,7 @@ export async function uploadChatImage(req, res) {
   if (!conversation || !isParticipant(conversation, currentUserId(req))) {
     return res.status(403).json({ error: 'Access denied' });
   }
-  if (!ACTIVE_STATUSES.includes(conversation.orderId?.status)) {
+  if (!CHAT_OPEN_STATUSES.includes(conversation.orderId?.status)) {
     return res.status(403).json({ error: 'Cannot upload image for inactive order' });
   }
   if (!req.file) {

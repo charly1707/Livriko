@@ -39,6 +39,7 @@ export const Header: React.FC<{
     logoutUser,
     setIsAuthModalOpen,
     activeTrackingOrder,
+    orders,
   } = useApp();
 
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -97,7 +98,10 @@ export const Header: React.FC<{
     livreur: 'Livreur',
     admin: 'Administrateur',
   }[currentUser.role] : '';
-  const hasActiveChatOrder = Boolean(activeTrackingOrder && ['rider_assigned', 'picked_up', 'delivering'].includes(activeTrackingOrder.status));
+  const hasActiveChatOrder = Boolean(
+    (activeTrackingOrder && ['pending', 'confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(activeTrackingOrder.status))
+    || orders.some((order) => ['pending', 'confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(order.status)),
+  );
 
   const roleLabels: Record<UserRole, { label: string; icon: React.ReactNode; color: string; desc: string }> = {
     client: { 
