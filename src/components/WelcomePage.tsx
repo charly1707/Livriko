@@ -20,9 +20,9 @@ import {
 } from 'lucide-react';
 import { UserRole } from '../types';
 import livrikoLogo from '../assets/images/livriko_logo_1785408725718.jpg';
-import heroImage from '../assets/images/livriko_rider_branded_hero_1785411575207.png';
+import riderMotoHero from '../assets/images/livriko_rider_branded_hero_1785411575207.png';
+import riderHandoffHero from '../assets/images/livriko_rider_hero_bg_1785410590188.jpg';
 import hostessImage from '../assets/images/cliente.png';
-import livreurJpg from '../assets/images/livreur.jpg';
 
 type AuthMode = 'register' | 'login';
 
@@ -61,20 +61,28 @@ const FEATURES = [
 
 const DESKTOP_SLIDES = [
   {
-    id: 'brand',
+    id: 'marketplace',
     title: 'Tout votre marché local,',
     titleHighlight: 'livré à votre porte !',
     description:
       'La plateforme tout-en-un de livraison à Lokossa : courses, repas et colis en toute sérénité.',
-    bgImage: heroImage,
+    bgImage: riderMotoHero,
   },
   {
-    id: 'livreur',
-    title: 'Livraison express,',
-    titleHighlight: 'proche de vous !',
+    id: 'handoff',
+    title: 'Livré avec soin,',
+    titleHighlight: 'jusqu’à votre porte !',
     description:
-      'Nos livreurs certifiés assurent des courses rapides et suivies partout à Lokossa.',
-    bgImage: livreurJpg,
+      'Nos livreurs certifiés vous remettent vos commandes en main propre, rapidement et en toute confiance.',
+    bgImage: riderHandoffHero,
+  },
+  {
+    id: 'client',
+    title: 'Commandez, détendez-vous,',
+    titleHighlight: 'on s’occupe du reste !',
+    description:
+      'Repas, courses ou colis — recevez vos achats à domicile à Lokossa dès 450 FCFA.',
+    bgImage: hostessImage,
   },
 ] as const;
 
@@ -86,6 +94,14 @@ const WHATSAPP_HREF =
 const NAV_SCROLL_BG = 'bg-[#faf6ef]/95';
 const NAV_SCROLL_BORDER = 'border-b border-[#e6dac8]/80';
 const NAV_SCROLL_HOVER = 'hover:bg-[#f0e6d8]';
+
+/** Thème beige page d'accueil (sections après le hero) */
+const PAGE_BG = 'bg-[#faf6ef]';
+const PAGE_BG_ALT = 'bg-[#f5efe6]';
+const CARD_BG = 'bg-[#fffdf8]';
+const BORDER_BEIGE = 'border-[#e6dac8]';
+const BORDER_BEIGE_SOFT = 'border-[#e6dac8]/70';
+const DIVIDE_BEIGE = 'divide-y divide-[#e6dac8]/90';
 
 const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -166,7 +182,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
   const slide = DESKTOP_SLIDES[desktopSlide];
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-[#f4f8fc] text-slate-900">
+    <div className={`min-h-screen w-full overflow-x-hidden ${PAGE_BG} text-slate-900`}>
       {/* Header */}
       <header
         className={`fixed inset-x-0 top-0 z-50 transition-all duration-200 ${
@@ -314,13 +330,13 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
                   key={id}
                   type="button"
                   onClick={() => scrollToSection(id)}
-                  className="border-b border-slate-100 py-3.5 text-left text-[15px] font-semibold text-[#0b2a4a] last:border-b-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30"
+                  className={`border-b border-[#e6dac8]/60 py-3.5 text-left text-[15px] font-semibold text-[#0b2a4a] last:border-b-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30`}
                 >
                   {label}
                 </button>
               ))}
             </nav>
-            <div className="grid gap-2 border-t border-slate-100 px-4 py-4">
+            <div className={`grid gap-2 border-t border-[#e6dac8]/60 px-4 py-4`}>
               <button
                 type="button"
                 onClick={() => openAuth('register')}
@@ -340,7 +356,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
               <button
                 type="button"
                 onClick={() => openAuth('register', 'livreur')}
-                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                className={`inline-flex h-11 items-center justify-center rounded-2xl border ${BORDER_BEIGE} ${CARD_BG} px-4 text-sm font-bold text-slate-700 transition hover:bg-[#f5efe6]`}
               >
                 Devenir livreur
               </button>
@@ -385,7 +401,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
               </div>
               <div className="relative z-[1] -ml-4 overflow-hidden rounded-full border-[3px] border-white shadow-xl">
                 <img
-                  src={heroImage}
+                  src={riderMotoHero}
                   alt="Livreur Livriko"
                   className="h-20 w-20 object-cover object-[center_10%]"
                 />
@@ -558,11 +574,11 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
         {/* Contenu sous le hero mobile (+ trust desktop) */}
         <div
           id="accueil-contenu"
-          className="relative scroll-mt-20 bg-[#f4f8fc] lg:bg-transparent"
+          className={`relative scroll-mt-20 ${PAGE_BG}`}
         >
           <div className="pointer-events-none absolute inset-0 lg:hidden" aria-hidden>
-            <div className="absolute -left-16 top-0 h-56 w-56 rounded-full bg-blue-200/25 blur-3xl" />
-            <div className="absolute right-0 top-20 h-48 w-48 rounded-full bg-orange-100/35 blur-3xl" />
+            <div className="absolute -left-16 top-0 h-56 w-56 rounded-full bg-[#f0e6d8]/40 blur-3xl" />
+            <div className="absolute right-0 top-20 h-48 w-48 rounded-full bg-[#ffecd6]/50 blur-3xl" />
           </div>
 
           {/* —— Mobile : intro courte après le hero photo —— */}
@@ -577,7 +593,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
               Commandez, vendez ou livrez depuis une seule application — claire, rapide et locale.
             </p>
 
-            <ul className="mt-7 divide-y divide-slate-200/90 border-y border-slate-200/90">
+            <ul className={`mt-7 ${DIVIDE_BEIGE} border-y ${BORDER_BEIGE_SOFT}`}>
               {FEATURES.map(({ icon: Icon, title, description, iconClass }) => (
                 <li key={title} className="flex items-center gap-3.5 py-4">
                   <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconClass}`}>
@@ -599,7 +615,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
 
           {/* Trust desktop */}
           <div className="relative mx-auto hidden max-w-[96rem] px-5 sm:px-8 lg:mt-10 lg:block lg:px-12 lg:pb-16 xl:mt-12 xl:px-16 xl:pb-20">
-            <div className="flex w-full flex-col items-start gap-3 rounded-2xl border border-slate-200/80 bg-white px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:rounded-full sm:px-8 lg:px-10 lg:py-6">
+            <div className={`flex w-full flex-col items-start gap-3 rounded-2xl border ${BORDER_BEIGE_SOFT} ${CARD_BG} px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:rounded-full sm:px-8 lg:px-10 lg:py-6`}>
               <div className="flex items-center gap-3 text-lg text-slate-600">
                 <LockKeyhole className="h-6 w-6 shrink-0 text-[#1d4ed8]" aria-hidden />
                 <span className="font-medium">
@@ -616,7 +632,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
       </section>
 
       {/* About */}
-      <section id="a-propos" className="scroll-mt-24 border-t border-slate-200/70 bg-white py-11 sm:py-16 lg:py-20">
+      <section id="a-propos" className={`scroll-mt-24 border-t ${BORDER_BEIGE_SOFT} ${PAGE_BG_ALT} py-11 sm:py-16 lg:py-20`}>
         <div className="mx-auto max-w-[96rem] px-5 sm:px-8 lg:px-12 xl:px-16">
           <div className="max-w-4xl text-left">
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#ff8a1f] sm:text-sm sm:tracking-wider">
@@ -631,7 +647,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
           </div>
 
           {/* Mobile : liste simple */}
-          <ul className="mt-8 divide-y divide-slate-100 lg:hidden">
+          <ul className={`mt-8 divide-y divide-[#e6dac8]/60 lg:hidden`}>
             {[
               { icon: Store, title: 'Commerçants', text: 'Publiez vos articles et gérez vos commandes.' },
               { icon: Truck, title: 'Livreurs', text: 'Courses sécurisées après certification.' },
@@ -656,7 +672,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
               { icon: Truck, title: 'Livreurs', text: 'Recevez des courses, livrez en sécurité après certification de votre dossier.' },
               { icon: Users, title: 'Clients', text: 'Parcourez le marché, payez et suivez votre commande jusqu’à la livraison.' },
             ].map(({ icon: Icon, title, text }) => (
-              <div key={title} className="flex flex-col rounded-3xl border border-slate-200 bg-[#f8fbff] p-5">
+              <div key={title} className={`flex flex-col rounded-3xl border ${BORDER_BEIGE} ${CARD_BG} p-5`}>
                 <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#0b2a4a] text-white">
                   <Icon className="h-5 w-5" aria-hidden />
                 </span>
@@ -669,7 +685,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
       </section>
 
       {/* How it works */}
-      <section id="comment-ca-marche" className="scroll-mt-24 bg-[#f4f8fc] py-11 sm:py-16 lg:py-20">
+      <section id="comment-ca-marche" className={`scroll-mt-24 ${PAGE_BG} py-11 sm:py-16 lg:py-20`}>
         <div className="mx-auto max-w-[96rem] px-5 sm:px-8 lg:px-12 xl:px-16">
           <div className="max-w-4xl text-left">
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#1d4ed8] sm:text-sm sm:tracking-wider">
@@ -693,7 +709,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
                     {item.step}
                   </span>
                   {index < arr.length - 1 && (
-                    <span className="mt-2 w-px flex-1 bg-slate-300" aria-hidden />
+                    <span className="mt-2 w-px flex-1 bg-[#e6dac8]" aria-hidden />
                   )}
                 </div>
                 <div className="min-w-0 flex-1 pt-1">
@@ -711,7 +727,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
               { step: '02', title: 'Commandez ou livrez', text: 'Les clients passent commande ; les boutiques préparent ; les livreurs certifiés livrent.' },
               { step: '03', title: 'Suivez en direct', text: 'Le statut de la commande se met à jour : préparation, livreur assigné, en route, livré.' },
             ].map((item) => (
-              <li key={item.step} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <li key={item.step} className={`rounded-3xl border ${BORDER_BEIGE} ${CARD_BG} p-6 shadow-sm`}>
                 <span className="text-xs font-black text-[#ff8a1f]">{item.step}</span>
                 <h3 className="mt-2 text-lg font-bold text-[#0b2a4a]">{item.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-500">{item.text}</p>
@@ -722,7 +738,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
       </section>
 
       {/* Advantages */}
-      <section id="nos-avantages" className="scroll-mt-24 border-t border-slate-200/70 bg-white py-11 sm:py-16 lg:py-20">
+      <section id="nos-avantages" className={`scroll-mt-24 border-t ${BORDER_BEIGE_SOFT} ${PAGE_BG_ALT} py-11 sm:py-16 lg:py-20`}>
         <div className="mx-auto max-w-[96rem] px-5 sm:px-8 lg:px-12 xl:px-16">
           <div className="max-w-4xl text-left">
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-600 sm:text-sm sm:tracking-wider">
@@ -762,7 +778,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
             ].map((text) => (
               <li
                 key={text}
-                className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-[#f8fbff] px-4 py-3.5"
+                className={`flex items-start gap-3 rounded-2xl border ${BORDER_BEIGE} ${CARD_BG} px-4 py-3.5`}
               >
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
                 <span className="text-sm font-medium leading-snug text-slate-700">{text}</span>
@@ -806,7 +822,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
         </div>
       </section>
 
-      <footer className="border-t border-slate-200 bg-white py-6 sm:py-8">
+      <footer className={`border-t ${BORDER_BEIGE} ${PAGE_BG} py-6 sm:py-8`}>
         <div className="mx-auto flex max-w-[96rem] flex-col items-start gap-2 px-5 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12 xl:px-16">
           <div className="flex items-center gap-2">
             <img src={livrikoLogo} alt="" className="h-7 w-7 rounded-full object-cover" />
