@@ -22,7 +22,7 @@ import { UserRole } from '../types';
 import livrikoLogo from '../assets/images/livriko_logo_1785408725718.jpg';
 import heroImage from '../assets/images/livriko_rider_branded_hero_1785411575207.png';
 import hostessImage from '../assets/images/cliente.png';
-import carouselBanner from '../assets/images/livriko_rider_hero_bg_1785410590188.jpg';
+import livreurJpg from '../assets/images/livreur.jpg';
 
 type AuthMode = 'register' | 'login';
 
@@ -61,28 +61,20 @@ const FEATURES = [
 
 const DESKTOP_SLIDES = [
   {
-    id: 'mission',
-    title: 'Vos achats en ligne,',
-    titleHighlight: 'notre mission !',
-    description:
-      'Livraison rapide et sécurisée • Vos colis, nos priorités. Supermarchés, repas locaux, pharmacies et coursiers. Nous venons, nous prenons, nous livrons !',
-    bgImage: heroImage,
-  },
-  {
-    id: 'restaurants',
-    title: 'Du maquis à votre table,',
-    titleHighlight: 'en un éclair !',
-    description:
-      'Commandez vos plats locaux préférés auprès des restaurants et maquis de Lokossa.',
-    bgImage: carouselBanner,
-  },
-  {
-    id: 'accueil',
+    id: 'brand',
     title: 'Tout votre marché local,',
     titleHighlight: 'livré à votre porte !',
     description:
       'La plateforme tout-en-un de livraison à Lokossa : courses, repas et colis en toute sérénité.',
-    bgImage: hostessImage,
+    bgImage: heroImage,
+  },
+  {
+    id: 'livreur',
+    title: 'Livraison express,',
+    titleHighlight: 'proche de vous !',
+    description:
+      'Nos livreurs certifiés assurent des courses rapides et suivies partout à Lokossa.',
+    bgImage: livreurJpg,
   },
 ] as const;
 
@@ -90,12 +82,16 @@ const WHATSAPP_PHONE = '+229 01 96 73 03 53';
 const WHATSAPP_HREF =
   'https://wa.me/2290196730353?text=Bonjour%20Livriko%20!%20Je%20souhaite%20passer%20une%20commande.';
 
+/** Fond navbar page d'accueil après scroll — beige chaud (pas blanc) */
+const NAV_SCROLL_BG = 'bg-[#faf6ef]/95';
+const NAV_SCROLL_BORDER = 'border-b border-[#e6dac8]/80';
+const NAV_SCROLL_HOVER = 'hover:bg-[#f0e6d8]';
+
 const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
   const [desktopSlide, setDesktopSlide] = useState(0);
-  const [slidePaused, setSlidePaused] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -119,13 +115,23 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
     return () => window.removeEventListener('keydown', onKey);
   }, [mobileMenuOpen]);
 
+  // Préchargement des images du carrousel desktop
   useEffect(() => {
-    if (isNarrow || slidePaused) return;
-    const timer = setInterval(() => {
+    DESKTOP_SLIDES.forEach(({ bgImage }) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = bgImage;
+    });
+  }, []);
+
+  // Défilement automatique (ne se met plus en pause au survol)
+  useEffect(() => {
+    if (isNarrow) return;
+    const timer = window.setInterval(() => {
       setDesktopSlide((prev) => (prev + 1) % DESKTOP_SLIDES.length);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [isNarrow, slidePaused]);
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [isNarrow]);
 
   const markSeen = () => {
     try {
@@ -167,8 +173,8 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
           lightHeader && !mobileMenuOpen
             ? 'border-b border-transparent bg-transparent'
             : scrolled || mobileMenuOpen
-              ? 'border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-md'
-              : 'border-b border-transparent bg-white/90 backdrop-blur-sm'
+              ? `${NAV_SCROLL_BORDER} ${NAV_SCROLL_BG} shadow-sm backdrop-blur-md`
+              : 'border-b border-transparent bg-[#faf6ef]/90 backdrop-blur-sm'
         }`}
       >
         {/* Bandeau utilitaire desktop — données déjà présentes dans le projet */}
@@ -237,7 +243,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
                 className={`rounded-full px-3.5 py-2 text-sm font-medium transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30 ${
                   lightHeader && !mobileMenuOpen
                     ? 'text-white/90 hover:bg-white/10 hover:text-white'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-[#0b2a4a]'
+                    : `text-slate-500 ${NAV_SCROLL_HOVER} hover:text-[#0b2a4a]`
                 }`}
               >
                 {label}
@@ -253,7 +259,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
               className={`rounded-full px-4 py-2.5 text-sm font-bold transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30 ${
                 lightHeader && !mobileMenuOpen
                   ? 'border border-white/40 bg-white/10 text-white hover:bg-white/20'
-                  : 'border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                  : 'border border-[#e6dac8] bg-[#fffdf8] text-slate-700 hover:border-[#d9cbb8] hover:bg-[#f5efe6]'
               }`}
             >
               Devenir livreur
@@ -284,7 +290,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
               className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30 ${
                 overMobileHero && !mobileMenuOpen
                   ? 'border border-white/45 bg-white/15 text-white backdrop-blur-sm'
-                  : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  : 'border border-[#e6dac8] bg-[#fffdf8] text-slate-700 hover:bg-[#f5efe6]'
               }`}
               aria-label={mobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
               aria-expanded={mobileMenuOpen}
@@ -300,7 +306,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
         {mobileMenuOpen && (
           <div
             id="welcome-mobile-menu"
-            className="border-t border-slate-100 bg-white lg:hidden"
+            className="border-t border-[#e6dac8]/60 bg-[#faf6ef] lg:hidden"
           >
             <nav className="flex flex-col px-4 py-3" aria-label="Navigation mobile">
               {NAV_LINKS.map(({ id, label }) => (
@@ -354,6 +360,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
             className="absolute inset-0 h-full w-full object-cover object-[center_22%]"
             loading="eager"
             decoding="async"
+            fetchPriority="high"
           />
           <div
             className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/45 via-black/15 to-black/75"
@@ -431,23 +438,18 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
         {/* Décor desktop — retiré : image en arrière-plan à la place */}
 
         {/* —— Desktop : hero type marketplace (style maquette) —— */}
-        <div
-          className="relative hidden min-h-[100svh] w-full overflow-hidden lg:block"
-          onMouseEnter={() => setSlidePaused(true)}
-          onMouseLeave={() => setSlidePaused(false)}
-        >
+        <div className="relative hidden min-h-[100svh] w-full overflow-hidden bg-slate-950 lg:block">
           {DESKTOP_SLIDES.map((s, idx) => (
-            <div
+            <img
               key={s.id}
-              className={`absolute inset-0 transition-opacity duration-700 ${
+              src={s.bgImage}
+              alt=""
+              className={`absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-700 ${
                 idx === desktopSlide ? 'opacity-100' : 'pointer-events-none opacity-0'
               }`}
-              style={{
-                backgroundImage: `url('${s.bgImage}')`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat',
-              }}
+              loading={idx === 0 ? 'eager' : 'lazy'}
+              decoding="async"
+              fetchPriority={idx === 0 ? 'high' : 'low'}
               aria-hidden={idx !== desktopSlide}
             />
           ))}

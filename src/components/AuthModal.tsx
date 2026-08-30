@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, startTransition, useRef, memo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, User, Store, Truck, ShieldCheck, CheckCircle, Clock, ArrowRight, LogIn, UserPlus, Eye, EyeOff,
 } from 'lucide-react';
@@ -15,23 +16,58 @@ interface AuthModalProps {
   initialMode?: 'register' | 'login';
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({
+export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
   isOpen,
   onClose,
   initialRole = 'client',
   initialMode = 'register'
-}) => {
-  const { registerUser, loginUser, allUsers, setActiveRole, setIsAuthModalOpen } = useApp();
+}) {
+  const { registerUser, loginUser, setActiveRole, closeAuthModal } = useApp();
+  const actionsRef = useRef({ registerUser, loginUser, setActiveRole, closeAuthModal });
+  actionsRef.current = { registerUser, loginUser, setActiveRole, closeAuthModal };
 
   const [mode, setMode] = useState<'register' | 'login'>(initialMode);
   const [selectedRole, setSelectedRole] = useState<UserRole>(initialRole);
+  const [registerMounted, setRegisterMounted] = useState(initialMode === 'register');
 
   React.useEffect(() => {
-    if (isOpen) {
-      setMode(initialMode);
-      setSelectedRole(initialRole);
+    if (!isOpen) return;
+    setMode(initialMode);
+    setSelectedRole(initialRole);
+    if (initialMode === 'register') {
+      setRegisterMounted(true);
     }
-  }, [isOpen, initialMode, initialRole]);
+    setRegistrationError(null);
+    setLoginError(null);
+    setLoginSuccess(null);
+    setRegistrationSuccessMessage(null);
+    // Reset uniquement à l’ouverture du modal, pas à chaque re-render parent
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  const switchMode = (nextMode: 'register' | 'login') => {
+    if (nextMode === mode) return;
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    if (nextMode === 'register') {
+      setRegisterMounted(true);
+    }
+    startTransition(() => {
+      setMode(nextMode);
+      setRegistrationError(null);
+      setLoginError(null);
+      setLoginSuccess(null);
+      setRegistrationSuccessMessage(null);
+    });
+  };
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
 
   // Common form fields
   const [name, setName] = useState('');
@@ -85,9 +121,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSuccess, setLoginSuccess] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
-const handleRegisterSubmit = async (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setRegistrationError(null);
       setLoginError(null);
@@ -160,7 +194,7 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
             setRegistrationError("Ajoutez la photo de votre moto.");
             return;
           }
-          newUser = await registerUser({
+          newUser = await actionsRef.current.registerUser({
             name,
             email,
             password: password || '123456',
@@ -189,7 +223,7 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
             setRegistrationError("L'adresse de la boutique est obligatoire.");
             return;
           }
-          newUser = await registerUser({
+          newUser = await actionsRef.current.registerUser({
             name,
             email,
             password: password || '123456',
@@ -204,7 +238,7 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
 
           setRegistrationSuccessMessage(`Félicitations ! Votre espace boutique "${newUser.name}" a été activé.`);
         } else {
-          newUser = await registerUser({
+          newUser = await actionsRef.current.registerUser({
             name,
             email,
             password: password || '123456',
@@ -236,11 +270,11 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
       return;
     }
 
-    const res = await loginUser(loginEmail, loginPassword);
+    const res = await actionsRef.current.loginUser(loginEmail, loginPassword);
     if (res.success && res.user) {
       setLoginSuccess('Connexion réussie !');
-      setActiveRole(res.user.role, true);
-      setIsAuthModalOpen(false);
+      actionsRef.current.setActiveRole(res.user.role, true);
+      actionsRef.current.closeAuthModal();
       onClose();
       return;
     }
@@ -273,9 +307,16 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
     'w-full h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-[15px] text-slate-900 placeholder:text-slate-400 transition focus:border-[#ff8a1f] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#ff8a1f]/20';
   const labelClass = 'mb-1.5 block text-[13px] font-bold text-slate-700';
 
-  return (
+  if (!isOpen) return null;
+
+  const submitRegisterClass =
+    'inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#ff8a1f] text-sm font-black text-white transition hover:bg-[#ff9a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 active:scale-[0.99]';
+  const submitLoginClass =
+    'inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#ff8a1f] text-sm font-black text-white transition hover:bg-[#ff9a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 active:scale-[0.99]';
+
+  return createPortal(
     <div className="fixed inset-0 z-[1100] flex items-stretch justify-center bg-[#0b2a4a]/55 backdrop-blur-[2px] sm:items-center sm:p-6">
-      <div className="flex h-[100svh] w-full max-w-lg flex-col overflow-hidden bg-[#f4f8fc] sm:h-auto sm:max-h-[min(92vh,760px)] sm:rounded-[1.75rem] sm:border sm:border-slate-200/80 sm:shadow-2xl">
+      <div className="flex h-[100svh] w-full max-w-lg flex-col overflow-hidden bg-[#f4f8fc] sm:h-[min(92vh,760px)] sm:max-h-[min(92vh,760px)] sm:rounded-[1.75rem] sm:border sm:border-slate-200/80 sm:shadow-2xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200/80 bg-white px-4 py-3.5 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -285,7 +326,8 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
                 Livr<span className="text-[#ff8a1f]">iko</span>
               </p>
               <p className="truncate text-[11px] font-medium text-slate-500">
-                {mode === 'register' ? 'Créer un compte' : 'Connexion'}
+                <span className={mode === 'register' ? 'inline' : 'hidden'}>Créer un compte</span>
+                <span className={mode === 'login' ? 'inline' : 'hidden'}>Connexion</span>
               </p>
             </div>
           </div>
@@ -301,14 +343,12 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
 
         {/* Mode switch */}
         <div className="shrink-0 bg-white px-4 pb-3 pt-1 sm:px-6">
-          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
+          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1" role="tablist" aria-label="Mode d’authentification">
             <button
               type="button"
-              onClick={() => {
-                setMode('login');
-                setRegistrationError(null);
-                setLoginError(null);
-              }}
+              role="tab"
+              aria-selected={mode === 'login'}
+              onClick={() => switchMode('login')}
               className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold transition ${
                 mode === 'login'
                   ? 'bg-[#0b2a4a] text-white shadow-sm'
@@ -320,11 +360,9 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
             </button>
             <button
               type="button"
-              onClick={() => {
-                setMode('register');
-                setRegistrationError(null);
-                setLoginError(null);
-              }}
+              role="tab"
+              aria-selected={mode === 'register'}
+              onClick={() => switchMode('register')}
               className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold transition ${
                 mode === 'register'
                   ? 'bg-[#0b2a4a] text-white shadow-sm'
@@ -337,8 +375,8 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
           </div>
         </div>
 
-        {/* Scrollable body */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
+        {/* Les deux formulaires restent montés — évite le crash removeChild au changement d’onglet */}
+        <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
           {registrationSuccessMessage && (
             <div className="mb-4 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm font-semibold text-emerald-800">
               <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
@@ -346,8 +384,12 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
             </div>
           )}
 
-          {mode === 'register' ? (
-            <form id="auth-register-form" onSubmit={handleRegisterSubmit} className="space-y-4 pb-4">
+          {registerMounted && (
+          <div
+            className={mode === 'register' ? 'block' : 'pointer-events-none invisible absolute h-0 w-0 overflow-hidden'}
+            aria-hidden={mode !== 'register'}
+          >
+            <form onSubmit={handleRegisterSubmit} className="space-y-4 pb-4">
               {registrationError && (
                 <div className="flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
@@ -599,9 +641,20 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
                   </div>
                 </div>
               )}
+
+              <button type="submit" className={submitRegisterClass}>
+                Créer mon compte
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </button>
             </form>
-          ) : (
-            <form id="auth-login-form" onSubmit={handleLoginSubmit} className="space-y-4 pb-4">
+          </div>
+          )}
+
+          <div
+            className={mode === 'login' ? 'block' : 'pointer-events-none invisible absolute h-0 w-0 overflow-hidden'}
+            aria-hidden={mode !== 'login'}
+          >
+            <form onSubmit={handleLoginSubmit} className="space-y-4 pb-4">
               {loginError && (
                 <div className="flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
@@ -653,33 +706,16 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
                   </button>
                 </div>
               </div>
-            </form>
-          )}
-        </div>
 
-        {/* Sticky footer CTA */}
-        <div className="shrink-0 border-t border-slate-200/80 bg-white px-4 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] sm:px-6">
-          {mode === 'register' ? (
-            <button
-              type="submit"
-              form="auth-register-form"
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#ff8a1f] text-sm font-black text-white transition hover:bg-[#ff9a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 active:scale-[0.99]"
-            >
-              Créer mon compte
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </button>
-          ) : (
-            <button
-              type="submit"
-              form="auth-login-form"
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#ff8a1f] text-sm font-black text-white transition hover:bg-[#ff9a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 active:scale-[0.99]"
-            >
-              <LogIn className="h-4 w-4" aria-hidden />
-              Se connecter
-            </button>
-          )}
+              <button type="submit" className={submitLoginClass}>
+                <LogIn className="h-4 w-4" aria-hidden />
+                Se connecter
+              </button>
+            </form>
+          </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
-};
+});

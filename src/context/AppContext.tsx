@@ -51,6 +51,10 @@ interface AppContextType {
   archiveOrder: (orderId: string, unarchive?: boolean) => Promise<void>;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
+  authModalMode: 'register' | 'login';
+  authModalRole: UserRole;
+  openAuthModal: (mode?: 'register' | 'login', role?: UserRole) => void;
+  closeAuthModal: () => void;
   reviewModalOrderId: string | null;
   setReviewModalOrderId: (id: string | null) => void;
 
@@ -270,7 +274,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTrackingOrder, setActiveTrackingOrder] = useState<Order | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [authModalMode, setAuthModalMode] = useState<'register' | 'login'>('login');
+  const [authModalRole, setAuthModalRole] = useState<UserRole>('client');
   const [reviewModalOrderId, setReviewModalOrderId] = useState<string | null>(null);
+
+  const openAuthModal = React.useCallback((mode: 'register' | 'login' = 'login', role: UserRole = 'client') => {
+    setAuthModalMode(mode);
+    setAuthModalRole(role);
+    setIsAuthModalOpen(true);
+  }, []);
+
+  const closeAuthModal = React.useCallback(() => {
+    setIsAuthModalOpen(false);
+  }, []);
 
   useEffect(() => {
     if (currentUserId && !isLoggedIn) {
@@ -362,14 +378,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setStoresReady(true);
       }
 
-      try {
-        const ordersUrl = buildApiUrl('/backend/index.php/api/orders');
-        const res = await axios.get(ordersUrl, { withCredentials: true });
-        if (Array.isArray(res.data?.orders)) {
-          setOrders(res.data.orders.map(mapApiOrder));
+      if (loggedInRole) {
+        try {
+          const ordersUrl = buildApiUrl('/backend/index.php/api/orders');
+          const res = await axios.get(ordersUrl, { withCredentials: true });
+          if (Array.isArray(res.data?.orders)) {
+            setOrders(res.data.orders.map(mapApiOrder));
+          }
+        } catch {
+          setOrders([]);
         }
-      } catch {
-        setOrders([]);
       }
 
       try {
@@ -417,20 +435,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setActiveRole = (role: UserRole, force = false) => {
     const normalizedRole = role === 'restaurant' ? 'vendeur' : role;
     if (normalizedRole !== 'client' && !isLoggedIn && !force) {
-      setIsAuthModalOpen(true);
+      openAuthModal('login');
       return;
     }
 
     if (isLoggedIn && currentUser && normalizedRole !== 'client' && !force) {
       const userDashboardRole = currentUser.role === 'restaurant' ? 'vendeur' : currentUser.role;
       if (normalizedRole !== userDashboardRole) {
-        setIsAuthModalOpen(true);
+        openAuthModal('login');
         return;
       }
     }
 
     if (normalizedRole === 'admin' && (!currentUser || currentUser.role !== 'admin') && !force) {
-      setIsAuthModalOpen(true);
+      openAuthModal('login');
       return;
     }
 
@@ -1415,6 +1433,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         archiveOrder,
         isAuthModalOpen,
         setIsAuthModalOpen,
+        authModalMode,
+        authModalRole,
+        openAuthModal,
+        closeAuthModal,
         stores,
         products,
         orders,

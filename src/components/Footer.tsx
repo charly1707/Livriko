@@ -10,7 +10,7 @@ import { CategoryType } from '../types';
 import livrikoLogo from '../assets/images/livriko_logo_1785408725718.jpg';
 
 export const Footer: React.FC = () => {
-  const { setActiveCategory, setIsAuthModalOpen } = useApp();
+  const { setActiveCategory, openAuthModal } = useApp();
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState('');
@@ -186,7 +186,7 @@ export const Footer: React.FC = () => {
             <ul className="space-y-3 text-xs text-slate-400">
               <li>
                 <button 
-                  onClick={() => setIsAuthModalOpen(true)} 
+                  onClick={() => openAuthModal('register')} 
                   className="p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-slate-200 transition w-full text-left cursor-pointer group flex items-center gap-3"
                 >
                   <Truck className="w-4 h-4 text-orange-400 shrink-0" />
@@ -199,7 +199,7 @@ export const Footer: React.FC = () => {
 
               <li>
                 <button 
-                  onClick={() => setIsAuthModalOpen(true)} 
+                  onClick={() => openAuthModal('register')} 
                   className="p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-slate-200 transition w-full text-left cursor-pointer group flex items-center gap-3"
                 >
                   <ShieldCheck className="w-4 h-4 text-orange-400 shrink-0" />

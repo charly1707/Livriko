@@ -69,7 +69,7 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     currentUser,
     stores,
     updateUserProfile,
-    setIsAuthModalOpen,
+    openAuthModal,
   } = useApp();
 
   const [address, setAddress] = useState(currentUser?.location?.address || 'Quartier Agamé, Parcelle 14 - Lokossa');
@@ -158,7 +158,7 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     e.preventDefault();
     if (cart.length === 0) return;
     if (!currentUser) {
-      setIsAuthModalOpen(true);
+      openAuthModal('login');
       return;
     }
 

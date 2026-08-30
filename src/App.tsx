@@ -8,27 +8,44 @@ import { VendeurView } from './components/vendeur/VendeurView';
 import { LivreurView } from './components/livreur/LivreurView';
 import { AdminView } from './components/admin/AdminView';
 import { PageScooterLoader } from './components/PageScooterLoader';
+import { AuthModal } from './components/AuthModal';
+import WelcomePage from './components/WelcomePage';
+import { readPersistedSession, readPersistedUserSnapshot } from './utils/authFallback';
 
 const CartDrawer = lazy(() => import('./components/client/CartDrawer').then(module => ({ default: module.CartDrawer })));
 const OrderTrackingModal = lazy(() => import('./components/client/OrderTrackingModal').then(module => ({ default: module.OrderTrackingModal })));
 const NotificationModal = lazy(() => import('./components/NotificationModal').then(module => ({ default: module.NotificationModal })));
-const AuthModal = lazy(() => import('./components/AuthModal').then(module => ({ default: module.AuthModal })));
 const UserProfileModal = lazy(() => import('./components/UserProfileModal').then(module => ({ default: module.UserProfileModal })));
 const ChatWidget = lazy(() => import('./components/ChatWidget').then(module => ({ default: module.ChatWidget })));
-import WelcomePage from './components/WelcomePage';
-import { readPersistedSession, readPersistedUserSnapshot } from './utils/authFallback';
 const ReviewModal = lazy(() => import('./components/client/ReviewModal').then(module => ({ default: module.default })));
+
+function GlobalAuthModal() {
+  const {
+    isAuthModalOpen,
+    authModalMode,
+    authModalRole,
+    closeAuthModal,
+  } = useApp();
+
+  return (
+    <AuthModal
+      isOpen={isAuthModalOpen}
+      onClose={closeAuthModal}
+      initialMode={authModalMode}
+      initialRole={authModalRole}
+    />
+  );
+}
 
 function MainAppContent() {
   const { 
     activeRole, 
     activeTrackingOrder, 
     setActiveTrackingOrder, 
-    isAuthModalOpen,
-    setIsAuthModalOpen,
     currentUser,
     reviewModalOrderId,
     setReviewModalOrderId,
+    openAuthModal,
   } = useApp();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -45,7 +62,6 @@ function MainAppContent() {
   // User Profile Modal state
   const [isUserProfileOpen, setIsUserProfileOpen] = useState(false);
   const [userProfileTab, setUserProfileTab] = useState<'profil' | 'commandes' | 'adresses' | 'parametres'>('profil');
-  const [authModalMode, setAuthModalMode] = useState<'register' | 'login'>('login');
 
   // Trigger brief loader when switching roles to make app feel dynamic
   useEffect(() => {
@@ -100,8 +116,7 @@ function MainAppContent() {
         isUserProfileOpen={isUserProfileOpen}
         onOpenChat={() => setIsChatOpen(true)}
         onOpenAuth={(mode = 'login') => {
-          setAuthModalMode(mode);
-          setIsAuthModalOpen(true);
+          openAuthModal(mode);
         }}
         onTriggerScooterLoader={() => {
           setShowScooterLoader(true);
@@ -163,17 +178,13 @@ function MainAppContent() {
         </button>
       )}
 
-      <AuthModal 
-        isOpen={isAuthModalOpen} 
-        onClose={() => setIsAuthModalOpen(false)} 
-        initialMode={authModalMode}
-      />
-
-      <UserProfileModal
-        isOpen={isUserProfileOpen}
-        onClose={() => setIsUserProfileOpen(false)}
-        initialTab={userProfileTab}
-      />
+      <Suspense fallback={null}>
+        <UserProfileModal
+          isOpen={isUserProfileOpen}
+          onClose={() => setIsUserProfileOpen(false)}
+          initialTab={userProfileTab}
+        />
+      </Suspense>
 
       {reviewModalOrderId && (
         <Suspense fallback={null}>
@@ -187,16 +198,22 @@ function MainAppContent() {
 export default function App() {
   return (
     <AppProvider>
-      <AppRoot />
+      <AppWithAuthModal />
     </AppProvider>
   );
 }
 
+function AppWithAuthModal() {
+  return (
+    <>
+      <AppRoot />
+      <GlobalAuthModal />
+    </>
+  );
+}
+
 function AppRoot() {
-  const { authReady, isLoggedIn, currentUserId, currentUser, storesReady } = useApp();
-  const [welcomeAuthMode, setWelcomeAuthMode] = React.useState<'register' | 'login'>('login');
-  const [welcomeAuthRole, setWelcomeAuthRole] = React.useState<'client' | 'livreur' | 'vendeur'>('client');
-  const [welcomeAuthOpen, setWelcomeAuthOpen] = React.useState(false);
+  const { authReady, isLoggedIn, currentUserId, currentUser, storesReady, openAuthModal } = useApp();
 
   const hasValidSession = isLoggedIn || Boolean(currentUserId) || Boolean(currentUser);
   const persisted = readPersistedSession();
@@ -230,25 +247,14 @@ function AppRoot() {
 
   if (!hasValidSession) {
     return (
-      <>
-        <WelcomePage
-          onSeen={() => {
-            // keep the welcome flow as the required entry point for unauthenticated visitors.
-          }}
-          onOpenAuth={(mode, role) => {
-            setWelcomeAuthMode(mode);
-            setWelcomeAuthRole(role === 'livreur' || role === 'vendeur' ? role : 'client');
-            setWelcomeAuthOpen(true);
-          }}
-        />
-        <AuthModal
-          key={`${welcomeAuthMode}-${welcomeAuthRole}-${welcomeAuthOpen ? 'open' : 'closed'}`}
-          isOpen={welcomeAuthOpen}
-          onClose={() => setWelcomeAuthOpen(false)}
-          initialMode={welcomeAuthMode}
-          initialRole={welcomeAuthRole}
-        />
-      </>
+      <WelcomePage
+        onSeen={() => {
+          // keep the welcome flow as the required entry point for unauthenticated visitors.
+        }}
+        onOpenAuth={(mode, role) => {
+          openAuthModal(mode, role === 'livreur' || role === 'vendeur' ? role : 'client');
+        }}
+      />
     );
   }
 
