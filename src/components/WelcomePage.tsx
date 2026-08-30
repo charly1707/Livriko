@@ -363,81 +363,84 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
             decoding="async"
             aria-hidden
           />
-          {/* Léger dégradé à gauche uniquement pour la lisibilité du texte — sans flou */}
+          {/* Dégradé localisé derrière le bloc texte uniquement */}
           <div
-            className="pointer-events-none absolute inset-y-0 left-0 w-[55%] max-w-3xl"
+            className="pointer-events-none absolute inset-y-0 left-0 w-[48%] max-w-2xl"
             style={{
               background:
-                'linear-gradient(90deg, rgba(244,248,252,0.72) 0%, rgba(244,248,252,0.28) 55%, transparent 100%)',
+                'linear-gradient(90deg, rgba(244,248,252,0.78) 0%, rgba(244,248,252,0.35) 70%, transparent 100%)',
             }}
             aria-hidden
           />
 
-          <div className="relative z-[2] mx-auto flex min-h-[100svh] max-w-[96rem] flex-col justify-center px-12 pb-16 pt-28 xl:px-16">
-            <div className="max-w-2xl text-left">
-              <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white/90 px-3.5 py-2 text-sm font-bold text-[#1d4ed8] shadow-sm">
-                <ShieldCheck className="h-4 w-4" aria-hidden />
-                Plateforme 100% sécurisée
-              </div>
+          <div className="relative z-[2] mx-auto flex min-h-[100svh] max-w-[96rem] flex-col px-12 pb-14 pt-[7.5rem] xl:px-16 xl:pb-16">
+            {/* Bloc texte : colonne gauche, aérée */}
+            <div className="flex flex-1 flex-col justify-center">
+              <div className="max-w-[34rem] text-left xl:max-w-[38rem]">
+                <p className="inline-flex items-center gap-2 text-[13px] font-bold uppercase tracking-[0.16em] text-[#1d4ed8]">
+                  <ShieldCheck className="h-4 w-4" aria-hidden />
+                  Plateforme 100% sécurisée
+                </p>
 
-              <h1 className="mt-6 font-black leading-[0.98] tracking-[-0.04em] text-[#0b2a4a] lg:text-[4.25rem] xl:text-[5rem] 2xl:text-[5.5rem]">
-                <span className="block">Bienvenue sur</span>
-                <span className="mt-1 block">
-                  <span className="text-[#0b2a4a]">Livr</span>
-                  <span className="text-[#ff8a1f]">iko</span>
-                </span>
-              </h1>
+                <h1 className="mt-5 font-black tracking-[-0.045em] text-[#0b2a4a]">
+                  <span className="block text-[2.75rem] leading-[1.05] xl:text-[3.25rem]">
+                    Bienvenue sur
+                  </span>
+                  <span className="mt-1 block text-[4.5rem] leading-[0.92] xl:text-[5.5rem] 2xl:text-[6rem]">
+                    <span className="text-[#0b2a4a]">Livr</span>
+                    <span className="text-[#ff8a1f]">iko</span>
+                  </span>
+                </h1>
 
-              <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-700 lg:text-xl xl:text-[1.35rem]">
-                Votre plateforme de livraison simple, rapide et proche de vous.
-              </p>
+                <p className="mt-6 max-w-[28rem] text-[1.125rem] leading-[1.55] text-slate-700 xl:text-[1.2rem]">
+                  Votre plateforme de livraison simple, rapide et proche de vous.
+                </p>
 
-              <div className="mt-9 flex flex-wrap items-center gap-3.5">
-                <button
-                  type="button"
-                  onClick={() => openAuth('register')}
-                  className="inline-flex h-14 min-w-[220px] items-center justify-center gap-2.5 rounded-2xl bg-[#0b2a4a] px-7 text-sm font-black uppercase tracking-wide text-white shadow-md shadow-blue-950/20 transition duration-200 hover:bg-[#123a63] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/40 focus-visible:ring-offset-2 active:scale-[0.99] xl:h-16 xl:text-base"
-                >
-                  <UserRound className="h-5 w-5" aria-hidden />
-                  S&apos;inscrire
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openAuth('login')}
-                  className="inline-flex h-14 min-w-[220px] items-center justify-center gap-2.5 rounded-2xl border-2 border-[#0b2a4a] bg-white px-7 text-sm font-black uppercase tracking-wide text-[#0b2a4a] shadow-sm transition duration-200 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30 focus-visible:ring-offset-2 active:scale-[0.99] xl:h-16 xl:text-base"
-                >
-                  <LockKeyhole className="h-5 w-5" aria-hidden />
-                  Se connecter
-                </button>
-              </div>
-
-              <div className="mt-10 grid max-w-3xl gap-4 sm:grid-cols-3">
-                {FEATURES.map(({ icon: Icon, title, description, iconClass }) => (
-                  <div
-                    key={title}
-                    className="flex items-start gap-3 rounded-2xl border border-white/80 bg-white/90 px-3.5 py-3 shadow-sm"
+                <div className="mt-8 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => openAuth('register')}
+                    className="inline-flex h-[3.25rem] items-center justify-center gap-2 rounded-2xl bg-[#0b2a4a] px-7 text-sm font-black uppercase tracking-wide text-white shadow-md shadow-blue-950/20 transition duration-200 hover:bg-[#123a63] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/40 focus-visible:ring-offset-2 active:scale-[0.99]"
                   >
-                    <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${iconClass}`}>
-                      <Icon className="h-5 w-5" aria-hidden />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-base font-bold text-[#0b2a4a]">{title}</p>
-                      <p className="mt-0.5 text-sm text-slate-500">{description}</p>
-                    </div>
-                  </div>
-                ))}
+                    <UserRound className="h-5 w-5" aria-hidden />
+                    S&apos;inscrire
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openAuth('login')}
+                    className="inline-flex h-[3.25rem] items-center justify-center gap-2 rounded-2xl border-2 border-[#0b2a4a] bg-white px-7 text-sm font-black uppercase tracking-wide text-[#0b2a4a] shadow-sm transition duration-200 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30 focus-visible:ring-offset-2 active:scale-[0.99]"
+                  >
+                    <LockKeyhole className="h-5 w-5" aria-hidden />
+                    Se connecter
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Badge statut — décoratif */}
-            <div className="absolute bottom-24 right-12 xl:bottom-28 xl:right-16">
-              <div className="flex items-center gap-2.5 rounded-2xl border border-white/80 bg-white px-4 py-3.5 shadow-lg">
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-[#1d4ed8]">
+            {/* Avantages : bandeau bas, hors du flux du titre */}
+            <div className="mt-auto flex max-w-3xl items-stretch gap-0 divide-x divide-slate-200/80 rounded-2xl border border-white/80 bg-white/90 shadow-sm">
+              {FEATURES.map(({ icon: Icon, title, description, iconClass }) => (
+                <div key={title} className="flex flex-1 items-center gap-3 px-5 py-4">
+                  <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconClass}`}>
+                    <Icon className="h-5 w-5" aria-hidden />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-[#0b2a4a]">{title}</p>
+                    <p className="text-xs text-slate-500">{description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Badge statut — coin photo */}
+            <div className="absolute right-12 top-32 xl:right-16 xl:top-36">
+              <div className="flex items-center gap-2.5 rounded-2xl border border-white/80 bg-white px-3.5 py-3 shadow-lg">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-[#1d4ed8]">
                   <Package className="h-5 w-5" aria-hidden />
                 </span>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Statut</p>
-                  <p className="text-base font-bold text-[#0b2a4a]">Livraison en cours</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Statut</p>
+                  <p className="text-sm font-bold text-[#0b2a4a]">Livraison en cours</p>
                 </div>
               </div>
             </div>
