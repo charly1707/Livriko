@@ -351,113 +351,107 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
           </div>
         </div>
 
-        {/* Décor desktop */}
-        <div className="pointer-events-none absolute inset-0 hidden lg:block" aria-hidden>
-          <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-blue-200/30 blur-3xl" />
-          <div className="absolute right-0 top-32 h-80 w-80 rounded-full bg-orange-100/40 blur-3xl" />
-          <div
-            className="absolute inset-0 opacity-[0.35]"
-            style={{
-              backgroundImage: 'radial-gradient(#93c5fd 0.9px, transparent 0.9px)',
-              backgroundSize: '22px 22px',
-            }}
+        {/* Décor desktop — retiré : image en arrière-plan à la place */}
+
+        {/* —— Desktop : hero plein écran, image en arrière-plan —— */}
+        <div className="relative hidden min-h-[100svh] w-full lg:block">
+          <img
+            src={heroImage}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-[center_18%]"
+            loading="eager"
+            decoding="async"
+            aria-hidden
           />
-        </div>
+          {/* Léger dégradé à gauche uniquement pour la lisibilité du texte — sans flou */}
+          <div
+            className="pointer-events-none absolute inset-y-0 left-0 w-[55%] max-w-3xl"
+            style={{
+              background:
+                'linear-gradient(90deg, rgba(244,248,252,0.72) 0%, rgba(244,248,252,0.28) 55%, transparent 100%)',
+            }}
+            aria-hidden
+          />
 
-        {/* Contenu sous le hero mobile / hero desktop 2 colonnes */}
-        <div
-          id="accueil-contenu"
-          className="relative scroll-mt-20 bg-[#f4f8fc] lg:min-h-[calc(100vh-1rem)] lg:bg-transparent lg:pt-24"
-        >
-          <div className="pointer-events-none absolute inset-0 lg:hidden" aria-hidden>
-            <div className="absolute -left-16 top-0 h-56 w-56 rounded-full bg-blue-200/25 blur-3xl" />
-            <div className="absolute right-0 top-20 h-48 w-48 rounded-full bg-orange-100/35 blur-3xl" />
-          </div>
-
-          {/* —— Desktop : texte + image —— */}
-          <div className="relative mx-auto hidden max-w-[96rem] items-center gap-8 px-5 py-10 sm:px-8 sm:py-14 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-12 lg:px-12 lg:pb-10 lg:pt-6 xl:gap-16 xl:px-16">
-            <div className="order-1 w-full min-w-0 text-left">
-              <div className="inline-flex items-center gap-2.5 rounded-full border border-blue-100 bg-blue-50/90 px-4 py-2.5 text-base font-bold text-[#1d4ed8]">
-                <ShieldCheck className="h-5 w-5" aria-hidden />
+          <div className="relative z-[2] mx-auto flex min-h-[100svh] max-w-[96rem] flex-col justify-center px-12 pb-16 pt-28 xl:px-16">
+            <div className="max-w-2xl text-left">
+              <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white/90 px-3.5 py-2 text-sm font-bold text-[#1d4ed8] shadow-sm">
+                <ShieldCheck className="h-4 w-4" aria-hidden />
                 Plateforme 100% sécurisée
               </div>
 
-              <h1 className="mt-7 text-[3rem] font-black leading-[0.95] tracking-[-0.05em] text-[#0b2a4a] sm:text-[3.75rem] md:text-[4.5rem] lg:text-[5.5rem] xl:text-[6.75rem] 2xl:text-[7.25rem]">
+              <h1 className="mt-6 font-black leading-[0.98] tracking-[-0.04em] text-[#0b2a4a] lg:text-[4.25rem] xl:text-[5rem] 2xl:text-[5.5rem]">
                 <span className="block">Bienvenue sur</span>
-                <span className="mt-1 block sm:mt-2">
+                <span className="mt-1 block">
                   <span className="text-[#0b2a4a]">Livr</span>
                   <span className="text-[#ff8a1f]">iko</span>
                 </span>
               </h1>
 
-              <p className="mt-7 max-w-2xl text-lg leading-snug text-slate-500 sm:text-xl md:text-2xl lg:text-[1.65rem] lg:leading-relaxed xl:text-[1.85rem]">
+              <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-700 lg:text-xl xl:text-[1.35rem]">
                 Votre plateforme de livraison simple, rapide et proche de vous.
               </p>
 
-              <div className="mt-10 flex w-full flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4">
+              <div className="mt-9 flex flex-wrap items-center gap-3.5">
                 <button
                   type="button"
                   onClick={() => openAuth('register')}
-                  className="inline-flex h-16 min-w-[240px] items-center justify-center gap-3 rounded-2xl bg-[#0b2a4a] px-8 text-base font-black uppercase tracking-wide text-white shadow-md shadow-blue-950/10 transition duration-200 hover:bg-[#123a63] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/40 focus-visible:ring-offset-2 active:scale-[0.99] xl:h-[4.25rem] xl:text-lg"
+                  className="inline-flex h-14 min-w-[220px] items-center justify-center gap-2.5 rounded-2xl bg-[#0b2a4a] px-7 text-sm font-black uppercase tracking-wide text-white shadow-md shadow-blue-950/20 transition duration-200 hover:bg-[#123a63] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/40 focus-visible:ring-offset-2 active:scale-[0.99] xl:h-16 xl:text-base"
                 >
-                  <UserRound className="h-6 w-6" aria-hidden />
+                  <UserRound className="h-5 w-5" aria-hidden />
                   S&apos;inscrire
                 </button>
                 <button
                   type="button"
                   onClick={() => openAuth('login')}
-                  className="inline-flex h-16 min-w-[240px] items-center justify-center gap-3 rounded-2xl border-2 border-[#0b2a4a] bg-white px-8 text-base font-black uppercase tracking-wide text-[#0b2a4a] transition duration-200 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30 focus-visible:ring-offset-2 active:scale-[0.99] xl:h-[4.25rem] xl:text-lg"
+                  className="inline-flex h-14 min-w-[220px] items-center justify-center gap-2.5 rounded-2xl border-2 border-[#0b2a4a] bg-white px-7 text-sm font-black uppercase tracking-wide text-[#0b2a4a] shadow-sm transition duration-200 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30 focus-visible:ring-offset-2 active:scale-[0.99] xl:h-16 xl:text-base"
                 >
-                  <LockKeyhole className="h-6 w-6" aria-hidden />
+                  <LockKeyhole className="h-5 w-5" aria-hidden />
                   Se connecter
                 </button>
               </div>
 
-              <div className="mt-12 grid w-full gap-7 sm:grid-cols-3">
+              <div className="mt-10 grid max-w-3xl gap-4 sm:grid-cols-3">
                 {FEATURES.map(({ icon: Icon, title, description, iconClass }) => (
-                  <div key={title} className="flex items-start gap-3.5 text-left">
-                    <span className={`inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${iconClass}`}>
-                      <Icon className="h-7 w-7" aria-hidden />
+                  <div
+                    key={title}
+                    className="flex items-start gap-3 rounded-2xl border border-white/80 bg-white/90 px-3.5 py-3 shadow-sm"
+                  >
+                    <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${iconClass}`}>
+                      <Icon className="h-5 w-5" aria-hidden />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-xl font-bold text-[#0b2a4a]">{title}</p>
-                      <p className="mt-1 text-base text-slate-500">{description}</p>
+                      <p className="text-base font-bold text-[#0b2a4a]">{title}</p>
+                      <p className="mt-0.5 text-sm text-slate-500">{description}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="order-2 relative w-full min-w-0 lg:justify-self-end">
-              <div className="relative min-h-[640px] overflow-hidden rounded-[2.25rem] shadow-[0_28px_70px_-22px_rgba(11,42,74,0.4)] ring-1 ring-slate-200/80 xl:min-h-[760px] 2xl:min-h-[820px]">
-                <div
-                  className="pointer-events-none absolute inset-0 z-[1]"
-                  style={{
-                    background:
-                      'linear-gradient(105deg, #f4f8fc 0%, transparent 18%, transparent 100%)',
-                  }}
-                  aria-hidden
-                />
-                <img
-                  src={heroImage}
-                  alt="Livreur Livriko en livraison avec sac et équipement aux couleurs de la marque"
-                  className="absolute inset-0 h-full w-full scale-105 object-cover object-[center_16%]"
-                  loading="eager"
-                  decoding="async"
-                />
-                <div className="absolute right-6 top-8 z-[2] xl:right-8 xl:top-10">
-                  <div className="flex items-center gap-2.5 rounded-2xl border border-white/70 bg-white/95 px-4 py-3.5 shadow-lg backdrop-blur-sm">
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-[#1d4ed8]">
-                      <Package className="h-5 w-5" aria-hidden />
-                    </span>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Statut</p>
-                      <p className="text-base font-bold text-[#0b2a4a]">Livraison en cours</p>
-                    </div>
-                  </div>
+            {/* Badge statut — décoratif */}
+            <div className="absolute bottom-24 right-12 xl:bottom-28 xl:right-16">
+              <div className="flex items-center gap-2.5 rounded-2xl border border-white/80 bg-white px-4 py-3.5 shadow-lg">
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-[#1d4ed8]">
+                  <Package className="h-5 w-5" aria-hidden />
+                </span>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Statut</p>
+                  <p className="text-base font-bold text-[#0b2a4a]">Livraison en cours</p>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Contenu sous le hero mobile (+ trust desktop) */}
+        <div
+          id="accueil-contenu"
+          className="relative scroll-mt-20 bg-[#f4f8fc] lg:bg-transparent"
+        >
+          <div className="pointer-events-none absolute inset-0 lg:hidden" aria-hidden>
+            <div className="absolute -left-16 top-0 h-56 w-56 rounded-full bg-blue-200/25 blur-3xl" />
+            <div className="absolute right-0 top-20 h-48 w-48 rounded-full bg-orange-100/35 blur-3xl" />
           </div>
 
           {/* —— Mobile : intro courte après le hero photo —— */}
@@ -492,8 +486,8 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
             </p>
           </div>
 
-          {/* Trust desktop — bien plus bas sous le hero */}
-          <div className="relative mx-auto hidden max-w-[96rem] px-5 sm:px-8 lg:mt-28 lg:block lg:px-12 lg:pb-20 xl:mt-40 xl:px-16 xl:pb-24">
+          {/* Trust desktop */}
+          <div className="relative mx-auto hidden max-w-[96rem] px-5 sm:px-8 lg:mt-10 lg:block lg:px-12 lg:pb-16 xl:mt-12 xl:px-16 xl:pb-20">
             <div className="flex w-full flex-col items-start gap-3 rounded-2xl border border-slate-200/80 bg-white px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:rounded-full sm:px-8 lg:px-10 lg:py-6">
               <div className="flex items-center gap-3 text-lg text-slate-600">
                 <LockKeyhole className="h-6 w-6 shrink-0 text-[#1d4ed8]" aria-hidden />
