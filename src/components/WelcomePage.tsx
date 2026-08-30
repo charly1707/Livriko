@@ -19,10 +19,10 @@ import {
   Headphones,
 } from 'lucide-react';
 import { UserRole } from '../types';
-import livrikoLogo from '../assets/images/livriko_logo_1785408725718.jpg';
-import riderMotoHero from '../assets/images/livriko_rider_branded_hero_1785411575207.png';
-import riderHandoffHero from '../assets/images/livriko_rider_hero_bg_1785410590188.jpg';
-import hostessImage from '../assets/images/cliente.png';
+import livrikoLogo from '../assets/images/livriko-logo-sm.webp';
+import { WELCOME_CRITICAL_IMAGES } from '../utils/preloadWelcomeImages';
+
+const [welcomeMobileHero, welcomeCarouselMoto, welcomeCarouselHandoff] = WELCOME_CRITICAL_IMAGES;
 
 type AuthMode = 'register' | 'login';
 
@@ -66,7 +66,7 @@ const DESKTOP_SLIDES = [
     titleHighlight: 'livré à votre porte !',
     description:
       'La plateforme tout-en-un de livraison à Lokossa : courses, repas et colis en toute sérénité.',
-    bgImage: riderMotoHero,
+    bgImage: welcomeCarouselMoto,
   },
   {
     id: 'handoff',
@@ -74,7 +74,7 @@ const DESKTOP_SLIDES = [
     titleHighlight: 'jusqu’à votre porte !',
     description:
       'Nos livreurs certifiés vous remettent vos commandes en main propre, rapidement et en toute confiance.',
-    bgImage: riderHandoffHero,
+    bgImage: welcomeCarouselHandoff,
   },
   {
     id: 'client',
@@ -82,7 +82,7 @@ const DESKTOP_SLIDES = [
     titleHighlight: 'on s’occupe du reste !',
     description:
       'Repas, courses ou colis — recevez vos achats à domicile à Lokossa dès 450 FCFA.',
-    bgImage: hostessImage,
+    bgImage: welcomeMobileHero,
   },
 ] as const;
 
@@ -131,15 +131,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
     return () => window.removeEventListener('keydown', onKey);
   }, [mobileMenuOpen]);
 
-  // Préchargement des images du carrousel desktop
-  useEffect(() => {
-    DESKTOP_SLIDES.forEach(({ bgImage }) => {
-      const img = new Image();
-      img.decoding = 'async';
-      img.src = bgImage;
-    });
-  }, []);
-
+  // Les images sont préchargées au démarrage via main.tsx (preloadWelcomeImages)
   // Défilement automatique (ne se met plus en pause au survol)
   useEffect(() => {
     if (isNarrow) return;
@@ -371,11 +363,11 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
         <div className="relative flex h-[100svh] w-full flex-col lg:hidden">
           {/* Fond : hôtesse accueillante Livriko */}
           <img
-            src={hostessImage}
+            src={welcomeMobileHero}
             alt="Hôtesse Livriko accueillante avec une livraison"
             className="absolute inset-0 h-full w-full object-cover object-[center_22%]"
             loading="eager"
-            decoding="async"
+            decoding="sync"
             fetchPriority="high"
           />
           <div
@@ -394,16 +386,21 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
             <div className="mb-5 flex items-end justify-center">
               <div className="relative z-[2] overflow-hidden rounded-full border-[3px] border-white shadow-xl ring-2 ring-[#ff8a1f]/60">
                 <img
-                  src={hostessImage}
+                  src={welcomeMobileHero}
                   alt="Hôtesse Livriko"
                   className="h-28 w-28 object-cover object-[center_18%]"
+                  loading="eager"
+                  decoding="async"
+                  fetchPriority="high"
                 />
               </div>
               <div className="relative z-[1] -ml-4 overflow-hidden rounded-full border-[3px] border-white shadow-xl">
                 <img
-                  src={riderMotoHero}
+                  src={welcomeCarouselMoto}
                   alt="Livreur Livriko"
                   className="h-20 w-20 object-cover object-[center_10%]"
+                  loading="eager"
+                  decoding="async"
                 />
               </div>
             </div>
@@ -463,9 +460,9 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
               className={`absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-700 ${
                 idx === desktopSlide ? 'opacity-100' : 'pointer-events-none opacity-0'
               }`}
-              loading={idx === 0 ? 'eager' : 'lazy'}
-              decoding="async"
-              fetchPriority={idx === 0 ? 'high' : 'low'}
+              loading="eager"
+              decoding={idx === 0 ? 'sync' : 'async'}
+              fetchPriority={idx === 0 ? 'high' : 'auto'}
               aria-hidden={idx !== desktopSlide}
             />
           ))}
