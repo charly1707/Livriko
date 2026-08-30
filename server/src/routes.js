@@ -46,6 +46,7 @@ export function createApiRouter() {
   router.get('/admin/users', requireAuth, requireAdmin, admin.listUsers);
   router.post('/admin/livreurs/approve', requireAuth, requireAdmin, admin.approveLivreur);
   router.post('/admin/livreurs/reject', requireAuth, requireAdmin, admin.rejectLivreur);
+  router.post('/admin/livreurs/incomplete', requireAuth, requireAdmin, admin.requestIncompleteLivreur);
   router.post('/admin/stores/certify', requireAuth, requireAdmin, admin.toggleStoreCertification);
   router.post('/admin/users/delete', requireAuth, requireAdmin, admin.deleteUserAccount);
   router.post('/admin/seed', admin.seedAdmin);
@@ -53,6 +54,7 @@ export function createApiRouter() {
   router.get('/orders', requireAuth, orders.listOrders);
   router.post('/orders', requireAuth, orders.createOrder);
   router.post('/orders/status', requireAuth, orders.updateOrderStatus);
+  router.post('/orders/archive', requireAuth, orders.archiveOrder);
 
   router.post('/payments/transactions', requireAuth, payments.createTransaction);
   router.get('/payments/status', requireAuth, payments.paymentStatus);

@@ -17,12 +17,18 @@ const userSchema = new mongoose.Schema({
   vehicle: { type: String, default: null },
   city: { type: String, default: 'Lokossa' },
   documentsValide: { type: Boolean, default: false },
-  verificationStatus: { type: String, enum: ['pending', 'approved', 'rejected', null], default: null },
+  verificationStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', 'incomplete', null],
+    default: null,
+  },
   rejectionReason: { type: String, default: null },
   selfiePhoto: { type: String, default: null },
   cipPhoto: { type: String, default: null },
   vehiclePhoto: { type: String, default: null },
+  vehiclePlate: { type: String, default: null },
   walletBalance: { type: Number, default: 0 },
+  deletedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 export const User = mongoose.model('User', userSchema);

@@ -208,11 +208,19 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-orange-400 uppercase tracking-wide">Commande en cours</span>
+                  <span className="text-xs font-bold text-orange-400 uppercase tracking-wide">Suivre ma commande</span>
                   <span className="text-xs text-slate-400 font-mono">{activeOrder.code}</span>
                 </div>
                 <p className="text-xs text-slate-200 mt-0.5">
-                  <strong className="text-white">{activeOrder.storeName}</strong> — Livré à {activeOrder.clientAddress}
+                  <strong className="text-white">{activeOrder.storeName}</strong>
+                  {activeOrder.riderName ? ` • Livreur : ${activeOrder.riderName}` : ''}
+                  {' — '}
+                  {activeOrder.status === 'pending' && 'Commande envoyée'}
+                  {activeOrder.status === 'confirmed' && 'En préparation'}
+                  {activeOrder.status === 'rider_requested' && 'Recherche d’un livreur'}
+                  {activeOrder.status === 'rider_assigned' && 'Livreur assigné'}
+                  {activeOrder.status === 'picked_up' && 'Colis récupéré'}
+                  {activeOrder.status === 'delivering' && 'En cours de livraison'}
                 </p>
               </div>
             </div>
@@ -228,7 +236,7 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
               onClick={() => setActiveTrackingOrder(activeOrder)}
               className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 transition"
             >
-              <span>Suivre la livraison</span>
+              <span>Suivre ma commande</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
             </div>

@@ -44,6 +44,11 @@ export async function listRestaurantProducts(req, res) {
 
 export async function createProduct(req, res) {
   try {
+    const role = currentUser(req)?.role;
+    if (!isSeller(role)) {
+      return res.status(403).json({ success: false, message: 'Accès réservé aux vendeurs authentifiés.' });
+    }
+
     const restaurant = await ownerStore(currentUserId(req));
     if (!restaurant) {
       return res.status(404).json({ success: false, message: 'Restaurant introuvable.' });
@@ -82,6 +87,11 @@ export async function createProduct(req, res) {
 }
 
 export async function updateProduct(req, res) {
+  const role = currentUser(req)?.role;
+  if (!isSeller(role)) {
+    return res.status(403).json({ error: 'Accès réservé aux vendeurs authentifiés' });
+  }
+
   const payload = getPayload(req);
   const productId = toObjectId(payload.id);
   if (!productId) {
@@ -116,6 +126,11 @@ export async function updateProduct(req, res) {
 }
 
 export async function deleteProduct(req, res) {
+  const role = currentUser(req)?.role;
+  if (!isSeller(role)) {
+    return res.status(403).json({ error: 'Accès réservé aux vendeurs authentifiés' });
+  }
+
   const payload = getPayload(req);
   const productId = toObjectId(payload.id);
   if (!productId) {

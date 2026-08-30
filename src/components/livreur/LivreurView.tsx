@@ -5,6 +5,8 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Order, OrderStatus, User } from '../../types';
 import { calculateDeliveryFee, calculateHaversineDistance, formatFCFA, isValidCoordinates } from '../../utils/deliveryCalculator';
+import { MediaPicker } from '../MediaPicker';
+import { uploadImageFile } from '../../utils/imageUpload';
 
 interface RiderAcceptButtonProps {
   order: Order;
@@ -155,6 +157,17 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
 
   const isPendingVerification = currentUser?.verificationStatus === 'pending';
   const isRejected = currentUser?.verificationStatus === 'rejected';
+  const isIncomplete = currentUser?.verificationStatus === 'incomplete';
+  const needsResubmission = isRejected || isIncomplete;
+
+  const [resubmitSelfie, setResubmitSelfie] = useState(currentUser?.selfiePhoto || '');
+  const [resubmitCip, setResubmitCip] = useState(currentUser?.cipPhoto || '');
+  const [resubmitVehicle, setResubmitVehicle] = useState(currentUser?.vehiclePhoto || '');
+  const [resubmitSelfieFile, setResubmitSelfieFile] = useState<File | null>(null);
+  const [resubmitCipFile, setResubmitCipFile] = useState<File | null>(null);
+  const [resubmitVehicleFile, setResubmitVehicleFile] = useState<File | null>(null);
+  const [resubmitBusy, setResubmitBusy] = useState(false);
+  const [resubmitMessage, setResubmitMessage] = useState<string | null>(null);
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,6 +180,31 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
       });
     }
     setIsProfileModalOpen(false);
+  };
+
+  const handleResubmitDocuments = async () => {
+    if (!currentUser) return;
+    setResubmitBusy(true);
+    setResubmitMessage(null);
+    try {
+      let selfieUrl = resubmitSelfie;
+      let cipUrl = resubmitCip;
+      let vehicleUrl = resubmitVehicle;
+      if (resubmitSelfieFile) selfieUrl = await uploadImageFile(resubmitSelfieFile, 'livreurs');
+      if (resubmitCipFile) cipUrl = await uploadImageFile(resubmitCipFile, 'livreurs');
+      if (resubmitVehicleFile) vehicleUrl = await uploadImageFile(resubmitVehicleFile, 'livreurs');
+      await updateUserProfile(currentUser.id, {
+        selfiePhoto: selfieUrl,
+        cipPhoto: cipUrl,
+        vehiclePhoto: vehicleUrl,
+        avatar: selfieUrl,
+      });
+      setResubmitMessage('Dossier renvoyé pour vérification. Statut : en attente de certification.');
+    } catch (error: any) {
+      setResubmitMessage(error?.message || 'Impossible d’envoyer le dossier.');
+    } finally {
+      setResubmitBusy(false);
+    }
   };
 
   return (
@@ -196,48 +234,93 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
               </div>
               <div>
                 <span className="px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 font-mono text-[10px] uppercase font-bold">
-                  DOSSIER N° #LVK-RIDER-{currentUser.id.slice(-4)} • EN EXAMEN (SOUS 12H)
+                  En attente de certification
                 </span>
                 <h2 className="text-xl font-black text-amber-950 mt-1">
                   Vérification de Sécurité & Conformité en Cours
                 </h2>
                 <p className="text-xs text-amber-800">
-                  Conformément au règlement Livriko, l'administrateur vérifie vos 3 pièces obligatoires (Photo selfie, Carte CIP/ID et Photo Moto) sous 12h maximum.
+                  L&apos;administrateur vérifie vos pièces obligatoires (Selfie, CIP et Photo Moto) sous 12h maximum.
                 </p>
               </div>
             </div>
-
           </div>
 
-          {/* Submitted Documents Checklist */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
             <div className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center gap-3">
               <img src={currentUser.selfiePhoto || currentUser.avatar} alt="Selfie" className="w-12 h-12 rounded-full object-cover border border-slate-200 shrink-0" />
               <div className="min-w-0">
                 <span className="text-[10px] font-bold text-slate-400 block uppercase">1. Photo Livreur</span>
                 <span className="text-xs font-bold text-slate-900 truncate block">{currentUser.name}</span>
-                <span className="text-[10px] text-emerald-600 font-bold">✔ Photo vérifiée</span>
               </div>
             </div>
-
             <div className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center gap-3">
-              <img src={currentUser.cipPhoto || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=300&q=80'} alt="Carte CIP" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+              <img src={currentUser.cipPhoto || ''} alt="Carte CIP" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
               <div className="min-w-0">
                 <span className="text-[10px] font-bold text-slate-400 block uppercase">2. Carte CIP / ID</span>
-                <span className="text-xs font-bold text-slate-900 truncate block">Pièce Nationale NPI</span>
-                <span className="text-[10px] text-amber-600 font-bold">⏳ En attente validation</span>
+                <span className="text-xs font-bold text-slate-900 truncate block">Pièce d&apos;identité</span>
               </div>
             </div>
-
             <div className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center gap-3">
-              <img src={currentUser.vehiclePhoto || 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=300&q=80'} alt="Moto" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+              <img src={currentUser.vehiclePhoto || ''} alt="Moto" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
               <div className="min-w-0">
                 <span className="text-[10px] font-bold text-slate-400 block uppercase">3. Moto & Plaque</span>
-                <span className="text-xs font-bold text-slate-900 truncate block">{currentUser.vehicle || 'Moto TVS 125'}</span>
-                <span className="text-[10px] text-amber-600 font-bold">⏳ En attente validation</span>
+                <span className="text-xs font-bold text-slate-900 truncate block">{currentUser.vehicle || 'Moto'} {currentUser.vehiclePlate || ''}</span>
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {needsResubmission && currentUser && (
+        <div className={`rounded-3xl border-2 p-6 sm:p-8 space-y-5 shadow-md ${isRejected ? 'bg-rose-50 border-rose-300' : 'bg-orange-50 border-orange-300'}`}>
+          <div>
+            <span className={`px-2.5 py-0.5 rounded-full font-mono text-[10px] uppercase font-bold ${isRejected ? 'bg-rose-200 text-rose-900' : 'bg-orange-200 text-orange-900'}`}>
+              {isRejected ? 'Certification refusée' : 'Informations incomplètes'}
+            </span>
+            <h2 className={`text-xl font-black mt-2 ${isRejected ? 'text-rose-950' : 'text-orange-950'}`}>
+              Action requise de votre part
+            </h2>
+            <p className={`text-xs mt-1 ${isRejected ? 'text-rose-800' : 'text-orange-800'}`}>
+              {currentUser.rejectionReason || 'Merci de compléter ou corriger vos documents pour reprendre la certification.'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <MediaPicker
+              label="Selfie"
+              value={resubmitSelfie}
+              captureMode="user"
+              compact
+              onChange={(preview, file) => { setResubmitSelfie(preview); setResubmitSelfieFile(file); }}
+              onClear={() => { setResubmitSelfie(''); setResubmitSelfieFile(null); }}
+            />
+            <MediaPicker
+              label="CIP / Pièce ID"
+              value={resubmitCip}
+              captureMode="environment"
+              allowDocuments
+              onChange={(preview, file) => { setResubmitCip(preview); setResubmitCipFile(file); }}
+              onClear={() => { setResubmitCip(''); setResubmitCipFile(null); }}
+            />
+            <MediaPicker
+              label="Photo moto"
+              value={resubmitVehicle}
+              captureMode="environment"
+              onChange={(preview, file) => { setResubmitVehicle(preview); setResubmitVehicleFile(file); }}
+              onClear={() => { setResubmitVehicle(''); setResubmitVehicleFile(null); }}
+            />
+          </div>
+
+          <button
+            type="button"
+            disabled={resubmitBusy}
+            onClick={() => void handleResubmitDocuments()}
+            className="px-5 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold disabled:opacity-60"
+          >
+            {resubmitBusy ? 'Envoi…' : 'Renvoyer mon dossier pour certification'}
+          </button>
+          {resubmitMessage && <p className="text-xs font-semibold text-slate-700">{resubmitMessage}</p>}
         </div>
       )}
       

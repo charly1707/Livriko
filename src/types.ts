@@ -23,14 +23,17 @@ export interface User {
   location?: { lat: number; lng: number; address: string };
   city?: string;
   // Livreur Security Onboarding
-  verificationStatus?: 'pending' | 'approved' | 'rejected';
+  verificationStatus?: 'pending' | 'approved' | 'rejected' | 'incomplete';
   cipPhoto?: string; // Photo carte CIP / NPI / CNIB
   vehiclePhoto?: string; // Photo de la moto / immatriculation
   selfiePhoto?: string; // Photo du livreur
+  vehiclePlate?: string; // Numéro d'immatriculation
   verificationSubmittedAt?: string;
   rejectionReason?: string;
   walletBalance?: number; // Solde portefeuille virtuel en FCFA
   isCertified?: boolean;
+  statut?: 'actif' | 'inactif' | 'suspendu' | 'bloque';
+  deletedAt?: string | null;
 }
 
 export interface Store {
@@ -139,6 +142,8 @@ export interface Order {
   cancellationReason?: string;
   notes?: string;
   estimatedMinutes?: number;
+  archived?: boolean;
+  archivedAt?: string | null;
 }
 
 export interface NotificationItem {

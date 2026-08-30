@@ -13,6 +13,7 @@ import { resolveMediaUrl } from '../utils/media';
 interface AppContextType {
   isLoggedIn: boolean;
   authReady: boolean;
+  storesReady: boolean;
   currentUserId: string | null;
   activeRole: UserRole;
   setActiveRole: (role: UserRole, force?: boolean) => void;
@@ -28,6 +29,7 @@ interface AppContextType {
     role: UserRole;
     avatar?: string;
     vehicle?: string;
+    vehiclePlate?: string;
     city?: string;
     storeName?: string;
     storeCategory?: CategoryType;
@@ -35,14 +37,18 @@ interface AppContextType {
     selfiePhoto?: string;
     cipPhoto?: string;
     vehiclePhoto?: string;
-    verificationStatus?: 'pending' | 'approved' | 'rejected';
+    verificationStatus?: 'pending' | 'approved' | 'rejected' | 'incomplete';
     verificationSubmittedAt?: string;
   }) => Promise<User>;
   updateUserProfile: (userId: string, updates: Partial<User>) => void;
   approveLivreur: (userId: string) => void;
   rejectLivreur: (userId: string, reason?: string) => void;
+  requestIncompleteLivreur: (userId: string, reason?: string) => void;
   toggleStoreCertification: (storeId: string) => void;
   updateStore: (updatedStore: Store) => void;
+  refreshOrders: () => Promise<void>;
+  refreshStores: () => Promise<void>;
+  archiveOrder: (orderId: string, unarchive?: boolean) => Promise<void>;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   reviewModalOrderId: string | null;
@@ -97,7 +103,7 @@ interface AppContextType {
   deleteProduct: (id: string) => void;
 
   // Delete user account (admin or self)
-  deleteUser: (userId: string) => Promise<void>;
+  deleteUser: (userId: string, options?: { hardDelete?: boolean }) => Promise<void>;
 
   // Notification
   addNotification: (title: string, message: string, targetRole: UserRole, orderId?: string) => void;
@@ -174,7 +180,62 @@ const mapApiOrder = (order: any): Order => ({
   deliveryStatus: order.deliveryStatus,
   distanceKm: order.distanceKm ?? undefined,
   notes: order.notes || undefined,
+  archived: Boolean(order.archived),
+  archivedAt: order.archivedAt || undefined,
 });
+
+const mapSessionUser = (user: any, fallback?: Partial<User>): User => {
+  const role = normalizeUserRole(user.role || fallback?.role || 'client');
+  const rawStoreId = user.storeId || user.store?.id || fallback?.storeId;
+  const storeId = rawStoreId
+    ? (String(rawStoreId).startsWith('store-') ? String(rawStoreId) : `store-${rawStoreId}`)
+    : undefined;
+
+  return {
+    id: String(user.id || fallback?.id || ''),
+    name: user.prenom || user.nom_utilisateur || user.name || user.email || fallback?.name || '',
+    email: user.email || fallback?.email || '',
+    phone: user.telephone || user.phone || fallback?.phone || '',
+    role,
+    avatar: user.avatar || fallback?.avatar || undefined,
+    walletBalance: Number(user.walletBalance ?? fallback?.walletBalance ?? 0),
+    storeId,
+    vehicle: user.vehicle || fallback?.vehicle || undefined,
+    vehiclePlate: user.vehiclePlate || fallback?.vehiclePlate || undefined,
+    city: user.city || fallback?.city || undefined,
+    verificationStatus: user.verificationStatus || fallback?.verificationStatus || undefined,
+    rejectionReason: user.rejectionReason || fallback?.rejectionReason || undefined,
+    selfiePhoto: user.selfiePhoto || fallback?.selfiePhoto || undefined,
+    cipPhoto: user.cipPhoto || fallback?.cipPhoto || undefined,
+    vehiclePhoto: user.vehiclePhoto || fallback?.vehiclePhoto || undefined,
+    isCertified: user.documentsValide ?? fallback?.isCertified,
+    statut: user.statut || fallback?.statut || 'actif',
+  };
+};
+
+const mapApiStore = (restaurant: any): Store => {
+  const logo = resolveMediaUrl(restaurant.logo || '');
+  const rawId = String(restaurant.id || '');
+  return {
+    id: rawId.startsWith('store-') ? rawId : `store-${rawId}`,
+    name: restaurant.name,
+    category: (restaurant.category as CategoryType) || 'restaurants',
+    ownerId: String(restaurant.ownerId),
+    logo,
+    coverImage: logo,
+    rating: Number(restaurant.rating) || 4.8,
+    deliveryTime: restaurant.deliveryTime || '30-45 min',
+    address: restaurant.address,
+    city: restaurant.city,
+    phone: restaurant.phone,
+    momoPhone: restaurant.momoPhone || undefined,
+    lat: restaurant.lat ?? undefined,
+    lng: restaurant.lng ?? undefined,
+    isOpen: Boolean(restaurant.isOpen),
+    isCertified: Boolean(restaurant.isCertified),
+    description: restaurant.description || '',
+  };
+};
 
 const CART_STORAGE_KEY = 'livriko_cart';
 
@@ -187,6 +248,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ));
 
   const [authReady, setAuthReady] = useState(false);
+  const [storesReady, setStoresReady] = useState(false);
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => persistedSession.isLoggedIn);
 
@@ -235,29 +297,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const meUrl = buildApiUrl('/backend/index.php/api/auth/me');
         const res = await axios.get(meUrl, { withCredentials: true });
         if (res.data?.user) {
-          const user = res.data.user;
-          const userId = String(user.id);
-          const userData: User = {
-            id: userId,
-            name: user.prenom || user.nom_utilisateur || user.email,
-            email: user.email,
-            phone: user.telephone || '',
-            role: normalizeUserRole(user.role),
-            avatar: user.avatar || undefined,
-            walletBalance: Number(user.walletBalance || 0),
-          };
+          const userData = mapSessionUser(res.data.user);
           loggedInRole = userData.role;
           setAllUsers(prev => {
-            const existing = prev.find(u => u.id === userId);
+            const existing = prev.find(u => u.id === userData.id);
             if (existing) {
-              return prev.map(u => u.id === userId ? { ...existing, ...userData } : u);
+              return prev.map(u => u.id === userData.id ? { ...existing, ...userData } : u);
             }
             return [userData, ...prev];
           });
-          setCurrentUserId(userId);
+          setCurrentUserId(userData.id);
           setIsLoggedIn(true);
           persistSession(userData);
-          setActiveRoleState(resolveActiveRole(userData.role));
+          setActiveRoleState(resolveActiveRole(userData.role === 'restaurant' ? 'vendeur' : userData.role));
         } else {
           setCurrentUserId(null);
           setIsLoggedIn(false);
@@ -302,31 +354,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const restaurantsUrl = buildApiUrl('/backend/index.php/api/restaurants');
         const res = await axios.get(restaurantsUrl, { withCredentials: true });
-        const mappedStores: Store[] = (res.data?.restaurants || []).map((restaurant: any) => {
-          const logo = resolveMediaUrl(restaurant.logo || '');
-          return {
-            id: `store-${restaurant.id}`,
-            name: restaurant.name,
-            category: (restaurant.category as CategoryType) || 'restaurants',
-            ownerId: String(restaurant.ownerId),
-            logo,
-            coverImage: logo,
-            rating: Number(restaurant.rating) || 4.8,
-            deliveryTime: restaurant.deliveryTime || '30-45 min',
-            address: restaurant.address,
-            city: restaurant.city,
-            phone: restaurant.phone,
-            momoPhone: restaurant.momoPhone || undefined,
-            lat: restaurant.lat ?? undefined,
-            lng: restaurant.lng ?? undefined,
-            isOpen: Boolean(restaurant.isOpen),
-            isCertified: Boolean(restaurant.isCertified),
-            description: restaurant.description || '',
-          };
-        });
+        const mappedStores: Store[] = (res.data?.restaurants || []).map(mapApiStore);
         setStores(mappedStores);
       } catch {
         setStores([]);
+      } finally {
+        setStoresReady(true);
       }
 
       try {
@@ -356,7 +389,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               selfiePhoto: u.selfiePhoto || undefined,
               cipPhoto: u.cipPhoto || undefined,
               vehiclePhoto: u.vehiclePhoto || undefined,
+              vehiclePlate: u.vehiclePlate || undefined,
+              vehicle: u.vehicle || undefined,
+              city: u.city || undefined,
               walletBalance: u.walletBalance,
+              statut: u.statut || 'actif',
             }));
             setAllUsers(mappedUsers);
           }
@@ -378,23 +415,129 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [isLoggedIn, currentUserId, allUsers]);
 
   const setActiveRole = (role: UserRole, force = false) => {
-    if (role !== 'client' && !isLoggedIn && !force) {
+    const normalizedRole = role === 'restaurant' ? 'vendeur' : role;
+    if (normalizedRole !== 'client' && !isLoggedIn && !force) {
       setIsAuthModalOpen(true);
       return;
     }
 
-    if (isLoggedIn && currentUser && role !== 'client' && role !== currentUser.role && !force) {
+    if (isLoggedIn && currentUser && normalizedRole !== 'client' && !force) {
+      const userDashboardRole = currentUser.role === 'restaurant' ? 'vendeur' : currentUser.role;
+      if (normalizedRole !== userDashboardRole) {
+        setIsAuthModalOpen(true);
+        return;
+      }
+    }
+
+    if (normalizedRole === 'admin' && (!currentUser || currentUser.role !== 'admin') && !force) {
       setIsAuthModalOpen(true);
       return;
     }
 
-    if (role === 'admin' && (!currentUser || currentUser.role !== 'admin') && !force) {
-      setIsAuthModalOpen(true);
-      return;
-    }
-
-    setActiveRoleState(role);
+    setActiveRoleState(normalizedRole);
   };
+
+  const refreshStores = React.useCallback(async () => {
+    try {
+      const restaurantsUrl = buildApiUrl('/backend/index.php/api/restaurants');
+      const res = await axios.get(restaurantsUrl, { withCredentials: true });
+      const mappedStores: Store[] = (res.data?.restaurants || []).map(mapApiStore);
+      setStores(mappedStores);
+    } catch {
+      // keep existing stores on failure
+    } finally {
+      setStoresReady(true);
+    }
+  }, []);
+
+  const refreshOrders = React.useCallback(async () => {
+    try {
+      const ordersUrl = buildApiUrl('/backend/index.php/api/orders');
+      const res = await axios.get(ordersUrl, { withCredentials: true });
+      if (Array.isArray(res.data?.orders)) {
+        const mapped = res.data.orders.map(mapApiOrder);
+        setOrders(mapped);
+        setActiveTrackingOrder(prev => {
+          if (!prev) return prev;
+          const fresh = mapped.find((o: Order) => o.id === prev.id);
+          return fresh || prev;
+        });
+      }
+    } catch {
+      // keep existing orders on failure
+    }
+  }, []);
+
+  const refreshAdminUsers = React.useCallback(async () => {
+    try {
+      const usersUrl = buildApiUrl('/backend/index.php/api/admin/users');
+      const usersRes = await axios.get(usersUrl, { withCredentials: true });
+      if (Array.isArray(usersRes.data?.users)) {
+        const mappedUsers: User[] = usersRes.data.users.map((u: any) => ({
+          id: String(u.id),
+          name: u.name,
+          email: u.email,
+          phone: u.phone || '',
+          role: normalizeUserRole(u.role),
+          avatar: u.avatar || undefined,
+          verificationStatus: u.verificationStatus || undefined,
+          rejectionReason: u.rejectionReason || undefined,
+          selfiePhoto: u.selfiePhoto || undefined,
+          cipPhoto: u.cipPhoto || undefined,
+          vehiclePhoto: u.vehiclePhoto || undefined,
+          vehiclePlate: u.vehiclePlate || undefined,
+          vehicle: u.vehicle || undefined,
+          city: u.city || undefined,
+          walletBalance: u.walletBalance,
+          statut: u.statut || 'actif',
+        }));
+        setAllUsers(mappedUsers);
+      }
+    } catch {
+      // optional
+    }
+  }, []);
+
+  // Poll orders while logged in so status changes appear without manual refresh
+  useEffect(() => {
+    if (!isLoggedIn || !authReady) return;
+    const interval = window.setInterval(() => {
+      void refreshOrders();
+    }, 8000);
+    return () => window.clearInterval(interval);
+  }, [isLoggedIn, authReady, refreshOrders]);
+
+  // Poll courier verification status so admin decisions appear without refresh
+  useEffect(() => {
+    if (!isLoggedIn || !authReady || !currentUserId) return;
+    if (currentUser?.role !== 'livreur') return;
+
+    const interval = window.setInterval(async () => {
+      try {
+        const res = await axios.get(buildApiUrl('/backend/index.php/api/auth/me'), { withCredentials: true });
+        if (res.data?.user) {
+          const mapped = mapSessionUser(res.data.user);
+          setAllUsers(prev => prev.map(u => u.id === mapped.id ? { ...u, ...mapped } : u));
+        }
+      } catch {
+        // ignore
+      }
+    }, 10000);
+    return () => window.clearInterval(interval);
+  }, [isLoggedIn, authReady, currentUserId, currentUser?.role]);
+
+  // Keep active tracking order in sync with orders list
+  useEffect(() => {
+    if (!activeTrackingOrder) return;
+    const fresh = orders.find(o => o.id === activeTrackingOrder.id);
+    if (fresh && (
+      fresh.status !== activeTrackingOrder.status
+      || fresh.riderId !== activeTrackingOrder.riderId
+      || fresh.riderName !== activeTrackingOrder.riderName
+    )) {
+      setActiveTrackingOrder(fresh);
+    }
+  }, [orders, activeTrackingOrder]);
 
   const loginUser = async (emailOrUsername: string, password?: string): Promise<{ success: boolean; error?: string; user?: User }> => {
     if (!emailOrUsername || !emailOrUsername.trim()) {
@@ -412,15 +555,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const loginUrl = buildApiUrl('/backend/index.php/api/auth/login');
       const res = await axios.post(loginUrl, payload, { withCredentials: true });
       if (res.data?.success && res.data.user) {
-        const userData: User = {
-          id: String(res.data.user.id),
-          name: res.data.user.prenom || res.data.user.nom_utilisateur || res.data.user.email,
-          email: res.data.user.email,
-          phone: res.data.user.telephone || '',
-          role: normalizeUserRole(res.data.user.role),
-          avatar: res.data.user.avatar || undefined,
-          walletBalance: Number(res.data.user.walletBalance || 0),
-        };
+        const userData = mapSessionUser(res.data.user);
         setAllUsers(prev => {
           const existing = prev.find(u => u.id === userData.id);
           if (existing) {
@@ -431,7 +566,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUserId(userData.id);
         setIsLoggedIn(true);
         persistSession(userData);
-        setActiveRoleState(userData.role);
+        const dashboardRole = userData.role === 'restaurant' ? 'vendeur' : userData.role;
+        setActiveRoleState(dashboardRole);
+
+        // Ensure store list is ready before merchant dashboard renders
+        if (['vendeur', 'restaurant', 'admin'].includes(userData.role)) {
+          setStoresReady(false);
+        }
+        await Promise.all([
+          refreshStores(),
+          refreshOrders(),
+          userData.role === 'admin' ? refreshAdminUsers() : Promise.resolve(),
+        ]);
+
         addNotification('Connexion réussie', `Bienvenue dans votre espace ${userData.role.toUpperCase()} !`, userData.role);
         return { success: true, user: userData };
       }
@@ -469,20 +616,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   };
 
-  const deleteUser = async (userId: string) => {
+  const deleteUser = async (userId: string, options?: { hardDelete?: boolean }) => {
     try {
-      const payload = new URLSearchParams();
-      payload.append('userId', String(userId).replace(/^usr-/, ''));
-      await axios.post(buildApiUrl('/backend/index.php/api/admin/users/delete'), payload, { withCredentials: true });
+      const isSelf = currentUserId === userId;
+      if (isSelf) {
+        await axios.post(
+          buildApiUrl('/backend/index.php/api/auth/delete-account'),
+          new URLSearchParams(),
+          { withCredentials: true },
+        );
+      } else {
+        const payload = new URLSearchParams();
+        payload.append('userId', String(userId).replace(/^usr-/, ''));
+        if (options?.hardDelete) payload.append('hardDelete', 'true');
+        await axios.post(buildApiUrl('/backend/index.php/api/admin/users/delete'), payload, { withCredentials: true });
+      }
+
       setAllUsers(prev => prev.filter(u => u.id !== userId));
       setStores(prev => prev.filter(s => s.ownerId !== userId));
-      if (currentUserId === userId) {
+      if (isSelf) {
         clearPersistedSession();
         setIsLoggedIn(false);
         setCurrentUserId(null);
         setActiveRoleState('client');
+        addNotification('Compte désactivé', 'Votre compte a été désactivé.', 'client');
       } else {
-        addNotification('Compte supprimé', `Le compte ${userId} a été supprimé de la base de données.`, 'admin');
+        addNotification('Compte supprimé', `Le compte a été désactivé avec succès.`, 'admin');
+        await refreshAdminUsers();
+        await refreshStores();
       }
     } catch (error: any) {
       throw new Error(getApiErrorMessage(error));
@@ -497,6 +658,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     role: UserRole;
     avatar?: string;
     vehicle?: string;
+    vehiclePlate?: string;
     city?: string;
     storeName?: string;
     storeCategory?: CategoryType;
@@ -504,7 +666,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     selfiePhoto?: string;
     cipPhoto?: string;
     vehiclePhoto?: string;
-    verificationStatus?: 'pending' | 'approved' | 'rejected';
+    verificationStatus?: 'pending' | 'approved' | 'rejected' | 'incomplete';
     verificationSubmittedAt?: string;
   }): Promise<User> => {
     const normalizedPassword = userData.password || '123456';
@@ -520,10 +682,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (userData.selfiePhoto) payload.append('selfie_photo', userData.selfiePhoto);
     if (userData.cipPhoto) payload.append('cip_photo', userData.cipPhoto);
     if (userData.vehiclePhoto) payload.append('vehicle_photo', userData.vehiclePhoto);
+    if (userData.vehicle) payload.append('vehicle', userData.vehicle);
+    if (userData.vehiclePlate) payload.append('vehicle_plate', userData.vehiclePlate);
     if (userData.role === 'restaurant' || userData.role === 'vendeur') {
       payload.append('restaurant_name', userData.storeName || `Boutique de ${userData.name}`);
       payload.append('adresse', userData.storeAddress || 'Centre-ville, Lokossa');
       payload.append('ville', userData.city || 'Lokossa');
+      if (userData.storeCategory) payload.append('store_category', userData.storeCategory);
       if (userData.avatar) payload.append('logo', userData.avatar);
     }
 
@@ -531,30 +696,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const registerUrl = buildApiUrl('/backend/index.php/api/auth/register');
       const res = await axios.post(registerUrl, payload, { withCredentials: true });
       if (res.data?.success && res.data.user) {
-        const userDataFromApi: User = {
-          id: String(res.data.user.id),
+        const userDataFromApi = mapSessionUser(res.data.user, {
           name: userData.name,
           email: userData.email,
           phone: userData.phone,
           role: userData.role,
-          avatar: res.data.user.avatar || userData.avatar,
+          avatar: userData.avatar,
           vehicle: userData.vehicle,
+          vehiclePlate: userData.vehiclePlate,
           city: userData.city,
-          storeId: ['restaurant', 'vendeur'].includes(userData.role) ? `store-${res.data.user.id}` : undefined,
-          verificationStatus: userData.verificationStatus,
+          verificationStatus: userData.verificationStatus || (userData.role === 'livreur' ? 'pending' : undefined),
           selfiePhoto: userData.selfiePhoto,
           cipPhoto: userData.cipPhoto,
           vehiclePhoto: userData.vehiclePhoto,
           verificationSubmittedAt: userData.verificationSubmittedAt,
-          isCertified: userData.role !== 'livreur',
-          password: normalizedPassword,
-        };
+        });
+
+        if (res.data.store) {
+          const newStore = mapApiStore({
+            ...res.data.store,
+            ownerId: res.data.store.ownerId || userDataFromApi.id,
+          });
+          userDataFromApi.storeId = newStore.id;
+          setStores(prev => [newStore, ...prev.filter(s => s.id !== newStore.id)]);
+          setStoresReady(true);
+        }
 
         setAllUsers(prev => [userDataFromApi, ...prev.filter(user => user.id !== userDataFromApi.id)]);
         setCurrentUserId(userDataFromApi.id);
         setIsLoggedIn(true);
         persistSession(userDataFromApi);
-        setActiveRoleState(userDataFromApi.role);
+        const dashboardRole = userDataFromApi.role === 'restaurant' ? 'vendeur' : userDataFromApi.role;
+        setActiveRoleState(dashboardRole);
+
+        if (['vendeur', 'restaurant'].includes(userData.role) && !res.data.store) {
+          setStoresReady(false);
+          await refreshStores();
+        }
 
         addNotification(
           'Compte créé avec succès !',
@@ -587,29 +765,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.avatar) payload.append('avatar', updates.avatar);
     if (updates.city) payload.append('city', updates.city);
     if (updates.vehicle) payload.append('vehicle', updates.vehicle);
+    if (updates.vehiclePlate) payload.append('vehicle_plate', updates.vehiclePlate);
+    if (updates.selfiePhoto) payload.append('selfie_photo', updates.selfiePhoto);
+    if (updates.cipPhoto) payload.append('cip_photo', updates.cipPhoto);
+    if (updates.vehiclePhoto) payload.append('vehicle_photo', updates.vehiclePhoto);
     if (updates.password) payload.append('newPassword', updates.password);
     if ((updates as any).currentPassword) payload.append('currentPassword', String((updates as any).currentPassword));
 
     try {
       const res = await axios.post(buildApiUrl('/backend/index.php/api/auth/profile'), payload, { withCredentials: true });
       if (res.data?.user) {
-        const apiUser = res.data.user;
-        setAllUsers(prev => prev.map(u => u.id === userId ? {
-          ...u,
-          name: apiUser.prenom || u.name,
-          phone: apiUser.telephone || u.phone,
-          avatar: apiUser.avatar || u.avatar,
-          ...updates,
-        } : u));
+        const mapped = mapSessionUser(res.data.user, updates);
+        setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, ...mapped, ...updates } : u));
         if (currentUserId === userId) {
-          persistSession({
-            id: userId,
-            name: apiUser.prenom || updates.name || '',
-            email: apiUser.email,
-            phone: apiUser.telephone,
-            role: normalizeUserRole(apiUser.role),
-            avatar: apiUser.avatar,
-          });
+          persistSession(mapped);
         }
       } else {
         setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
@@ -628,6 +797,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...u,
         verificationStatus: 'approved',
         isCertified: true,
+        rejectionReason: undefined,
       } : u));
       addNotification(
         'Dossier Livreur Approuvé ! 🎉',
@@ -647,6 +817,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       verificationStatus: 'rejected',
       rejectionReason: reason || 'Pièces non conformes',
     } : u));
+  };
+
+  const requestIncompleteLivreur = async (userId: string, reason?: string) => {
+    const payload = new URLSearchParams();
+    payload.append('userId', String(userId).replace(/^usr-/, ''));
+    if (reason) payload.append('reason', reason);
+    await axios.post(buildApiUrl('/backend/index.php/api/admin/livreurs/incomplete'), payload, { withCredentials: true });
+    setAllUsers(prev => prev.map(u => u.id === userId ? {
+      ...u,
+      verificationStatus: 'incomplete',
+      rejectionReason: reason || 'Informations incomplètes. Merci de compléter votre dossier.',
+    } : u));
+    addNotification(
+      'Dossier incomplet',
+      'L\'administrateur a demandé des informations complémentaires pour votre certification.',
+      'livreur',
+    );
+  };
+
+  const archiveOrder = async (orderId: string, unarchive = false) => {
+    const payload = new URLSearchParams();
+    payload.append('orderId', orderDbId(orderId));
+    if (unarchive) payload.append('unarchive', 'true');
+    const res = await axios.post(buildApiUrl('/backend/index.php/api/orders/archive'), payload, { withCredentials: true });
+    if (res.data?.order) {
+      const mapped = mapApiOrder(res.data.order);
+      if (unarchive) {
+        setOrders(prev => {
+          const exists = prev.some(o => o.id === mapped.id);
+          return exists ? prev.map(o => o.id === mapped.id ? mapped : o) : [mapped, ...prev];
+        });
+      } else {
+        setOrders(prev => prev.filter(o => o.id !== mapped.id && o.id !== orderId));
+      }
+      addNotification(
+        unarchive ? 'Commande restaurée' : 'Commande archivée',
+        unarchive
+          ? 'La commande a été renvoyée au tableau de bord actif.'
+          : 'La commande a été retirée du tableau de bord actif.',
+        currentUser?.role || 'admin',
+        mapped.id,
+      );
+    }
   };
 
   const toggleStoreCertification = async (storeId: string) => {
@@ -1182,6 +1395,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         isLoggedIn,
         authReady,
+        storesReady,
         currentUserId,
         activeRole,
         setActiveRole,
@@ -1193,8 +1407,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateUserProfile,
         approveLivreur,
         rejectLivreur,
+        requestIncompleteLivreur,
         toggleStoreCertification,
         updateStore,
+        refreshOrders,
+        refreshStores,
+        archiveOrder,
         isAuthModalOpen,
         setIsAuthModalOpen,
         stores,

@@ -48,6 +48,8 @@ const orderSchema = new mongoose.Schema({
     arrivedAt: { type: Date, default: null },
   },
   history: { type: [{ status: String, at: { type: Date, default: Date.now } }], default: [] },
+  archived: { type: Boolean, default: false, index: true },
+  archivedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 export const Order = mongoose.model('Order', orderSchema);

@@ -68,6 +68,8 @@ async function serializeOrder(order, extras = {}) {
     notes: order.notes || '',
     distanceKm: order.delivery?.distanceKm ?? null,
     cancellationReason: order.cancellationReason || null,
+    archived: Boolean(order.archived),
+    archivedAt: order.archivedAt || null,
   };
 }
 
@@ -207,6 +209,10 @@ export async function createOrder(req, res) {
 export async function listOrders(req, res) {
   const userId = currentUserId(req);
   const role = currentUser(req)?.role || 'client';
+  const payload = getPayload(req);
+  const includeArchived = String(payload.includeArchived || '') === 'true';
+  const archivedOnly = String(payload.archivedOnly || '') === 'true';
+
   let filter = { clientId: userId };
 
   if (isSeller(role)) {
@@ -223,12 +229,63 @@ export async function listOrders(req, res) {
     filter = {};
   }
 
-  const orders = await Order.find(filter).sort({ createdAt: -1 });
+  if (archivedOnly) {
+    filter.archived = true;
+  } else if (!includeArchived) {
+    filter.archived = { $ne: true };
+  }
+
+  const orders = await Order.find(filter).sort({ createdAt: -1 }).limit(300);
   const serialized = [];
   for (const order of orders) {
     serialized.push(await findOrder(order._id));
   }
   return res.json({ success: true, orders: serialized });
+}
+
+export async function archiveOrder(req, res) {
+  const userId = currentUserId(req);
+  const role = currentUser(req)?.role || 'client';
+  const payload = getPayload(req);
+  const orderId = toObjectId(payload.orderId);
+  const unarchive = String(payload.unarchive || '') === 'true';
+
+  if (!orderId) {
+    return res.status(400).json({ success: false, message: 'ID commande invalide.' });
+  }
+
+  const order = await Order.findById(orderId);
+  if (!order) {
+    return res.status(404).json({ success: false, message: 'Commande introuvable.' });
+  }
+
+  // Sellers can archive their store orders; admins can archive any; clients their own completed ones
+  if (isAdmin(role)) {
+    // ok
+  } else if (isSeller(role)) {
+    const store = await Store.findOne({ ownerId: userId });
+    if (!store || String(store._id) !== String(order.storeId)) {
+      return res.status(403).json({ success: false, message: 'Accès refusé.' });
+    }
+  } else if (role === 'client') {
+    if (String(order.clientId) !== String(userId)) {
+      return res.status(403).json({ success: false, message: 'Accès refusé.' });
+    }
+    if (!['delivered', 'cancelled'].includes(order.status)) {
+      return res.status(409).json({ success: false, message: 'Seules les commandes terminées peuvent être archivées.' });
+    }
+  } else {
+    return res.status(403).json({ success: false, message: 'Accès refusé.' });
+  }
+
+  order.archived = !unarchive;
+  order.archivedAt = unarchive ? null : new Date();
+  await order.save();
+
+  return res.json({
+    success: true,
+    order: await findOrder(order._id),
+  });
 }
 
 export async function updateOrderStatus(req, res) {

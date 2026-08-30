@@ -393,10 +393,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      const ok = window.confirm("Voulez-vous vraiment supprimer votre compte ? Cette action est irréversible.");
+                      const ok = window.confirm("Désactiver votre compte ? Vous ne pourrez plus vous connecter. Les historiques de commandes sont conservés.");
                       if (!ok) return;
                       if (currentUser) {
-                        deleteUser(currentUser.id);
+                        void deleteUser(currentUser.id);
                         onClose();
                       }
                     }}

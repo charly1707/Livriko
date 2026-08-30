@@ -16,7 +16,7 @@ const AuthModal = lazy(() => import('./components/AuthModal').then(module => ({ 
 const UserProfileModal = lazy(() => import('./components/UserProfileModal').then(module => ({ default: module.UserProfileModal })));
 const ChatWidget = lazy(() => import('./components/ChatWidget').then(module => ({ default: module.ChatWidget })));
 import WelcomePage from './components/WelcomePage';
-import { readPersistedSession } from './utils/authFallback';
+import { readPersistedSession, readPersistedUserSnapshot } from './utils/authFallback';
 const ReviewModal = lazy(() => import('./components/client/ReviewModal').then(module => ({ default: module.default })));
 
 function MainAppContent() {
@@ -113,6 +113,7 @@ function MainAppContent() {
         {activeRole === 'client' && <ClientView onOpenCart={() => setIsCartOpen(true)} onOpenChat={() => setIsChatOpen(true)} />}
         <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
           {activeRole === 'vendeur' && <VendeurView onOpenChat={() => setIsChatOpen(true)} />}
+          {activeRole === 'restaurant' && <VendeurView onOpenChat={() => setIsChatOpen(true)} />}
           {activeRole === 'livreur' && <LivreurView onOpenChat={() => setIsChatOpen(true)} />}
           {activeRole === 'admin' && currentUser?.role === 'admin' && <AdminView />}
           {activeRole === 'admin' && currentUser?.role !== 'admin' && (
@@ -192,23 +193,36 @@ export default function App() {
 }
 
 function AppRoot() {
-  const { authReady, isLoggedIn, currentUserId, currentUser } = useApp();
+  const { authReady, isLoggedIn, currentUserId, currentUser, storesReady } = useApp();
   const [welcomeAuthMode, setWelcomeAuthMode] = React.useState<'register' | 'login'>('login');
+  const [welcomeAuthRole, setWelcomeAuthRole] = React.useState<'client' | 'livreur' | 'vendeur'>('client');
   const [welcomeAuthOpen, setWelcomeAuthOpen] = React.useState(false);
 
   const hasValidSession = isLoggedIn || Boolean(currentUserId) || Boolean(currentUser);
-  const hasPersistedSession = readPersistedSession().isLoggedIn;
+  const persisted = readPersistedSession();
+  const snapshot = readPersistedUserSnapshot();
+  const hasPersistedSession = persisted.isLoggedIn;
+  const merchantRole = currentUser?.role || snapshot?.role;
+  const isMerchantRole = merchantRole === 'vendeur' || merchantRole === 'restaurant';
 
+  // Never paint the merchant dashboard until auth is ready; for merchants also wait for store lookup
   if (!authReady) {
-    if (hasPersistedSession) {
-      return <MainAppContent />;
-    }
-
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="text-center space-y-3">
           <div className="mx-auto h-10 w-10 rounded-full border-2 border-orange-400 border-t-transparent animate-spin" />
           <p className="text-sm font-semibold text-slate-300">Chargement de votre session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasValidSession && isMerchantRole && !storesReady) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="mx-auto h-10 w-10 rounded-full border-2 border-orange-400 border-t-transparent animate-spin" />
+          <p className="text-sm font-semibold text-slate-300">Vérification de votre boutique...</p>
         </div>
       </div>
     );
@@ -221,15 +235,18 @@ function AppRoot() {
           onSeen={() => {
             // keep the welcome flow as the required entry point for unauthenticated visitors.
           }}
-          onOpenAuth={(mode) => {
+          onOpenAuth={(mode, role) => {
             setWelcomeAuthMode(mode);
+            setWelcomeAuthRole(role === 'livreur' || role === 'vendeur' ? role : 'client');
             setWelcomeAuthOpen(true);
           }}
         />
         <AuthModal
+          key={`${welcomeAuthMode}-${welcomeAuthRole}-${welcomeAuthOpen ? 'open' : 'closed'}`}
           isOpen={welcomeAuthOpen}
           onClose={() => setWelcomeAuthOpen(false)}
           initialMode={welcomeAuthMode}
+          initialRole={welcomeAuthRole}
         />
       </>
     );

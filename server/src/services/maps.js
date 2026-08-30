@@ -1,4 +1,6 @@
-export async function getRoute(fromLat, fromLng, toLat, toLng) {
+import { geoapifyRoute } from './geoapify.js';
+
+async function osrmRoute(fromLat, fromLng, toLat, toLng) {
   const apiUrl = (process.env.MAPS_API_URL || 'https://router.project-osrm.org').replace(/\/$/, '');
   const url = `${apiUrl}/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
   const headers = { Accept: 'application/json' };
@@ -22,4 +24,12 @@ export async function getRoute(fromLat, fromLng, toLat, toLng) {
     throw new Error('Réponse cartographique invalide.');
   }
   return body;
+}
+
+export async function getRoute(fromLat, fromLng, toLat, toLng) {
+  const provider = String(process.env.MAPS_PROVIDER || 'osrm').toLowerCase();
+  if (provider === 'geoapify') {
+    return geoapifyRoute(fromLat, fromLng, toLat, toLng);
+  }
+  return osrmRoute(fromLat, fromLng, toLat, toLng);
 }

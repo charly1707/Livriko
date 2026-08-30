@@ -11,15 +11,22 @@ export const AdminView: React.FC = () => {
     orders, 
     allUsers, 
     approveLivreur, 
-    rejectLivreur, 
+    rejectLivreur,
+    requestIncompleteLivreur,
     toggleStoreCertification,
     setActiveRole,
     deleteUser,
+    archiveOrder,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'verifications' | 'stores' | 'orders' | 'reviews'>('verifications');
+  const [activeTab, setActiveTab] = useState<'verifications' | 'stores' | 'orders' | 'accounts' | 'archive' | 'reviews'>('verifications');
   const [reviews, setReviews] = useState<any[]>([]);
   const [reviewFilters, setReviewFilters] = useState({ driver_id: '', rating: '' });
+  const [storeCategoryFilter, setStoreCategoryFilter] = useState<string>('all');
+  const [accountRoleFilter, setAccountRoleFilter] = useState<string>('all');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [archivedOrders, setArchivedOrders] = useState<any[]>([]);
 
   React.useEffect(() => {
     if (activeTab !== 'reviews') return;
@@ -31,14 +38,30 @@ export const AdminView: React.FC = () => {
       .then(data => { if (data.success) setReviews(data.reviews || []); });
   }, [activeTab, reviewFilters]);
 
+  React.useEffect(() => {
+    if (activeTab !== 'archive') return;
+    fetch('/backend/index.php/api/orders?archivedOnly=true', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => { if (data.success) setArchivedOrders(data.orders || []); })
+      .catch(() => setArchivedOrders([]));
+  }, [activeTab, orders]);
+
   const totalGMV = orders.reduce((sum, o) => sum + o.totalAmount, 0);
   const totalCommission = Math.round(totalGMV * 0.10); // 10% platform commission
 
-  const pendingLivreurs = allUsers.filter(u => u.role === 'livreur' && u.verificationStatus === 'pending');
+  const pendingLivreurs = allUsers.filter(u =>
+    u.role === 'livreur' && (u.verificationStatus === 'pending' || u.verificationStatus === 'incomplete')
+  );
   const approvedLivreurs = allUsers.filter(u => u.role === 'livreur' && u.verificationStatus === 'approved');
   const pendingStores = stores.filter(s => !s.isCertified);
   const vendorsCount = stores.length;
   const ridersCount = allUsers.filter(u => u.role === 'livreur').length;
+  const filteredStores = storeCategoryFilter === 'all'
+    ? stores
+    : stores.filter(s => s.category === storeCategoryFilter);
+  const filteredAccounts = accountRoleFilter === 'all'
+    ? allUsers.filter(u => u.role !== 'admin')
+    : allUsers.filter(u => u.role === accountRoleFilter);
 
   const downloadDossier = (data: object, fileName: string) => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -50,6 +73,19 @@ export const AdminView: React.FC = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const confirmDeleteAccount = async () => {
+    if (!deleteConfirm) return;
+    setDeleteBusy(true);
+    try {
+      await deleteUser(deleteConfirm.id);
+      setDeleteConfirm(null);
+    } catch (error: any) {
+      window.alert(error?.message || 'Impossible de supprimer le compte.');
+    } finally {
+      setDeleteBusy(false);
+    }
   };
 
   return (
@@ -130,7 +166,7 @@ export const AdminView: React.FC = () => {
       </div>
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none gap-2 rounded-2xl bg-slate-100 p-1 max-w-xl">
+      <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none gap-2 rounded-2xl bg-slate-100 p-1 max-w-4xl">
         <button
           onClick={() => setActiveTab('verifications')}
           className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
@@ -159,6 +195,25 @@ export const AdminView: React.FC = () => {
         >
           <ShoppingBag className="w-4 h-4 text-orange-500" />
           Commandes ({orders.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('accounts')}
+          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+            activeTab === 'accounts' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <Users className="w-4 h-4 text-indigo-600" />
+          Comptes
+        </button>
+
+        <button
+          onClick={() => setActiveTab('archive')}
+          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+            activeTab === 'archive' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          Archives
         </button>
       </div>
 
@@ -204,7 +259,7 @@ export const AdminView: React.FC = () => {
                         </div>
                         <h3 className="text-base font-black text-slate-900 mt-0.5">{rider.name}</h3>
                         <p className="text-xs text-slate-500">Tél : {rider.phone} • Email : {rider.email} • Ville : {rider.city}</p>
-                        <p className="text-xs font-bold text-slate-700">Moto : {rider.vehicle || 'Non renseignée'}</p>
+                        <p className="text-xs font-bold text-slate-700">Moto : {rider.vehicle || 'Non renseignée'} {rider.vehiclePlate ? `• Plaque ${rider.vehiclePlate}` : ''}</p>
                       </div>
                     </div>
 
@@ -218,7 +273,11 @@ export const AdminView: React.FC = () => {
                       </button>
 
                       <button
-                        onClick={() => rejectLivreur(rider.id, 'Pièces illisibles')}
+                        onClick={() => {
+                          const reason = window.prompt('Motif du refus :', 'Pièces illisibles ou non conformes');
+                          if (reason === null) return;
+                          rejectLivreur(rider.id, reason || 'Pièces illisibles');
+                        }}
                         className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
                       >
                         <XCircle className="w-4 h-4" />
@@ -227,10 +286,21 @@ export const AdminView: React.FC = () => {
 
                       <button
                         onClick={() => {
-                          const ok = window.confirm(`Supprimer le compte de ${rider.name} ? Cette action est irréversible.`);
-                          if (!ok) return;
-                          deleteUser(rider.id);
+                          const reason = window.prompt(
+                            'Précisez les informations manquantes :',
+                            'Merci de compléter votre dossier (photo CIP / plaque / selfie).',
+                          );
+                          if (reason === null) return;
+                          requestIncompleteLivreur(rider.id, reason);
                         }}
+                        className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <AlertTriangle className="w-4 h-4" />
+                        Infos incomplètes
+                      </button>
+
+                      <button
+                        onClick={() => setDeleteConfirm({ id: rider.id, name: rider.name, email: rider.email })}
                         className="px-4 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
                       >
                         <XCircle className="w-4 h-4" />
@@ -324,16 +394,36 @@ export const AdminView: React.FC = () => {
       {/* TAB 2: STORE CERTIFICATION */}
       {activeTab === 'stores' && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-900">Boutiques & Commerces Inscrits</h2>
               <p className="text-xs text-slate-500">Attribuez le macaron "Certifié Livriko" pour renforcer la confiance des acheteurs.</p>
             </div>
-            <span className="text-xs text-slate-500">{stores.length} commerces</span>
+            <span className="text-xs text-slate-500">{filteredStores.length} / {stores.length} commerces</span>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setStoreCategoryFilter('all')}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-bold ${storeCategoryFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}
+            >
+              Toutes
+            </button>
+            {Array.from(new Set(stores.map(s => s.category))).map(cat => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setStoreCategoryFilter(cat)}
+                className={`px-3 py-1.5 rounded-full text-[11px] font-bold ${storeCategoryFilter === cat ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-600'}`}
+              >
+                {cat}
+              </button>
+            ))}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {stores.map(store => (
+            {filteredStores.map(store => (
               <div key={store.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
                 <div className="flex items-center gap-3">
                   <img src={store.logo} alt={store.name} className="w-12 h-12 rounded-xl object-cover border border-slate-200" />
@@ -373,9 +463,12 @@ export const AdminView: React.FC = () => {
                       onClick={() => {
                         const ownerId = store.ownerId;
                         if (!ownerId) return;
-                        const ok = window.confirm(`Supprimer le compte du propriétaire de ${store.name} ? Cette action supprimera également la boutique.`);
-                        if (!ok) return;
-                        void deleteUser(ownerId);
+                        const owner = allUsers.find(u => u.id === ownerId);
+                        setDeleteConfirm({
+                          id: ownerId,
+                          name: owner?.name || `Propriétaire de ${store.name}`,
+                          email: owner?.email || store.phone,
+                        });
                       }}
                       className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition"
                     >
@@ -405,6 +498,7 @@ export const AdminView: React.FC = () => {
                   <th className="pb-3">Total FCFA</th>
                   <th className="pb-3">Paiement</th>
                   <th className="pb-3">Statut</th>
+                  <th className="pb-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
@@ -421,10 +515,159 @@ export const AdminView: React.FC = () => {
                         {o.status}
                       </span>
                     </td>
+                    <td className="py-3">
+                      {['delivered', 'cancelled'].includes(o.status) && (
+                        <button
+                          type="button"
+                          onClick={() => void archiveOrder(o.id)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-[10px] font-bold text-slate-700"
+                        >
+                          Archiver
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'accounts' && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Gestion des comptes</h2>
+              <p className="text-xs text-slate-500">Consultez et désactivez les comptes (suppression douce par défaut).</p>
+            </div>
+            <select
+              value={accountRoleFilter}
+              onChange={(e) => setAccountRoleFilter(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold"
+            >
+              <option value="all">Tous les rôles</option>
+              <option value="client">Clients</option>
+              <option value="vendeur">Vendeurs</option>
+              <option value="restaurant">Restaurants</option>
+              <option value="livreur">Livreurs</option>
+            </select>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase text-[10px]">
+                  <th className="pb-3">Nom</th>
+                  <th className="pb-3">Email</th>
+                  <th className="pb-3">Téléphone</th>
+                  <th className="pb-3">Rôle</th>
+                  <th className="pb-3">Statut</th>
+                  <th className="pb-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredAccounts.map(user => (
+                  <tr key={user.id} className="hover:bg-slate-50/80">
+                    <td className="py-3 font-bold text-slate-900">{user.name}</td>
+                    <td className="py-3 text-slate-600">{user.email}</td>
+                    <td className="py-3 text-slate-600">{user.phone}</td>
+                    <td className="py-3 uppercase text-[10px] font-bold">{user.role}</td>
+                    <td className="py-3">
+                      {user.role === 'livreur' ? (user.verificationStatus || '—') : (user.statut || 'actif')}
+                    </td>
+                    <td className="py-3">
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirm({ id: user.id, name: user.name, email: user.email })}
+                        className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold"
+                      >
+                        Supprimer
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'archive' && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
+          <h2 className="text-lg font-bold text-slate-900">Archives des commandes</h2>
+          <p className="text-xs text-slate-500">Les commandes archivées sont retirées du tableau de bord actif mais restent consultables ici.</p>
+          {archivedOrders.length === 0 ? (
+            <p className="text-xs text-slate-500 italic py-4">Aucune commande archivée.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase text-[10px]">
+                    <th className="pb-3">Code</th>
+                    <th className="pb-3">Client</th>
+                    <th className="pb-3">Boutique</th>
+                    <th className="pb-3">Statut</th>
+                    <th className="pb-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {archivedOrders.map((o: any) => (
+                    <tr key={o.id}>
+                      <td className="py-3 font-mono font-bold text-blue-600">{o.code}</td>
+                      <td className="py-3">{o.clientName}</td>
+                      <td className="py-3">{o.storeName}</td>
+                      <td className="py-3">{o.status}</td>
+                      <td className="py-3">
+                        <button
+                          type="button"
+                          onClick={() => void archiveOrder(o.id, true)}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-bold"
+                        >
+                          Restaurer
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl space-y-4">
+            <h3 className="text-lg font-black text-slate-900">Confirmer la suppression</h3>
+            <p className="text-sm text-slate-600">
+              Vous êtes sur le point de désactiver le compte :
+            </p>
+            <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm">
+              <p className="font-bold text-slate-900">{deleteConfirm.name}</p>
+              <p className="text-slate-600">{deleteConfirm.email}</p>
+              <p className="text-[11px] text-rose-700 mt-2">
+                Suppression douce : le compte sera désactivé et retiré des listes actives. Les historiques de commandes sont conservés.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={deleteBusy}
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={deleteBusy}
+                onClick={() => void confirmDeleteAccount()}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold disabled:opacity-60"
+              >
+                {deleteBusy ? 'Suppression…' : 'Confirmer la suppression'}
+              </button>
+            </div>
           </div>
         </div>
       )}

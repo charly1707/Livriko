@@ -29,20 +29,22 @@ export function readStoredActiveRole(): UserRole {
 
 export function resolveActiveRole(userRole: UserRole, storedRole = readStoredActiveRole()): UserRole {
   const role = normalizeUserRole(userRole);
+  const dashboardRole: UserRole = role === 'restaurant' ? 'vendeur' : role;
+  const storedDashboardRole: UserRole = storedRole === 'restaurant' ? 'vendeur' : storedRole;
 
   if (storedRole === 'client') {
     return 'client';
   }
 
-  if (storedRole === role) {
-    return storedRole;
+  if (storedDashboardRole === dashboardRole) {
+    return dashboardRole;
   }
 
   if (storedRole === 'admin' && role === 'admin') {
     return 'admin';
   }
 
-  return role === 'client' ? 'client' : role;
+  return dashboardRole === 'client' ? 'client' : dashboardRole;
 }
 
 export function readPersistedSession(): { isLoggedIn: boolean; userId: string | null } {

@@ -18,6 +18,7 @@ function serializeAdminUser(user) {
     avatar: user.avatar,
     city: user.city,
     vehicle: user.vehicle,
+    vehiclePlate: user.vehiclePlate,
     verificationStatus: user.verificationStatus,
     documentsValide: Boolean(user.documentsValide),
     rejectionReason: user.rejectionReason,
@@ -26,6 +27,7 @@ function serializeAdminUser(user) {
     vehiclePhoto: user.vehiclePhoto,
     walletBalance: user.walletBalance ?? 0,
     statut: user.statut,
+    deletedAt: user.deletedAt || null,
     createdAt: user.createdAt,
   };
 }
@@ -33,9 +35,14 @@ function serializeAdminUser(user) {
 export async function listUsers(req, res) {
   const payload = getPayload(req);
   const role = String(payload.role || '').trim();
-  const filter = role ? { role } : {};
+  const includeDeleted = String(payload.includeDeleted || '') === 'true';
+  const filter = {};
+  if (role) filter.role = role;
   if (payload.verificationStatus) {
     filter.verificationStatus = String(payload.verificationStatus);
+  }
+  if (!includeDeleted) {
+    filter.deletedAt = null;
   }
 
   const users = await User.find(filter).sort({ createdAt: -1 }).limit(500);
@@ -52,7 +59,7 @@ export async function approveLivreur(req, res) {
   }
 
   const user = await User.findById(userId);
-  if (!user || user.role !== 'livreur') {
+  if (!user || user.role !== 'livreur' || user.deletedAt) {
     return res.status(404).json({ success: false, message: 'Livreur introuvable.' });
   }
 
@@ -73,13 +80,35 @@ export async function rejectLivreur(req, res) {
   }
 
   const user = await User.findById(userId);
-  if (!user || user.role !== 'livreur') {
+  if (!user || user.role !== 'livreur' || user.deletedAt) {
     return res.status(404).json({ success: false, message: 'Livreur introuvable.' });
   }
 
   user.verificationStatus = 'rejected';
   user.documentsValide = false;
   user.rejectionReason = String(payload.reason || 'Dossier incomplet ou non conforme.').trim();
+  await user.save();
+
+  return res.json({ success: true, user: serializeAdminUser(user) });
+}
+
+export async function requestIncompleteLivreur(req, res) {
+  const payload = getPayload(req);
+  const userId = toObjectId(payload.userId || payload.id);
+  if (!userId) {
+    return res.status(400).json({ success: false, message: 'ID utilisateur invalide.' });
+  }
+
+  const user = await User.findById(userId);
+  if (!user || user.role !== 'livreur' || user.deletedAt) {
+    return res.status(404).json({ success: false, message: 'Livreur introuvable.' });
+  }
+
+  user.verificationStatus = 'incomplete';
+  user.documentsValide = false;
+  user.rejectionReason = String(
+    payload.reason || 'Informations incomplètes. Merci de compléter votre dossier.',
+  ).trim();
   await user.save();
 
   return res.json({ success: true, user: serializeAdminUser(user) });
@@ -120,8 +149,10 @@ export async function deleteUserAccount(req, res) {
     return res.status(400).json({ success: false, message: 'ID utilisateur invalide.' });
   }
 
+  const hardDelete = String(payload.hardDelete || '') === 'true';
+
   const user = await User.findById(targetId);
-  if (!user) {
+  if (!user || (user.deletedAt && !hardDelete)) {
     return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
   }
 
@@ -129,6 +160,29 @@ export async function deleteUserAccount(req, res) {
     return res.status(403).json({ success: false, message: 'Impossible de supprimer un compte administrateur.' });
   }
 
+  if (!hardDelete) {
+    // Soft delete — preserve historical orders
+    user.statut = 'inactif';
+    user.deletedAt = new Date();
+    user.email = `deleted_${user._id}_${user.email}`;
+    user.nomUtilisateur = `deleted_${user._id}_${user.nomUtilisateur}`;
+    await user.save();
+
+    const store = await Store.findOne({ ownerId: user._id });
+    if (store) {
+      store.statut = 'suspendu';
+      await store.save();
+      await Product.updateMany({ storeId: store._id }, { enStock: false });
+    }
+
+    return res.json({
+      success: true,
+      softDeleted: true,
+      message: 'Compte désactivé. Les historiques de commandes sont conservés.',
+    });
+  }
+
+  // Hard delete — privileged irreversible action
   const store = await Store.findOne({ ownerId: user._id });
   if (store) {
     await Product.deleteMany({ storeId: store._id });
@@ -141,7 +195,7 @@ export async function deleteUserAccount(req, res) {
   await Conversation.deleteMany({ participants: user._id });
   await user.deleteOne();
 
-  return res.json({ success: true, message: 'Compte supprimé définitivement.' });
+  return res.json({ success: true, hardDeleted: true, message: 'Compte et données associées définitivement supprimés.' });
 }
 
 export async function seedAdmin(_req, res) {

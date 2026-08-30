@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  X, User, Store, Truck, ShieldCheck, Camera, FileText, CheckCircle, Clock, ArrowRight, ArrowLeft, LogIn, UserPlus, Lock, Eye, EyeOff 
+import {
+  X, User, Store, Truck, ShieldCheck, CheckCircle, Clock, ArrowRight, LogIn, UserPlus, Eye, EyeOff,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole, CategoryType } from '../types';
-import { uploadImageFile, uploadRegisterImageFile } from '../utils/imageUpload';
+import { uploadRegisterImageFile } from '../utils/imageUpload';
+import { MediaPicker } from './MediaPicker';
+import livrikoLogo from '../assets/images/livriko_logo_1785408725718.jpg';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -51,6 +53,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   // Livreur specific security fields
   const [vehicle, setVehicle] = useState('Moto TVS HLX 125');
+  const [vehiclePlate, setVehiclePlate] = useState('');
   const [selfiePhoto, setSelfiePhoto] = useState('');
   const [cipPhoto, setCipPhoto] = useState('');
   const [vehiclePhoto, setVehiclePhoto] = useState('');
@@ -141,6 +144,22 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
             setRegistrationError("Veuillez renseigner la marque et le modèle de votre moto.");
             return;
           }
+          if (!vehiclePlate.trim()) {
+            setRegistrationError("Veuillez renseigner le numéro d'immatriculation de votre moto.");
+            return;
+          }
+          if (!uploadedSelfie) {
+            setRegistrationError("Ajoutez votre photo selfie.");
+            return;
+          }
+          if (!uploadedCip) {
+            setRegistrationError("Ajoutez la photo de votre CIP / pièce d'identité.");
+            return;
+          }
+          if (!uploadedVehicle) {
+            setRegistrationError("Ajoutez la photo de votre moto.");
+            return;
+          }
           newUser = await registerUser({
             name,
             email,
@@ -148,6 +167,7 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
             phone,
             role: 'livreur',
             vehicle,
+            vehiclePlate,
             city,
             avatar: uploadedSelfie,
             selfiePhoto: uploadedSelfie,
@@ -231,480 +251,434 @@ const handleRegisterSubmit = async (e: React.FormEvent) => {
   const roleConfigs = [
     {
       role: 'client' as UserRole,
-      title: 'Acheteur / Client',
-      desc: 'Commander repas, courses & produits',
+      title: 'Client',
+      desc: 'Commander',
       icon: User,
-      color: 'bg-orange-50 text-orange-600 border-orange-200',
-      activeColor: 'bg-orange-500 text-white border-orange-500 shadow-md',
     },
     {
       role: 'vendeur' as UserRole,
-      title: 'Vendeur / Boutique',
-      desc: 'Gérer boutique, produits & ventes',
+      title: 'Vendeur',
+      desc: 'Vendre',
       icon: Store,
-      color: 'bg-blue-50 text-blue-600 border-blue-200',
-      activeColor: 'bg-blue-600 text-white border-blue-600 shadow-md',
     },
     {
       role: 'livreur' as UserRole,
-      title: 'Livreur Moto Express',
-      desc: 'Livrer des commandes & recevoir des gains',
+      title: 'Livreur',
+      desc: 'Livrer',
       icon: Truck,
-      color: 'bg-emerald-50 text-emerald-600 border-emerald-200',
-      activeColor: 'bg-emerald-600 text-white border-emerald-600 shadow-md',
     },
   ];
 
+  const inputClass =
+    'w-full h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-[15px] text-slate-900 placeholder:text-slate-400 transition focus:border-[#ff8a1f] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#ff8a1f]/20';
+  const labelClass = 'mb-1.5 block text-[13px] font-bold text-slate-700';
+
   return (
-    <div className="fixed inset-0 z-[1100] bg-slate-950/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-6 overflow-y-auto overscroll-contain">
-      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[88vh] sm:max-h-[85vh] overflow-y-auto p-4 sm:p-7 shadow-2xl border border-slate-100 my-auto space-y-5 relative animate-in fade-in zoom-in-95 duration-200">
-        
-        {/* Sticky Top Header with Back Button and Close */}
-        <div className="sticky -top-4 sm:-top-7 -mx-4 sm:-mx-7 px-4 sm:px-7 pt-3.5 pb-3 bg-white/95 backdrop-blur-md z-30 border-b border-slate-100 flex items-center justify-between gap-2 shadow-xs">
-          <button 
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4 text-orange-400 shrink-0" />
-            <span className="truncate">← Retour à l'Accueil</span>
-          </button>
-
-          <button 
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition cursor-pointer shrink-0"
-            title="Fermer la fenêtre"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Modal Title Banner */}
-        <div className="space-y-1 text-left">
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-            {mode === 'register' ? 'Créer un Compte Livriko' : 'Se Connecter à Votre Compte'}
-          </h2>
-          <p className="text-xs text-slate-500">
-            {mode === 'register'
-              ? 'Choisissez votre rôle (Client, Vendeur, Livreur) pour activer votre espace dédié.'
-              : 'Accédez directement à votre espace de gestion ou marché en saisissant votre email.'}
-          </p>
-        </div>
-
-        {/* Success Alert */}
-        {registrationSuccessMessage && (
-          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs font-bold flex items-center gap-3 animate-in fade-in">
-            <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
-            <div>{registrationSuccessMessage}</div>
+    <div className="fixed inset-0 z-[1100] flex items-stretch justify-center bg-[#0b2a4a]/55 backdrop-blur-[2px] sm:items-center sm:p-6">
+      <div className="flex h-[100svh] w-full max-w-lg flex-col overflow-hidden bg-[#f4f8fc] sm:h-auto sm:max-h-[min(92vh,760px)] sm:rounded-[1.75rem] sm:border sm:border-slate-200/80 sm:shadow-2xl">
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200/80 bg-white px-4 py-3.5 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <img src={livrikoLogo} alt="" className="h-9 w-9 rounded-full object-cover" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black text-[#0b2a4a]">
+                Livr<span className="text-[#ff8a1f]">iko</span>
+              </p>
+              <p className="truncate text-[11px] font-medium text-slate-500">
+                {mode === 'register' ? 'Créer un compte' : 'Connexion'}
+              </p>
+            </div>
           </div>
-        )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30"
+            aria-label="Fermer"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
-        {/* FORM CONTENT */}
-        {mode === 'register' ? (
-          <form onSubmit={handleRegisterSubmit} className="space-y-4">
-            {registrationError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                <ShieldCheck className="w-4 h-4 text-rose-500 shrink-0" />
-                <span>{registrationError}</span>
-              </div>
-            )}
+        {/* Mode switch */}
+        <div className="shrink-0 bg-white px-4 pb-3 pt-1 sm:px-6">
+          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('login');
+                setRegistrationError(null);
+                setLoginError(null);
+              }}
+              className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold transition ${
+                mode === 'login'
+                  ? 'bg-[#0b2a4a] text-white shadow-sm'
+                  : 'text-slate-600 hover:text-[#0b2a4a]'
+              }`}
+            >
+              <LogIn className="h-4 w-4" aria-hidden />
+              Connexion
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('register');
+                setRegistrationError(null);
+                setLoginError(null);
+              }}
+              className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold transition ${
+                mode === 'register'
+                  ? 'bg-[#0b2a4a] text-white shadow-sm'
+                  : 'text-slate-600 hover:text-[#0b2a4a]'
+              }`}
+            >
+              <UserPlus className="h-4 w-4" aria-hidden />
+              Inscription
+            </button>
+          </div>
+        </div>
 
-            {/* Role Selection Grid */}
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-2">
-                Sélectionnez le type de compte à créer :
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-                {roleConfigs.map(cfg => {
-                  const Icon = cfg.icon;
-                  const isSel = selectedRole === cfg.role;
-                  return (
-                    <button
-                      type="button"
-                      key={cfg.role}
-                      onClick={() => setSelectedRole(cfg.role)}
-                      className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer ${
-                        isSel ? cfg.activeColor : `${cfg.color} hover:brightness-95`
-                      }`}
-                    >
-                      <div className={`p-2 rounded-xl shrink-0 ${isSel ? 'bg-white/20 text-white' : 'bg-white text-slate-700 shadow-sm'}`}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-xs sm:text-sm font-bold leading-tight truncate">{cfg.title}</span>
-                          {isSel && <CheckCircle className="w-4 h-4 text-white shrink-0" />}
-                        </div>
-                        <p className={`text-[11px] leading-snug mt-0.5 ${isSel ? 'text-white/90' : 'text-slate-500'}`}>
+        {/* Scrollable body */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
+          {registrationSuccessMessage && (
+            <div className="mb-4 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm font-semibold text-emerald-800">
+              <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+              <div>{registrationSuccessMessage}</div>
+            </div>
+          )}
+
+          {mode === 'register' ? (
+            <form id="auth-register-form" onSubmit={handleRegisterSubmit} className="space-y-4 pb-4">
+              {registrationError && (
+                <div className="flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                  <span>{registrationError}</span>
+                </div>
+              )}
+
+              <div>
+                <p className={labelClass}>Type de compte</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {roleConfigs.map((cfg) => {
+                    const Icon = cfg.icon;
+                    const isSel = selectedRole === cfg.role;
+                    return (
+                      <button
+                        type="button"
+                        key={cfg.role}
+                        onClick={() => setSelectedRole(cfg.role)}
+                        className={`flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-3 text-center transition ${
+                          isSel
+                            ? 'border-[#0b2a4a] bg-[#0b2a4a] text-white shadow-sm'
+                            : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                        }`}
+                      >
+                        <Icon className={`h-5 w-5 ${isSel ? 'text-[#ffb45c]' : 'text-slate-500'}`} aria-hidden />
+                        <span className="text-xs font-bold leading-tight">{cfg.title}</span>
+                        <span className={`text-[10px] leading-tight ${isSel ? 'text-white/75' : 'text-slate-400'}`}>
                           {cfg.desc}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* General Fields */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Nom complet</label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="ex: Jean Dossou"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-orange-500 focus:bg-white transition"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Numéro Téléphone / WhatsApp</label>
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  placeholder="ex: +229 96 00 00 00"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-orange-500 focus:bg-white transition"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Adresse Email</label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="ex: jean.dossou@gmail.com"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-orange-500 focus:bg-white transition"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Créer un Mot de passe</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full p-2.5 pr-9 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-orange-500 focus:bg-white transition"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
 
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Ville de résidence</label>
-              <select
-                value={city}
-                onChange={e => setCity(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-orange-500 focus:bg-white transition font-medium"
-              >
-                <option value="Lokossa">Lokossa (Ville couverte - 100%)</option>
-              </select>
-            </div>
-
-            {/* Vendeur specific fields */}
-            {selectedRole === 'vendeur' && (
-              <div className="p-4 bg-blue-50/70 rounded-2xl border border-blue-200 space-y-3">
-                <div className="flex items-center gap-2 text-blue-900 font-bold text-xs uppercase">
-                  <Store className="w-4 h-4 text-blue-600" />
-                  Informations de votre Commerce
+              <div className="space-y-3">
+                <div>
+                  <label className={labelClass} htmlFor="reg-name">Nom complet</label>
+                  <input
+                    id="reg-name"
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="ex: Jean Dossou"
+                    className={inputClass}
+                    autoComplete="name"
+                  />
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Nom de la boutique ou restaurant</label>
+                  <label className={labelClass} htmlFor="reg-phone">Téléphone / WhatsApp</label>
                   <input
-                    type="text"
+                    id="reg-phone"
+                    type="tel"
                     required
-                    value={storeName}
-                    onChange={e => setStoreName(e.target.value)}
-                    placeholder="ex: Saveurs de la Haie Vive"
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="ex: +229 96 00 00 00"
+                    className={inputClass}
+                    autoComplete="tel"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass} htmlFor="reg-email">Adresse e-mail</label>
+                  <input
+                    id="reg-email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="ex: jean.dossou@gmail.com"
+                    className={inputClass}
+                    autoComplete="email"
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass} htmlFor="reg-password">Mot de passe</label>
+                  <div className="relative">
+                    <input
+                      id="reg-password"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Au moins 8 caractères"
+                      className={`${inputClass} pr-12`}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:text-slate-600"
+                      aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelClass} htmlFor="reg-city">Ville</label>
+                  <select
+                    id="reg-city"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className={`${inputClass} font-medium`}
+                  >
+                    <option value="Lokossa">Lokossa</option>
+                  </select>
+                </div>
+              </div>
+
+              {selectedRole === 'vendeur' && (
+                <div className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                  <div className="flex items-center gap-2 text-[13px] font-bold text-[#0b2a4a]">
+                    <Store className="h-4 w-4 text-blue-600" aria-hidden />
+                    Votre commerce
+                  </div>
+
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Catégorie</label>
+                    <label className={labelClass} htmlFor="reg-store">Nom de la boutique</label>
+                    <input
+                      id="reg-store"
+                      type="text"
+                      required
+                      value={storeName}
+                      onChange={(e) => setStoreName(e.target.value)}
+                      placeholder="ex: Saveurs de Lokossa"
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass} htmlFor="reg-category">Catégorie</label>
                     <select
+                      id="reg-category"
                       value={storeCategory}
-                      onChange={e => setStoreCategory(e.target.value as CategoryType)}
-                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                      onChange={(e) => setStoreCategory(e.target.value as CategoryType)}
+                      className={inputClass}
                     >
                       <option value="restaurants">Restaurant / Maquis</option>
                       <option value="supermarches">Supermarché / Épicerie</option>
-                      <option value="boutiques">Boutique High-Tech / Mode</option>
+                      <option value="boutiques">Boutique / Mode</option>
                       <option value="autres">Services Express</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Adresse exacte</label>
+                    <label className={labelClass} htmlFor="reg-address">Adresse</label>
                     <input
+                      id="reg-address"
                       type="text"
                       required
                       value={storeAddress}
-                      onChange={e => setStoreAddress(e.target.value)}
-                      placeholder="ex: Rue 350, Cadjehoun"
-                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                      onChange={(e) => setStoreAddress(e.target.value)}
+                      placeholder="ex: Quartier Agamé, Lokossa"
+                      className={inputClass}
                     />
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Livreur Security Onboarding specific fields */}
-            {selectedRole === 'livreur' && (
-              <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-3">
-                <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs uppercase">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  Dossier Obligatoire de Sécurité & Conformité (Examen sous 12h)
-                </div>
+              {selectedRole === 'livreur' && (
+                <div className="space-y-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+                  <div className="flex items-center gap-2 text-[13px] font-bold text-[#0b2a4a]">
+                    <ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden />
+                    Dossier livreur
+                  </div>
+                  <p className="text-xs leading-relaxed text-emerald-900/80">
+                    Moto + 3 justificatifs requis. Vérification sous 12h par Livriko.
+                  </p>
 
-                <p className="text-[11px] text-emerald-800">
-                  Afin de garantir la sécurité des livraisons, vous devez renseigner la marque de votre moto et fournir vos 3 pièces justificatives.
-                </p>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Marque & Modèle de Moto</label>
-                  <input
-                    type="text"
-                    required
-                    value={vehicle}
-                    onChange={e => setVehicle(e.target.value)}
-                    placeholder="ex: Moto TVS HLX 125 (Plaque CB-1234-RB)"
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-                  
-                  {/* Selfie Photo */}
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-center space-y-1.5">
-                    <Camera className="w-5 h-5 text-emerald-600 mx-auto" />
-                    <span className="text-[10px] font-bold text-slate-800 block">1. Photo de vous (Selfie)</span>
-                    <img src={selfiePhoto} alt="Selfie" className="w-12 h-12 rounded-full object-cover mx-auto border border-slate-200" />
-                    <label className="block w-full text-[10px] text-slate-700 font-semibold">
-                      <span className="inline-flex items-center justify-center w-full rounded-2xl border border-slate-300 bg-slate-100 px-2.5 py-2 cursor-pointer hover:bg-slate-200 transition">
-                        Choisir une image depuis votre appareil
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="user"
-                          onChange={e => handleImageFileSelect(e.target.files?.[0] || null, setSelfiePhoto, setSelfieFile)}
-                          className="hidden"
-                        />
-                      </span>
-                    </label>
+                  <div>
+                    <label className={labelClass} htmlFor="reg-vehicle">Marque & modèle</label>
                     <input
+                      id="reg-vehicle"
                       type="text"
+                      required
+                      value={vehicle}
+                      onChange={(e) => setVehicle(e.target.value)}
+                      placeholder="ex: Moto TVS HLX 125"
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass} htmlFor="reg-plate">Immatriculation</label>
+                    <input
+                      id="reg-plate"
+                      type="text"
+                      required
+                      value={vehiclePlate}
+                      onChange={(e) => setVehiclePlate(e.target.value)}
+                      placeholder="ex: CB-1234-RB"
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                    <MediaPicker
+                      label="1. Selfie"
                       value={selfiePhoto}
-                      onChange={e => setSelfiePhoto(e.target.value)}
-                      className="w-full p-1 bg-slate-50 border text-[9px] rounded text-slate-600 truncate"
-                      placeholder="URL photo ou choisir un fichier depuis votre appareil"
+                      captureMode="user"
+                      compact
+                      onChange={(preview, file) => {
+                        setSelfiePhoto(preview);
+                        setSelfieFile(file);
+                      }}
+                      onClear={() => {
+                        setSelfiePhoto('');
+                        setSelfieFile(null);
+                      }}
                     />
-                  </div>
-
-                  {/* CIP Photo */}
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-center space-y-1.5">
-                    <FileText className="w-5 h-5 text-blue-600 mx-auto" />
-                    <span className="text-[10px] font-bold text-slate-800 block">2. Carte CIP / Pièce ID</span>
-                    <img src={cipPhoto} alt="Carte CIP" className="w-full h-12 rounded object-cover border border-slate-200" />
-                    <label className="block w-full text-[10px] text-slate-700 font-semibold">
-                      <span className="inline-flex items-center justify-center w-full rounded-2xl border border-slate-300 bg-slate-100 px-2.5 py-2 cursor-pointer hover:bg-slate-200 transition">
-                        Choisir une image depuis votre appareil
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          onChange={e => handleImageFileSelect(e.target.files?.[0] || null, setCipPhoto, setCipFile)}
-                          className="hidden"
-                        />
-                      </span>
-                    </label>
-                    <input
-                      type="text"
+                    <MediaPicker
+                      label="2. CIP / pièce"
                       value={cipPhoto}
-                      onChange={e => setCipPhoto(e.target.value)}
-                      className="w-full p-1 bg-slate-50 border text-[9px] rounded text-slate-600 truncate"
-                      placeholder="URL carte CIP ou choisir un fichier depuis votre appareil"
+                      captureMode="environment"
+                      allowDocuments
+                      onChange={(preview, file) => {
+                        setCipPhoto(preview);
+                        setCipFile(file);
+                      }}
+                      onClear={() => {
+                        setCipPhoto('');
+                        setCipFile(null);
+                      }}
                     />
-                  </div>
-
-                  {/* Vehicle Photo */}
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-center space-y-1.5">
-                    <Truck className="w-5 h-5 text-orange-600 mx-auto" />
-                    <span className="text-[10px] font-bold text-slate-800 block">3. Photo de la Moto</span>
-                    <img src={vehiclePhoto} alt="Photo Moto" className="w-full h-12 rounded object-cover border border-slate-200" />
-                    <label className="block w-full text-[10px] text-slate-700 font-semibold">
-                      <span className="inline-flex items-center justify-center w-full rounded-2xl border border-slate-300 bg-slate-100 px-2.5 py-2 cursor-pointer hover:bg-slate-200 transition">
-                        Choisir une image depuis votre appareil
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          onChange={e => handleImageFileSelect(e.target.files?.[0] || null, setVehiclePhoto, setVehicleFile)}
-                          className="hidden"
-                        />
-                      </span>
-                    </label>
-                    <input
-                      type="text"
+                    <MediaPicker
+                      label="3. Photo moto"
                       value={vehiclePhoto}
-                      onChange={e => setVehiclePhoto(e.target.value)}
-                      className="w-full p-1 bg-slate-50 border text-[9px] rounded text-slate-600 truncate"
-                      placeholder="URL Moto ou choisir un fichier depuis votre appareil"
+                      captureMode="environment"
+                      onChange={(preview, file) => {
+                        setVehiclePhoto(preview);
+                        setVehicleFile(file);
+                      }}
+                      onClear={() => {
+                        setVehiclePhoto('');
+                        setVehicleFile(null);
+                      }}
                     />
                   </div>
 
+                  <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+                    <span>Traitement sous 12h max après envoi du dossier.</span>
+                  </div>
                 </div>
-
-                <div className="flex items-center gap-2 text-[10px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                  <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>Délai de traitement : Les pièces seront vérifiées sous 12h max par l'administrateur Livriko.</span>
+              )}
+            </form>
+          ) : (
+            <form id="auth-login-form" onSubmit={handleLoginSubmit} className="space-y-4 pb-4">
+              {loginError && (
+                <div className="flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                  <span>{loginError}</span>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Submit Button */}
-            <div className="pt-2 space-y-3">
-              <button
-                type="submit"
-                className="w-full py-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black text-sm shadow-xl shadow-orange-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <span>Créer mon Espace & Activer mon Compte</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              {loginSuccess && (
+                <div className="flex items-start gap-2.5 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+                  <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  <span>{loginSuccess}</span>
+                </div>
+              )}
 
-              {/* Option to Switch to Login */}
-              <div className="pt-3 border-t border-slate-200 text-center space-y-2">
-                <p className="text-xs text-slate-600 font-medium">
-                  Vous avez déjà un compte Livriko ?
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setMode('login')}
-                  className="w-full py-3 rounded-2xl bg-slate-100 hover:bg-orange-50 text-slate-800 hover:text-orange-600 border border-slate-200 hover:border-orange-300 font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <LogIn className="w-4 h-4 text-orange-500" />
-                  <span>J'ai déjà un compte — Se Connecter</span>
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full py-2.5 rounded-2xl bg-slate-50 hover:bg-slate-200 text-slate-600 font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <ArrowLeft className="w-3.5 h-3.5 text-slate-500" />
-                <span>← Annuler et Retourner au Marché</span>
-              </button>
-            </div>
-          </form>
-        ) : (
-          /* LOGIN FORM MODE */
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
-            {loginError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                <ShieldCheck className="w-4 h-4 text-rose-500 shrink-0" />
-                <span>{loginError}</span>
-              </div>
-            )}
-
-            {loginSuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{loginSuccess}</span>
-              </div>
-            )}
-
-            <div className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Adresse Email ou Nom d'utilisateur
-                </label>
+                <label className={labelClass} htmlFor="login-email">E-mail ou nom d&apos;utilisateur</label>
                 <input
+                  id="login-email"
                   type="text"
                   required
                   value={loginEmail}
-                  onChange={e => setLoginEmail(e.target.value)}
-                  placeholder="ex: jean.dupont@example.com ou JeanD"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-orange-500 focus:bg-white transition"
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="ex: jean.dupont@example.com"
+                  className={inputClass}
+                  autoComplete="username"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Mot de passe</label>
+                <label className={labelClass} htmlFor="login-password">Mot de passe</label>
                 <div className="relative">
                   <input
+                    id="login-password"
                     type={showLoginPassword ? 'text' : 'password'}
                     required
                     value={loginPassword}
-                    onChange={e => setLoginPassword(e.target.value)}
+                    onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full p-2.5 pr-9 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-orange-500 focus:bg-white transition"
+                    className={`${inputClass} pr-12`}
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowLoginPassword(!showLoginPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:text-slate-600"
+                    aria-label={showLoginPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                   >
-                    {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showLoginPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
               </div>
-            </div>
+            </form>
+          )}
+        </div>
 
+        {/* Sticky footer CTA */}
+        <div className="shrink-0 border-t border-slate-200/80 bg-white px-4 py-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))] sm:px-6">
+          {mode === 'register' ? (
             <button
               type="submit"
-              className="w-full py-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black text-xs shadow-lg shadow-orange-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
+              form="auth-register-form"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#ff8a1f] text-sm font-black text-white transition hover:bg-[#ff9a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 active:scale-[0.99]"
             >
-              <LogIn className="w-4 h-4" />
-              <span>Se Connecter à Mon Espace</span>
+              Créer mon compte
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </button>
-
-            {/* Switch back to Register */}
-            <div className="pt-3 border-t border-slate-200 text-center space-y-2">
-              <p className="text-xs text-slate-600 font-medium">
-                Vous n'avez pas encore de compte Livriko ?
-              </p>
-              <button
-                type="button"
-                onClick={() => setMode('register')}
-                className="w-full py-3 rounded-2xl bg-slate-100 hover:bg-orange-50 text-slate-800 hover:text-orange-600 border border-slate-200 hover:border-orange-300 font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4 text-orange-500" />
-                <span>Créer un Nouveau Compte</span>
-              </button>
-            </div>
-
+          ) : (
             <button
-              type="button"
-              onClick={onClose}
-              className="w-full py-2.5 rounded-2xl bg-slate-50 hover:bg-slate-200 text-slate-600 font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+              type="submit"
+              form="auth-login-form"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#ff8a1f] text-sm font-black text-white transition hover:bg-[#ff9a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 active:scale-[0.99]"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-slate-500" />
-              <span>← Annuler et Retourner au Marché</span>
+              <LogIn className="h-4 w-4" aria-hidden />
+              Se connecter
             </button>
-          </form>
-        )}
-
+          )}
+        </div>
       </div>
     </div>
   );

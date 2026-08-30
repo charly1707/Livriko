@@ -11,7 +11,8 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
   const { 
     currentUser, 
     setActiveRole,
-    stores, 
+    stores,
+    storesReady,
     products, 
     orders, 
     requestRiderForOrder, 
@@ -22,12 +23,22 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
     updateUserProfile,
     updateStore,
     setActiveTrackingOrder,
+    archiveOrder,
   } = useApp();
 
-  const currentStore = stores.find(s => s.id === currentUser?.storeId || s.ownerId === currentUser?.id);
+  const currentStore = stores.find(s =>
+    (currentUser?.storeId && s.id === currentUser.storeId)
+    || s.ownerId === currentUser?.id
+  );
 
-  const storeProducts = products.filter(p => p.storeId === currentStore?.id);
-  const storeOrders = orders.filter(o => o.storeId === currentStore?.id);
+  const [productCategoryFilter, setProductCategoryFilter] = useState<CategoryType | 'all'>('all');
+
+  const storeProducts = products.filter(p => {
+    if (p.storeId !== currentStore?.id) return false;
+    if (productCategoryFilter === 'all') return true;
+    return p.category === productCategoryFilter;
+  });
+  const storeOrders = orders.filter(o => o.storeId === currentStore?.id && !o.archived);
 
   // Modal for editing store profile & user avatar
   const [isStoreProfileModalOpen, setIsStoreProfileModalOpen] = useState(false);
@@ -54,6 +65,18 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
   const [isSavingProduct, setIsSavingProduct] = useState(false);
 
   const MAX_IMAGE_SIZE_MB = 5;
+
+  // Wait until store lookup has finished — never flash the empty-state error while loading
+  if (!storesReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
+        <div className="max-w-md w-full text-center space-y-3">
+          <div className="mx-auto h-10 w-10 rounded-full border-2 border-orange-400 border-t-transparent animate-spin" />
+          <p className="text-sm font-semibold text-slate-600">Vérification de votre boutique…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentStore) {
     return (
@@ -355,7 +378,7 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
 
       {/* Orders Management Section */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Commandes Clients En Tranchées</h2>
             <p className="text-xs text-slate-500">Acceptez et sollicitez un livreur dès que le colis est emballé</p>
@@ -413,6 +436,16 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
                     <span className="text-[10px] text-slate-400 block pt-0.5">Commission Livriko (5%) : {Math.round(order.subtotal * 0.05).toLocaleString()} F</span>
                     <span className="text-[10px] text-orange-600 font-medium block">+ {order.deliveryFee.toLocaleString()} F Livraison ({order.distanceKm ? `${order.distanceKm} km` : 'distance indisponible'})</span>
                   </div>
+
+                  {['delivered', 'cancelled'].includes(order.status) && (
+                    <button
+                      type="button"
+                      onClick={() => void archiveOrder(order.id)}
+                      className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-[11px] font-bold transition"
+                    >
+                      Archiver
+                    </button>
+                  )}
 
                   {/* Accept / Reject / Request Rider Buttons */}
                   {order.status === 'pending' && (
@@ -486,6 +519,35 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
             <Plus className="w-4 h-4" />
             Publier un article
           </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-500 uppercase">Filtrer par catégorie :</span>
+          <button
+            type="button"
+            onClick={() => setProductCategoryFilter('all')}
+            className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition ${
+              productCategoryFilter === 'all'
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Tous
+          </button>
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setProductCategoryFilter(cat.id)}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition ${
+                productCategoryFilter === cat.id
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
         </div>
 
         {storeProducts.length === 0 ? (
