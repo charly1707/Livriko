@@ -9,15 +9,20 @@ import {
   X,
   Truck,
   Users,
-  Package,
   ArrowRight,
   CheckCircle2,
   Store,
+  ChevronLeft,
+  ChevronRight,
+  Phone,
+  CreditCard,
+  Headphones,
 } from 'lucide-react';
 import { UserRole } from '../types';
 import livrikoLogo from '../assets/images/livriko_logo_1785408725718.jpg';
 import heroImage from '../assets/images/livriko_rider_branded_hero_1785411575207.png';
 import hostessImage from '../assets/images/cliente.png';
+import carouselBanner from '../assets/images/livriko_rider_hero_bg_1785410590188.jpg';
 
 type AuthMode = 'register' | 'login';
 
@@ -54,10 +59,43 @@ const FEATURES = [
   },
 ] as const;
 
+const DESKTOP_SLIDES = [
+  {
+    id: 'mission',
+    title: 'Vos achats en ligne,',
+    titleHighlight: 'notre mission !',
+    description:
+      'Livraison rapide et sécurisée • Vos colis, nos priorités. Supermarchés, repas locaux, pharmacies et coursiers. Nous venons, nous prenons, nous livrons !',
+    bgImage: heroImage,
+  },
+  {
+    id: 'restaurants',
+    title: 'Du maquis à votre table,',
+    titleHighlight: 'en un éclair !',
+    description:
+      'Commandez vos plats locaux préférés auprès des restaurants et maquis de Lokossa.',
+    bgImage: carouselBanner,
+  },
+  {
+    id: 'accueil',
+    title: 'Tout votre marché local,',
+    titleHighlight: 'livré à votre porte !',
+    description:
+      'La plateforme tout-en-un de livraison à Lokossa : courses, repas et colis en toute sérénité.',
+    bgImage: hostessImage,
+  },
+] as const;
+
+const WHATSAPP_PHONE = '+229 01 96 73 03 53';
+const WHATSAPP_HREF =
+  'https://wa.me/2290196730353?text=Bonjour%20Livriko%20!%20Je%20souhaite%20passer%20une%20commande.';
+
 const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
+  const [desktopSlide, setDesktopSlide] = useState(0);
+  const [slidePaused, setSlidePaused] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -80,6 +118,14 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (isNarrow || slidePaused) return;
+    const timer = setInterval(() => {
+      setDesktopSlide((prev) => (prev + 1) % DESKTOP_SLIDES.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [isNarrow, slidePaused]);
 
   const markSeen = () => {
     try {
@@ -109,20 +155,43 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
   };
 
   const overMobileHero = isNarrow && !scrolled;
+  const overDesktopHero = !isNarrow && !scrolled;
+  const lightHeader = overMobileHero || overDesktopHero;
+  const slide = DESKTOP_SLIDES[desktopSlide];
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden bg-[#f4f8fc] text-slate-900">
       {/* Header */}
       <header
         className={`fixed inset-x-0 top-0 z-50 transition-all duration-200 ${
-          overMobileHero && !mobileMenuOpen
+          lightHeader && !mobileMenuOpen
             ? 'border-b border-transparent bg-transparent'
             : scrolled || mobileMenuOpen
               ? 'border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-md'
               : 'border-b border-transparent bg-white/90 backdrop-blur-sm'
         }`}
       >
-        <div className="mx-auto flex h-14 max-w-[96rem] items-center gap-3 px-4 sm:h-16 sm:px-8 lg:h-[4.75rem] lg:px-12 xl:px-16">
+        {/* Bandeau utilitaire desktop — données déjà présentes dans le projet */}
+        <div
+          className={`hidden border-b lg:block ${
+            lightHeader && !mobileMenuOpen
+              ? 'border-white/10 bg-black/45 text-white'
+              : 'border-slate-200 bg-[#0b2a4a] text-white'
+          }`}
+        >
+          <div className="mx-auto flex max-w-[96rem] items-center justify-between gap-4 px-12 py-1.5 text-[12px] xl:px-16">
+            <p className="inline-flex items-center gap-1.5 font-medium">
+              <MapPin className="h-3.5 w-3.5 text-[#ff8a1f]" aria-hidden />
+              Livraison express à Lokossa dès 450 FCFA
+            </p>
+            <p className="inline-flex items-center gap-1.5 font-medium">
+              <Phone className="h-3.5 w-3.5 text-[#ff8a1f]" aria-hidden />
+              Support client 7j/7 : {WHATSAPP_PHONE}
+            </p>
+          </div>
+        </div>
+
+        <div className="mx-auto flex h-14 max-w-[96rem] items-center gap-3 px-4 sm:h-16 sm:px-8 lg:h-[4.25rem] lg:px-12 xl:px-16">
           {/* Logo */}
           <a
             href="#accueil"
@@ -138,18 +207,18 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
               src={livrikoLogo}
               alt="Logo Livriko"
               className={`h-9 w-9 rounded-full object-cover sm:h-10 sm:w-10 ${
-                overMobileHero && !mobileMenuOpen ? 'ring-2 ring-white/70' : ''
+                lightHeader && !mobileMenuOpen ? 'ring-2 ring-white/70' : ''
               }`}
             />
             <span
               className={`truncate text-base font-black tracking-tight sm:text-lg ${
-                overMobileHero && !mobileMenuOpen
+                lightHeader && !mobileMenuOpen
                   ? 'text-white drop-shadow'
                   : 'text-[#0b2a4a]'
               }`}
             >
               Livr
-              <span className={overMobileHero && !mobileMenuOpen ? 'text-[#ffb45c]' : 'text-[#ff8a1f]'}>
+              <span className={lightHeader && !mobileMenuOpen ? 'text-[#ffb45c]' : 'text-[#ff8a1f]'}>
                 iko
               </span>
             </span>
@@ -165,7 +234,11 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
                 key={id}
                 type="button"
                 onClick={() => scrollToSection(id)}
-                className="rounded-full px-3.5 py-2 text-sm font-medium text-slate-500 transition duration-200 hover:bg-slate-100 hover:text-[#0b2a4a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30"
+                className={`rounded-full px-3.5 py-2 text-sm font-medium transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30 ${
+                  lightHeader && !mobileMenuOpen
+                    ? 'text-white/90 hover:bg-white/10 hover:text-white'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-[#0b2a4a]'
+                }`}
               >
                 {label}
               </button>
@@ -177,14 +250,18 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
             <button
               type="button"
               onClick={() => openAuth('register', 'livreur')}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition duration-200 hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30"
+              className={`rounded-full px-4 py-2.5 text-sm font-bold transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30 ${
+                lightHeader && !mobileMenuOpen
+                  ? 'border border-white/40 bg-white/10 text-white hover:bg-white/20'
+                  : 'border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+              }`}
             >
               Devenir livreur
             </button>
             <button
               type="button"
               onClick={() => openAuth('login')}
-              className="inline-flex items-center gap-2 rounded-full bg-[#0b2a4a] px-4 py-2.5 text-sm font-bold text-white transition duration-200 hover:bg-[#123a63] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/40 focus-visible:ring-offset-2"
+              className="inline-flex items-center gap-2 rounded-full bg-[#ff8a1f] px-4 py-2.5 text-sm font-bold text-white transition duration-200 hover:bg-[#ff9a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2"
             >
               <LockKeyhole className="h-4 w-4" aria-hidden />
               Se connecter
@@ -353,97 +430,126 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
 
         {/* Décor desktop — retiré : image en arrière-plan à la place */}
 
-        {/* —— Desktop : hero plein écran, image en arrière-plan —— */}
-        <div className="relative hidden min-h-[100svh] w-full lg:block">
-          <img
-            src={heroImage}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover object-[center_18%]"
-            loading="eager"
-            decoding="async"
-            aria-hidden
-          />
-          {/* Dégradé localisé derrière le bloc texte uniquement */}
+        {/* —— Desktop : hero type marketplace (style maquette) —— */}
+        <div
+          className="relative hidden min-h-[100svh] w-full overflow-hidden lg:block"
+          onMouseEnter={() => setSlidePaused(true)}
+          onMouseLeave={() => setSlidePaused(false)}
+        >
+          {DESKTOP_SLIDES.map((s, idx) => (
+            <div
+              key={s.id}
+              className={`absolute inset-0 transition-opacity duration-700 ${
+                idx === desktopSlide ? 'opacity-100' : 'pointer-events-none opacity-0'
+              }`}
+              style={{
+                backgroundImage: `url('${s.bgImage}')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+              }}
+              aria-hidden={idx !== desktopSlide}
+            />
+          ))}
+
           <div
-            className="pointer-events-none absolute inset-y-0 left-0 w-[48%] max-w-2xl"
+            className="pointer-events-none absolute inset-0"
             style={{
               background:
-                'linear-gradient(90deg, rgba(244,248,252,0.78) 0%, rgba(244,248,252,0.35) 70%, transparent 100%)',
+                'linear-gradient(to right, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.45) 48%, rgba(0,0,0,0.2) 100%), linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, transparent 40%, rgba(0,0,0,0.55) 100%)',
             }}
             aria-hidden
           />
 
-          <div className="relative z-[2] mx-auto flex min-h-[100svh] max-w-[96rem] flex-col px-12 pb-14 pt-[7.5rem] xl:px-16 xl:pb-16">
-            {/* Bloc texte : colonne gauche, aérée */}
-            <div className="flex flex-1 flex-col justify-center">
-              <div className="max-w-[34rem] text-left xl:max-w-[38rem]">
-                <p className="inline-flex items-center gap-2 text-[13px] font-bold uppercase tracking-[0.16em] text-[#1d4ed8]">
-                  <ShieldCheck className="h-4 w-4" aria-hidden />
-                  Plateforme 100% sécurisée
-                </p>
+          <button
+            type="button"
+            onClick={() =>
+              setDesktopSlide((prev) => (prev - 1 + DESKTOP_SLIDES.length) % DESKTOP_SLIDES.length)
+            }
+            className="absolute left-5 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/35 text-white transition hover:bg-black/55 xl:left-8"
+            aria-label="Slide précédent"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setDesktopSlide((prev) => (prev + 1) % DESKTOP_SLIDES.length)}
+            className="absolute right-5 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/35 text-white transition hover:bg-black/55 xl:right-8"
+            aria-label="Slide suivant"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
 
-                <h1 className="mt-5 font-black tracking-[-0.045em] text-[#0b2a4a]">
-                  <span className="block text-[2.75rem] leading-[1.05] xl:text-[3.25rem]">
-                    Bienvenue sur
-                  </span>
-                  <span className="mt-1 block text-[4.5rem] leading-[0.92] xl:text-[5.5rem] 2xl:text-[6rem]">
-                    <span className="text-[#0b2a4a]">Livr</span>
-                    <span className="text-[#ff8a1f]">iko</span>
-                  </span>
-                </h1>
+          <div className="relative z-[2] mx-auto flex min-h-[100svh] max-w-[96rem] flex-col justify-center px-12 pb-20 pt-36 xl:px-16">
+            <div className="max-w-3xl text-left">
+              <h1 className="text-[3.25rem] font-extrabold leading-[1.08] tracking-tight text-white drop-shadow-lg xl:text-[4rem]">
+                {slide.title}
+                <br />
+                <span className="text-[#ff8a1f]">{slide.titleHighlight}</span>
+              </h1>
 
-                <p className="mt-6 max-w-[28rem] text-[1.125rem] leading-[1.55] text-slate-700 xl:text-[1.2rem]">
-                  Votre plateforme de livraison simple, rapide et proche de vous.
-                </p>
+              <p className="mt-5 max-w-2xl text-[1.05rem] leading-relaxed text-white/90 xl:text-lg">
+                {slide.description}
+              </p>
 
-                <div className="mt-8 flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => openAuth('register')}
-                    className="inline-flex h-[3.25rem] items-center justify-center gap-2 rounded-2xl bg-[#0b2a4a] px-7 text-sm font-black uppercase tracking-wide text-white shadow-md shadow-blue-950/20 transition duration-200 hover:bg-[#123a63] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/40 focus-visible:ring-offset-2 active:scale-[0.99]"
-                  >
-                    <UserRound className="h-5 w-5" aria-hidden />
-                    S&apos;inscrire
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openAuth('login')}
-                    className="inline-flex h-[3.25rem] items-center justify-center gap-2 rounded-2xl border-2 border-[#0b2a4a] bg-white px-7 text-sm font-black uppercase tracking-wide text-[#0b2a4a] shadow-sm transition duration-200 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a8a]/30 focus-visible:ring-offset-2 active:scale-[0.99]"
-                  >
-                    <LockKeyhole className="h-5 w-5" aria-hidden />
-                    Se connecter
-                  </button>
-                </div>
+              <div className="mt-8 flex flex-wrap items-center gap-3.5">
+                <button
+                  type="button"
+                  onClick={() => openAuth('register')}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#ff8a1f] px-7 text-sm font-bold text-white shadow-lg shadow-orange-950/25 transition hover:bg-[#ff9a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 active:scale-[0.99]"
+                >
+                  Commander
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                </button>
+                <a
+                  href={WHATSAPP_HREF}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/50 bg-transparent px-6 text-sm font-semibold text-white transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                >
+                  <Phone className="h-4 w-4" aria-hidden />
+                  WhatsApp {WHATSAPP_PHONE}
+                </a>
               </div>
-            </div>
 
-            {/* Avantages : bandeau bas, hors du flux du titre */}
-            <div className="mt-auto flex max-w-3xl items-stretch gap-0 divide-x divide-slate-200/80 rounded-2xl border border-white/80 bg-white/90 shadow-sm">
-              {FEATURES.map(({ icon: Icon, title, description, iconClass }) => (
-                <div key={title} className="flex flex-1 items-center gap-3 px-5 py-4">
-                  <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconClass}`}>
-                    <Icon className="h-5 w-5" aria-hidden />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-[#0b2a4a]">{title}</p>
-                    <p className="text-xs text-slate-500">{description}</p>
+              <div className="mt-12 grid max-w-3xl grid-cols-3 gap-8 border-t border-white/15 pt-7">
+                <div className="flex items-center gap-3 text-white">
+                  <Truck className="h-5 w-5 shrink-0 text-[#ff8a1f]" aria-hidden />
+                  <div>
+                    <p className="text-sm font-semibold">Livraison rapide</p>
+                    <p className="text-xs font-light text-white/70">Partout à Lokossa</p>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {/* Badge statut — coin photo */}
-            <div className="absolute right-12 top-32 xl:right-16 xl:top-36">
-              <div className="flex items-center gap-2.5 rounded-2xl border border-white/80 bg-white px-3.5 py-3 shadow-lg">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-[#1d4ed8]">
-                  <Package className="h-5 w-5" aria-hidden />
-                </span>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Statut</p>
-                  <p className="text-sm font-bold text-[#0b2a4a]">Livraison en cours</p>
+                <div className="flex items-center gap-3 text-white">
+                  <CreditCard className="h-5 w-5 shrink-0 text-emerald-400" aria-hidden />
+                  <div>
+                    <p className="text-sm font-semibold">Paiement sécurisé</p>
+                    <p className="text-xs font-light text-white/70">Espèces à la livraison</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-white">
+                  <Headphones className="h-5 w-5 shrink-0 text-sky-300" aria-hidden />
+                  <div>
+                    <p className="text-sm font-semibold">Support 7j/7</p>
+                    <p className="text-xs font-light text-white/70">Service client</p>
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2">
+            {DESKTOP_SLIDES.map((s, idx) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setDesktopSlide(idx)}
+                className={`h-2 rounded-full transition-all ${
+                  idx === desktopSlide ? 'w-6 bg-[#ff8a1f]' : 'w-2 bg-white/55 hover:bg-white'
+                }`}
+                aria-label={`Slide ${idx + 1}`}
+              />
+            ))}
           </div>
         </div>
 
