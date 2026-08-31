@@ -1,11 +1,29 @@
 import React, { useState } from 'react';
-import { 
-  X, User, ShoppingBag, MapPin, Settings, LogOut, Check, Phone, Mail, Building, Truck, ShieldCheck, Clock, ChevronRight, ArrowLeft, Key, Camera
+import {
+  X, User, ShoppingBag, MapPin, Settings, LogOut, Check, Phone, Mail,
+  ChevronRight, ArrowLeft, Key, Camera, Shield, Wallet, Trash2,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { uploadImageFile } from '../utils/imageUpload';
 import { buildApiUrl } from '../utils/media';
 import axios from 'axios';
+
+type ProfileTab = 'profil' | 'commandes' | 'adresses' | 'parametres';
+
+const TAB_CONFIG: { id: ProfileTab; label: string; icon: React.ElementType }[] = [
+  { id: 'profil', label: 'Mon profil', icon: User },
+  { id: 'commandes', label: 'Mes commandes', icon: ShoppingBag },
+  { id: 'adresses', label: 'Mes adresses', icon: MapPin },
+  { id: 'parametres', label: 'Paramètres', icon: Settings },
+];
+
+const ROLE_LABELS: Record<string, string> = {
+  client: 'Client',
+  vendeur: 'Vendeur',
+  restaurant: 'Restaurant',
+  livreur: 'Livreur',
+  admin: 'Administrateur',
+};
 
 function WalletHistory() {
   const [txs, setTxs] = React.useState<any[]>([]);
@@ -19,16 +37,16 @@ function WalletHistory() {
       .catch((e) => setError(e?.response?.data?.message || 'Historique indisponible'));
   }, []);
 
-  if (error) return <p className="text-[10px] text-rose-600">{error}</p>;
-  if (txs.length === 0) return <p className="text-[10px] text-teal-700">Aucune transaction pour le moment.</p>;
+  if (error) return <p className="text-sm text-rose-600">{error}</p>;
+  if (txs.length === 0) return <p className="text-sm text-teal-700">Aucune transaction pour le moment.</p>;
 
   return (
-    <div className="max-h-28 overflow-y-auto space-y-1">
+    <div className="max-h-36 overflow-y-auto space-y-2">
       {txs.slice(0, 8).map((tx) => (
-        <div key={tx.id} className="flex items-center justify-between text-[10px] text-teal-900 bg-white/70 rounded-lg px-2 py-1 border border-teal-100">
-          <span className="font-bold uppercase">{tx.type}</span>
-          <span>{Number(tx.amount).toLocaleString()} F</span>
-          <span className="text-teal-600">{tx.status}</span>
+        <div key={tx.id} className="flex items-center justify-between text-sm text-teal-900 bg-white rounded-xl px-3 py-2 border border-teal-100">
+          <span className="font-bold uppercase text-xs">{tx.type}</span>
+          <span className="font-semibold">{Number(tx.amount).toLocaleString()} F</span>
+          <span className="text-teal-600 text-xs">{tx.status}</span>
         </div>
       ))}
     </div>
@@ -38,50 +56,44 @@ function WalletHistory() {
 interface UserProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: 'profil' | 'commandes' | 'adresses' | 'parametres';
+  initialTab?: ProfileTab;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   isOpen,
   onClose,
-  initialTab = 'profil'
+  initialTab = 'profil',
 }) => {
-  const { 
-    currentUser, 
-    logoutUser, 
-    updateUserProfile, 
-    orders, 
+  const {
+    currentUser,
+    logoutUser,
+    updateUserProfile,
+    orders,
     setActiveTrackingOrder,
-    setActiveRole
-    , deleteUser
+    setActiveRole,
+    deleteUser,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'profil' | 'commandes' | 'adresses' | 'parametres'>(initialTab);
-
-  React.useEffect(() => {
-    if (isOpen) {
-      setActiveTab(initialTab);
-    }
-  }, [isOpen, initialTab]);
-
-  // Editable Profile fields
+  const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
   const [name, setName] = useState(currentUser?.name || '');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [city, setCity] = useState(currentUser?.city || 'Lokossa');
   const [isSaved, setIsSaved] = useState(false);
-
-  // Address state
   const [savedAddress, setSavedAddress] = useState(
-    currentUser?.location?.address || `${currentUser?.city || 'Lokossa'}, Quartier Agamé`
+    currentUser?.location?.address || `${currentUser?.city || 'Lokossa'}, Quartier Agamé`,
   );
   const [isAddressSaved, setIsAddressSaved] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordMessage, setPasswordMessage] = useState('');
+  const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
 
-  // Sync inputs dynamically whenever currentUser changes
+  React.useEffect(() => {
+    if (isOpen) setActiveTab(initialTab);
+  }, [isOpen, initialTab]);
+
   React.useEffect(() => {
     if (currentUser) {
       setName(currentUser.name || '');
@@ -96,8 +108,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   }, [currentUser]);
 
-  const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
-
   const handleImageFileSelect = async (file: File | null) => {
     if (!file || !currentUser) return;
     try {
@@ -105,23 +115,26 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setSelectedAvatar(url);
       updateUserProfile(currentUser.id, { avatar: url, selfiePhoto: url });
     } catch (error: any) {
-      setPasswordMessage(error.message || 'Impossible d’envoyer la photo de profil.');
+      setPasswordMessage(error.message || 'Impossible d\'envoyer la photo de profil.');
     }
   };
 
   if (!isOpen || !currentUser) return null;
 
-  // Filter orders for this logged in user
   const userOrders = orders.filter(o => o.clientId === currentUser.id || o.clientPhone === currentUser.phone);
+  const avatarSrc = selectedAvatar || currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';
+  const initials = (currentUser.name || 'U')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(p => p[0]?.toUpperCase() || '')
+    .join('')
+    .slice(0, 2) || 'U';
+  const roleLabel = ROLE_LABELS[currentUser.role] || currentUser.role;
 
   const handleProfileSave = (e: React.FormEvent) => {
     e.preventDefault();
-    updateUserProfile(currentUser.id, {
-      name,
-      email,
-      phone,
-      city
-    });
+    updateUserProfile(currentUser.id, { name, email, phone, city });
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
   };
@@ -131,11 +144,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     updateUserProfile(currentUser.id, {
       city,
       ...(currentUser.location ? {
-        location: {
-          ...currentUser.location,
-          address: savedAddress,
-        }
-      } : {})
+        location: { ...currentUser.location, address: savedAddress },
+      } : {}),
     });
     setIsAddressSaved(true);
     setTimeout(() => setIsAddressSaved(false), 2000);
@@ -155,12 +165,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setPasswordMessage('Le mot de passe doit contenir au moins 8 caractères.');
       return;
     }
-
     try {
-      await updateUserProfile(currentUser.id, {
-        password: newPassword,
-        currentPassword,
-      } as any);
+      await updateUserProfile(currentUser.id, { password: newPassword, currentPassword } as any);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -170,424 +176,434 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  const firstName = currentUser.name.split(' ')[0] || currentUser.name;
+  const inputClass = 'w-full px-4 py-3 bg-white border border-[#e6dac8] rounded-xl text-sm font-medium text-slate-900 focus:border-[#ff8a1f] focus:outline-none focus:ring-2 focus:ring-[#ff8a1f]/20 transition';
+  const labelClass = 'text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5';
 
-  return (
-    <div className="fixed inset-0 z-1100 bg-slate-950/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[88vh] overflow-y-auto shadow-2xl border border-slate-100 relative animate-in fade-in zoom-in-95 duration-200 mx-3 sm:mx-0">
-        
-        {/* Header */}
-        <div className="sticky top-0 bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between z-20 border-b border-slate-800">
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <button 
-              onClick={onClose}
-              type="button"
-              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-sm sm:text-xs font-bold transition flex items-center gap-2 cursor-pointer shrink-0 ring-1 ring-slate-700/40"
-              title="Retour à l'application"
-            >
-              <ArrowLeft className="w-4 h-4 text-orange-400" />
-              <span>Retour</span>
-            </button>
-            <div className="relative">
-              <img
-                src={selectedAvatar || currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'}
-                alt={currentUser.name}
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border-2 border-orange-500 shadow-md shrink-0"
-              />
-              <label className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 border border-slate-200 cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => handleImageFileSelect(e.target.files?.[0] || null)}
-                />
-                <Camera className="w-4 h-4 text-slate-700" />
-              </label>
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h2 className="text-sm sm:text-lg font-black text-white truncate">{currentUser.name}</h2>
-                <span className="px-1.5 py-0.5 rounded-full bg-orange-500/20 border border-orange-500/40 text-orange-400 text-[9px] sm:text-[10px] font-bold uppercase shrink-0">
-                  {currentUser.role}
-                </span>
+  const renderPageHeader = (title: string, subtitle: string) => (
+    <section className="shrink-0 rounded-2xl bg-gradient-to-r from-[#0c1a2e] to-[#1a3d66] px-6 py-5 text-white">
+      <p className="text-xs font-bold uppercase tracking-wider text-[#ffb86a]">Mon compte</p>
+      <h2 className="text-2xl font-black mt-1">{title}</h2>
+      <p className="text-sm text-[#c5d3e4] mt-1">{subtitle}</p>
+    </section>
+  );
+
+  const renderProfilTab = () => (
+    <form onSubmit={handleProfileSave} className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-5 p-5 rounded-2xl border border-[#e6dac8] bg-white">
+        <div className="relative shrink-0 mx-auto sm:mx-0">
+          <div className="h-24 w-24 rounded-2xl overflow-hidden border-2 border-[#ff8a1f]/40 shadow-lg">
+            {avatarSrc ? (
+              <img src={avatarSrc} alt={currentUser.name} className="h-full w-full object-cover" />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-[#ff8a1f] to-[#e86f00] flex items-center justify-center text-white text-2xl font-black">
+                {initials}
               </div>
-              <p className="text-[11px] sm:text-xs text-slate-400 truncate">{currentUser.email}</p>
-              {currentUser.role === 'client' && (
-                <p className="text-[11px] text-emerald-400 font-bold mt-0.5">
-                  Portefeuille : {(currentUser.walletBalance ?? 0).toLocaleString()} FCFA
-                </p>
-              )}
+            )}
+          </div>
+          <label className="absolute -bottom-2 -right-2 h-9 w-9 rounded-xl bg-[#0c1a2e] text-white flex items-center justify-center cursor-pointer shadow-lg hover:bg-[#132d4d] transition">
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={e => void handleImageFileSelect(e.target.files?.[0] || null)}
+            />
+            <Camera className="w-4 h-4" />
+          </label>
+        </div>
+        <div className="flex-1 text-center sm:text-left min-w-0">
+          <h3 className="text-xl font-black text-slate-900 truncate">{currentUser.name}</h3>
+          <p className="text-sm text-slate-500 mt-0.5 truncate">{currentUser.email}</p>
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
+            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#ff8a1f]/10 text-[#e86f00] text-xs font-bold uppercase">
+              <Shield className="w-3 h-3" />
+              {roleLabel}
+            </span>
+            {currentUser.role === 'client' && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold">
+                <Wallet className="w-3 h-3" />
+                {(currentUser.walletBalance ?? 0).toLocaleString()} FCFA
+              </span>
+            )}
+          </div>
+        </div>
+        {isSaved && (
+          <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold shrink-0">
+            <Check className="w-4 h-4" /> Enregistré
+          </span>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-[#e6dac8] bg-[#fffdf8] p-5 space-y-4">
+        <h4 className="text-sm font-black text-slate-900">Informations personnelles</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Nom et prénom</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Adresse email</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className={`${inputClass} pl-10`} />
             </div>
           </div>
+          <div>
+            <label className={labelClass}>Téléphone / WhatsApp</label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className={`${inputClass} pl-10`} />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>Ville principale</label>
+            <select value={city} onChange={e => setCity(e.target.value)} className={inputClass}>
+              <option value="Lokossa">Lokossa (Ville couverte — 100 %)</option>
+            </select>
+          </div>
+        </div>
+      </div>
 
-          <button 
-            onClick={onClose}
-            className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition cursor-pointer shrink-0"
+      {currentUser.role === 'client' && (
+        <div className="rounded-2xl border border-teal-200 bg-teal-50 p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-black text-teal-900">Portefeuille Livriko</p>
+              <p className="text-xs text-teal-700 mt-0.5">Solde utilisable au paiement</p>
+            </div>
+            <p className="text-2xl font-black text-teal-800">
+              {(currentUser.walletBalance ?? 0).toLocaleString()} <span className="text-sm font-bold">FCFA</span>
+            </p>
+          </div>
+          <WalletHistory />
+        </div>
+      )}
+
+      {currentUser.role !== 'client' && (
+        <div className="rounded-2xl border border-[#ff8a1f]/30 bg-[#fff8f0] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-black text-slate-900">Accès professionnel — {roleLabel}</p>
+            <p className="text-xs text-slate-600 mt-1">Retournez à votre espace de gestion dédié.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setActiveRole(currentUser.role); onClose(); }}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#ff8a1f] hover:bg-[#e86f00] text-white text-sm font-bold transition shrink-0"
           >
-            <X className="w-5 h-5" />
+            Ouvrir l&apos;espace {roleLabel}
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
+      )}
 
-        {/* Modal Navigation Tabs */}
-        <div className="bg-slate-100 p-1.5 flex items-center gap-1 border-b border-slate-200 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('profil')}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeTab === 'profil' ? 'bg-white text-orange-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <User className="w-4 h-4" />
-            <span>Mon Profil</span>
-          </button>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+        <button
+          type="button"
+          onClick={() => { logoutUser(); onClose(); }}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 text-sm font-bold transition"
+        >
+          <LogOut className="w-4 h-4" />
+          Se déconnecter
+        </button>
+        <button
+          type="submit"
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#0c1a2e] hover:bg-[#132d4d] text-white text-sm font-bold transition"
+        >
+          Enregistrer les modifications
+        </button>
+      </div>
 
-          <button
-            onClick={() => setActiveTab('commandes')}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeTab === 'commandes' ? 'bg-white text-orange-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span>Mes Commandes ({userOrders.length})</span>
-          </button>
+      <div className="pt-2 border-t border-[#e6dac8]">
+        <button
+          type="button"
+          onClick={() => {
+            const ok = window.confirm('Désactiver votre compte ? Vous ne pourrez plus vous connecter. Les historiques de commandes sont conservés.');
+            if (!ok) return;
+            void deleteUser(currentUser.id);
+            onClose();
+          }}
+          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold transition"
+        >
+          <Trash2 className="w-4 h-4" />
+          Supprimer mon compte
+        </button>
+      </div>
+    </form>
+  );
 
-          <button
-            onClick={() => setActiveTab('adresses')}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeTab === 'adresses' ? 'bg-white text-orange-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <MapPin className="w-4 h-4" />
-            <span>Mes Adresses</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('parametres')}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeTab === 'parametres' ? 'bg-white text-orange-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            <span>Paramètres</span>
-          </button>
+  const renderCommandesTab = () => (
+    <div className="space-y-4">
+      {userOrders.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-[#e6dac8] bg-[#faf6ef] p-12 text-center">
+          <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <p className="text-base font-bold text-slate-700">Aucune commande pour le moment</p>
+          <p className="text-sm text-slate-500 mt-2">Explorez le marché et passez votre première commande.</p>
         </div>
-
-        {/* Tab Body */}
-        <div className="p-6">
-          
-          {/* 1. MON PROFIL */}
-          {activeTab === 'profil' && (
-            <form onSubmit={handleProfileSave} className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h3 className="text-sm font-bold text-slate-900">Informations Personnelles</h3>
-                {isSaved && (
-                  <span className="text-xs text-emerald-600 font-bold flex items-center gap-1">
-                    <Check className="w-4 h-4" /> Profil mis à jour !
+      ) : (
+        <div className="space-y-3">
+          {userOrders.map(order => (
+            <article key={order.id} className="rounded-2xl border border-[#e6dac8] bg-white p-5 flex flex-wrap items-center justify-between gap-4 hover:shadow-sm transition">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-sm font-black text-[#1d4ed8]">{order.code}</span>
+                  <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase ${
+                    order.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {order.status === 'delivered' ? 'Livré' : 'En cours'}
                   </span>
-                )}
+                </div>
+                <p className="text-base font-bold text-slate-900 mt-2">{order.storeName}</p>
+                <p className="text-sm text-slate-500 mt-1">
+                  {order.items.length} article(s) · {order.totalAmount.toLocaleString()} FCFA
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  {order.distanceKm ?? 2} km · {(order.finalDeliveryFee ?? order.estimatedDeliveryFee ?? order.deliveryFee).toLocaleString()} FCFA livraison
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => { setActiveTrackingOrder(order); onClose(); }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0c1a2e] hover:bg-[#132d4d] text-white text-sm font-bold transition shrink-0"
+              >
+                Suivre
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Nom et Prénom</label>
-                  <input 
-                    type="text" 
-                    value={name} 
-                    onChange={e => setName(e.target.value)} 
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-orange-500 focus:outline-none"
-                  />
-                </div>
+  const renderAdressesTab = () => (
+    <form onSubmit={handleAddressSave} className="space-y-5">
+      <div className="rounded-2xl border border-[#e6dac8] bg-[#fffdf8] p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-black text-slate-900">Adresse de livraison</h4>
+          {isAddressSaved && (
+            <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 font-bold">
+              <Check className="w-4 h-4" /> Enregistrée
+            </span>
+          )}
+        </div>
+        <div>
+          <label className={labelClass}>Adresse habituelle</label>
+          <input
+            type="text"
+            required
+            value={savedAddress}
+            onChange={e => setSavedAddress(e.target.value)}
+            placeholder="ex : Quartier Agamé, près du Marché Central, Lokossa"
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Ville</label>
+          <select value={city} onChange={e => setCity(e.target.value)} className={inputClass}>
+            <option value="Lokossa">Lokossa (Ville couverte — 100 %)</option>
+          </select>
+        </div>
+      </div>
+      <div className="text-right">
+        <button
+          type="submit"
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0c1a2e] hover:bg-[#132d4d] text-white text-sm font-bold transition"
+        >
+          Enregistrer l&apos;adresse
+        </button>
+      </div>
+    </form>
+  );
 
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Adresse Email</label>
-                  <input 
-                    type="email" 
-                    value={email} 
-                    onChange={e => setEmail(e.target.value)} 
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-orange-500 focus:outline-none"
-                  />
-                </div>
+  const renderParametresTab = () => (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {[
+          { title: 'Notifications SMS & WhatsApp', desc: 'Suivi en direct sur votre téléphone', control: <input type="checkbox" defaultChecked className="w-5 h-5 accent-[#ff8a1f] rounded cursor-pointer" /> },
+          { title: 'Langue de l\'interface', desc: 'Français (Bénin)', control: <span className="text-sm font-bold text-slate-600">FR 🇧🇯</span> },
+          { title: 'Sécurité du compte', desc: 'Mot de passe chiffré, session sécurisée', control: <span className="text-sm font-bold text-emerald-600">Protégé</span> },
+        ].map(item => (
+          <div key={item.title} className="rounded-2xl border border-[#e6dac8] bg-white p-4 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900">{item.title}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{item.desc}</p>
+            </div>
+            {item.control}
+          </div>
+        ))}
+      </div>
 
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Téléphone / WhatsApp</label>
-                  <input 
-                    type="tel" 
-                    value={phone} 
-                    onChange={e => setPhone(e.target.value)} 
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-orange-500 focus:outline-none"
-                  />
-                </div>
+      <form onSubmit={handlePasswordChange} className="rounded-2xl border border-[#e6dac8] bg-[#fffdf8] p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Key className="w-5 h-5 text-[#ff8a1f]" />
+          <h4 className="text-sm font-black text-slate-900">Changer mon mot de passe</h4>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Mot de passe actuel</label>
+            <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Nouveau mot de passe</label>
+            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={inputClass} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelClass}>Confirmer le nouveau mot de passe</label>
+            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={inputClass} />
+          </div>
+        </div>
+        {passwordMessage && (
+          <div className={`rounded-xl px-4 py-3 text-sm font-medium ${
+            passwordMessage.includes('succès') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+          }`}>
+            {passwordMessage}
+          </div>
+        )}
+        <button
+          type="submit"
+          className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#ff8a1f] hover:bg-[#e86f00] text-white text-sm font-bold transition"
+        >
+          Enregistrer le nouveau mot de passe
+        </button>
+      </form>
+    </div>
+  );
 
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Ville principale</label>
-                  <select 
-                    value={city} 
-                    onChange={e => setCity(e.target.value)} 
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-orange-500 focus:outline-none"
-                  >
-                    <option value="Lokossa">Lokossa (Ville couverte - 100%)</option>
-                  </select>
-                </div>
+  const TAB_CONTENT: Record<ProfileTab, { title: string; subtitle: string; body: React.ReactNode }> = {
+    profil: { title: 'Mon profil', subtitle: 'Gérez vos informations personnelles et votre photo.', body: renderProfilTab() },
+    commandes: { title: 'Mes commandes', subtitle: `${userOrders.length} commande(s) dans votre historique.`, body: renderCommandesTab() },
+    adresses: { title: 'Mes adresses', subtitle: 'Votre adresse de livraison par défaut.', body: renderAdressesTab() },
+    parametres: { title: 'Paramètres', subtitle: 'Préférences, notifications et sécurité.', body: renderParametresTab() },
+  };
+
+  const currentPage = TAB_CONTENT[activeTab];
+
+  const renderSidebarNav = () => (
+    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+      {TAB_CONFIG.map(tab => {
+        const Icon = tab.icon;
+        const isActive = activeTab === tab.id;
+        const badge = tab.id === 'commandes' ? userOrders.length : undefined;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left transition cursor-pointer ${
+              isActive
+                ? 'bg-[#ff8a1f]/12 text-white shadow-[inset_3px_0_0_#ff8a1f]'
+                : 'text-[#b8c5d6] hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
+              isActive ? 'bg-[#ff8a1f] text-white' : 'bg-white/6 text-[#9eb0c7]'
+            }`}>
+              <Icon className="w-[18px] h-[18px]" />
+            </span>
+            <span className={`flex-1 text-[13px] ${isActive ? 'font-bold' : 'font-semibold'}`}>
+              {tab.label}
+            </span>
+            {badge != null && badge > 0 && (
+              <span className={`shrink-0 min-w-[1.35rem] h-[1.35rem] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${
+                isActive ? 'bg-[#ff8a1f] text-white' : 'bg-[#ff8a1f]/20 text-[#ffb86a]'
+              }`}>
+                {badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </nav>
+  );
+
+  return (
+    <div className="fixed inset-0 z-1100 bg-[#0c1a2e]/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
+      <div className="bg-[#f4f0e8] rounded-3xl w-full max-w-5xl min-h-0 my-auto shadow-2xl overflow-hidden flex flex-col sm:flex-row relative animate-in fade-in zoom-in-95 duration-200 sm:h-[min(90vh,820px)]">
+
+        {/* Sidebar */}
+        <aside className="hidden sm:flex flex-col w-64 shrink-0 bg-[#0c1a2e] text-[#f8f4ec] border-r border-[#1e3a5f]/60">
+          <div className="px-5 pt-6 pb-4 border-b border-white/8">
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-[#c5d3e4] hover:text-white transition mb-5"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Retour
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl overflow-hidden border-2 border-[#ff8a1f]/40 shrink-0">
+                <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
               </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-white truncate">{currentUser.name}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[#ffb86a] mt-0.5">{roleLabel}</p>
+              </div>
+            </div>
+          </div>
+          {renderSidebarNav()}
+          <div className="px-3 pb-5 pt-3 border-t border-white/8">
+            <button
+              type="button"
+              onClick={() => { logoutUser(); onClose(); }}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-rose-500/12 border border-rose-400/25 text-sm font-semibold text-rose-300 hover:bg-rose-500/20 transition"
+            >
+              <LogOut className="w-4 h-4" />
+              Se déconnecter
+            </button>
+          </div>
+        </aside>
 
-              {/* Special Pro Badge info */}
-              {currentUser.role === 'client' && (
-                <div className="p-3.5 bg-teal-50 border border-teal-200 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-bold text-teal-900">Portefeuille Livriko</div>
-                      <div className="text-[11px] text-teal-700">Solde contrôlé côté serveur — utilisable au paiement.</div>
-                    </div>
-                    <span className="text-sm font-black text-teal-800">
-                      {(currentUser.walletBalance ?? 0).toLocaleString()} FCFA
-                    </span>
-                  </div>
-                  <WalletHistory />
-                </div>
-              )}
-
-              {currentUser.role !== 'client' && (
-                <div className="p-3.5 bg-orange-50 border border-orange-200 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-orange-900">
-                      Vous disposez d'un accès Pro ({currentUser.role.toUpperCase()})
-                    </div>
-                    <div className="text-[11px] text-orange-700">
-                      Accédez à votre tableau de bord dédié pour la gestion.
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveRole(currentUser.role);
-                      onClose();
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-sm cursor-pointer"
-                  >
-                    Ouvrir Espace {currentUser.role} →
-                  </button>
-                </div>
-              )}
-
-              <div className="pt-3 flex items-center justify-between border-t border-slate-100">
+        {/* Mobile header + tabs */}
+        <div className="sm:hidden shrink-0 bg-[#0c1a2e] text-white">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/8">
+            <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-sm font-semibold text-[#c5d3e4]">
+              <ArrowLeft className="w-4 h-4" />
+              Retour
+            </button>
+            <button type="button" onClick={onClose} className="p-2 rounded-xl bg-white/8 text-[#c5d3e4]">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="flex overflow-x-auto gap-1 p-2">
+            {TAB_CONFIG.map(tab => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
                 <button
+                  key={tab.id}
                   type="button"
-                  onClick={() => {
-                    logoutUser();
-                    onClose();
-                  }}
-                  className="px-4 py-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-xs flex items-center gap-2 cursor-pointer"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                    isActive ? 'bg-[#ff8a1f] text-white' : 'text-[#b8c5d6]'
+                  }`}
                 >
-                  <LogOut className="w-4 h-4" />
-                  <span>Se déconnecter</span>
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
                 </button>
-
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-md transition cursor-pointer"
-                >
-                  Enregistrer les modifications
-                </button>
-              </div>
-
-                <div className="pt-4 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const ok = window.confirm("Désactiver votre compte ? Vous ne pourrez plus vous connecter. Les historiques de commandes sont conservés.");
-                      if (!ok) return;
-                      if (currentUser) {
-                        void deleteUser(currentUser.id);
-                        onClose();
-                      }
-                    }}
-                    className="w-full mt-3 px-4 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm transition"
-                  >
-                    Supprimer mon compte
-                  </button>
-                </div>
-            </form>
-          )}
-
-          {/* 2. MES COMMANDES */}
-          {activeTab === 'commandes' && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold text-slate-900 pb-2 border-b border-slate-100">
-                Historique de vos commandes
-              </h3>
-
-              {userOrders.length === 0 ? (
-                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 space-y-2">
-                  <ShoppingBag className="w-8 h-8 text-slate-400 mx-auto" />
-                  <p className="text-xs font-bold">Vous n'avez pas encore passé de commande.</p>
-                  <p className="text-[11px] text-slate-400">Explorez le marché et ajoutez vos produits au panier !</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {userOrders.map(order => (
-                    <div key={order.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-black text-slate-900">{order.code}</span>
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                            {order.status === 'delivered' ? 'Livré' : 'En cours'}
-                          </span>
-                        </div>
-                        <p className="text-xs font-bold text-slate-800 mt-1">{order.storeName}</p>
-                        <p className="text-[11px] text-slate-500">{order.items.length} article(s) • {order.totalAmount.toLocaleString()} FCFA</p>
-                        <p className="text-[11px] text-slate-500 mt-1">📍 {order.distanceKm ?? 2} km • 💰 {(order.finalDeliveryFee ?? order.estimatedDeliveryFee ?? order.deliveryFee).toLocaleString()} FCFA</p>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          setActiveTrackingOrder(order);
-                          onClose();
-                        }}
-                        className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
-                      >
-                        <span>Suivre la commande</span>
-                        <ChevronRight className="w-4 h-4 text-orange-400" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 3. MES ADRESSES */}
-          {activeTab === 'adresses' && (
-            <form onSubmit={handleAddressSave} className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <h3 className="text-sm font-bold text-slate-900">Adresse de Livraison</h3>
-                {isAddressSaved && (
-                  <span className="text-xs text-emerald-600 font-bold flex items-center gap-1">
-                    <Check className="w-4 h-4" /> Adresse enregistrée !
-                  </span>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Adresse de livraison habituelle</label>
-                  <input
-                    type="text"
-                    required
-                    value={savedAddress}
-                    onChange={e => setSavedAddress(e.target.value)}
-                    placeholder="ex: Quartier Agamé, près du Marché Central, Lokossa"
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-orange-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Ville</label>
-                  <select
-                    value={city}
-                    onChange={e => setCity(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-orange-500 focus:outline-none"
-                  >
-                    <option value="Lokossa">Lokossa (Ville couverte - 100%)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 text-right">
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-md transition cursor-pointer"
-                >
-                  Enregistrer l'adresse
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* 4. PARAMÈTRES */}
-          {activeTab === 'parametres' && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold text-slate-900 pb-2 border-b border-slate-100">
-                Préférences et Paramètres du compte
-              </h3>
-
-              <div className="space-y-3 text-xs">
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-slate-900">Notifications SMS & WhatsApp</div>
-                    <div className="text-[11px] text-slate-500">Recevoir le suivi en direct sur mon téléphone</div>
-                  </div>
-                  <input type="checkbox" defaultChecked className="w-4 h-4 accent-orange-500 rounded cursor-pointer" />
-                </div>
-
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-slate-900">Langue de l'interface</div>
-                    <div className="text-[11px] text-slate-500">Français (Bénin)</div>
-                  </div>
-                  <span className="font-bold text-slate-600">FR 🇧🇯</span>
-                </div>
-
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-slate-900">Sécurité du compte</div>
-                    <div className="text-[11px] text-slate-500">Mot de passe chiffré et session sécurisée</div>
-                  </div>
-                  <span className="text-emerald-600 font-bold">Protégé</span>
-                </div>
-              </div>
-
-              <form onSubmit={handlePasswordChange} className="space-y-4 p-4 bg-slate-50 rounded-3xl border border-slate-200">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-slate-500 font-bold">
-                  <Key className="w-4 h-4 text-orange-500" />
-                  <span>Changer mon mot de passe</span>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <label className="block text-[11px] text-slate-600">
-                    Mot de passe actuel
-                    <input
-                      type="password"
-                      value={currentPassword}
-                      onChange={e => setCurrentPassword(e.target.value)}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-orange-500 focus:outline-none"
-                    />
-                  </label>
-                  <label className="block text-[11px] text-slate-600">
-                    Nouveau mot de passe
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={e => setNewPassword(e.target.value)}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-orange-500 focus:outline-none"
-                    />
-                  </label>
-                  <label className="block text-[11px] text-slate-600 sm:col-span-2">
-                    Confirmer le nouveau mot de passe
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={e => setConfirmPassword(e.target.value)}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-orange-500 focus:outline-none"
-                    />
-                  </label>
-                </div>
-
-                {passwordMessage && (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-[11px] text-slate-700">
-                    {passwordMessage}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  className="w-full rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600 transition"
-                >
-                  Enregistrer le nouveau mot de passe
-                </button>
-              </form>
-            </div>
-          )}
-
+              );
+            })}
+          </div>
         </div>
 
+        {/* Main content */}
+        <div className="flex-1 min-h-0 flex flex-col lg:overflow-hidden">
+          <div className="hidden sm:flex items-center justify-end px-5 pt-4 shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-xl bg-white border border-[#e6dac8] text-slate-500 hover:text-slate-800 hover:bg-[#fffdf8] transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4">
+            {renderPageHeader(currentPage.title, currentPage.subtitle)}
+            <div className="rounded-2xl border border-[#e6dac8] bg-[#fffdf8] p-4 sm:p-5 shadow-sm">
+              {currentPage.body}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

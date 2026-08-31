@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  X, ShoppingBag, Trash2, Plus, Minus, CreditCard, ShieldCheck, MapPin, Phone, User, Check, ArrowRight, Info, Compass, ArrowLeft,
-  Wallet, Smartphone, Copy, CheckCircle2, Send
+  X, ShoppingBag, Trash2, Plus, Minus, MapPin, Phone, User, ArrowRight, Compass, ArrowLeft,
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import { LatLngExpression, icon } from 'leaflet';
@@ -159,6 +158,7 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     if (cart.length === 0) return;
     if (!currentUser) {
       openAuthModal('login');
+      setSubmissionError('Connectez-vous ou inscrivez-vous pour finaliser votre commande. Votre panier sera conservé.');
       return;
     }
 
@@ -264,25 +264,25 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-1100 bg-slate-900/60 backdrop-blur-xs flex justify-end">
-      <div className="bg-white w-full max-w-md h-full flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-0 z-1100 bg-[#0c1a2e]/55 backdrop-blur-xs flex justify-end">
+      <div className="bg-[#fffdf8] w-full max-w-md h-full flex flex-col shadow-2xl overflow-hidden border-l border-[#e6dac8]">
         
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <div className="px-5 py-3.5 bg-[#0c1a2e] text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button 
               onClick={onClose}
               type="button"
-              className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
               title="Retour au marché"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-orange-400" />
+              <ArrowLeft className="w-3.5 h-3.5 text-[#ffb86a]" />
               <span>Retour</span>
             </button>
             <div className="flex items-center gap-1.5">
-              <ShoppingBag className="w-4 h-4 text-orange-400" />
-              <h2 className="text-sm font-bold truncate">Mon Panier</h2>
-              <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 text-[10px] font-semibold">
+              <ShoppingBag className="w-4 h-4 text-[#ffb86a]" />
+              <h2 className="text-sm font-bold truncate">Mon panier</h2>
+              <span className="px-2 py-0.5 rounded-md bg-[#ff8a1f]/20 text-[#ffb86a] text-[10px] font-semibold">
                 {cart.length}
               </span>
             </div>
@@ -291,24 +291,24 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
           <button 
             onClick={onClose}
             type="button"
-            className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition cursor-pointer"
+            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {cart.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-            <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-              <ShoppingBag className="w-10 h-10 text-slate-300" />
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#f4f0e8]">
+            <div className="w-16 h-16 rounded-2xl bg-white border border-[#e6dac8] flex items-center justify-center mb-4">
+              <ShoppingBag className="w-8 h-8 text-slate-300" />
             </div>
-            <h3 className="text-base font-bold text-slate-800">Votre panier est vide</h3>
+            <h3 className="text-base font-black text-slate-800">Panier vide</h3>
               <p className="text-xs text-slate-500 mt-1 max-w-xs">
-              Découvrez nos restaurants et boutiques pour passer votre première commande avec livraison dès 450 FCFA.
+              Parcourez les boutiques pour ajouter des articles.
             </p>
             <button
               onClick={onClose}
-              className="mt-6 px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition"
+              className="mt-5 px-5 py-2.5 rounded-xl bg-[#ff8a1f] hover:bg-[#e86f00] text-white font-bold text-xs transition"
             >
               Parcourir le marché
             </button>
@@ -317,31 +317,31 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
           <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
             
             {/* Cart Items List */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Articles commandés</h4>
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-[#f4f0e8]">
+              <div className="space-y-2.5">
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Articles</h4>
                 {cart.map(item => (
-                  <div key={item.product.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center gap-3">
+                  <div key={item.product.id} className="p-2.5 bg-[#fffdf8] rounded-xl border border-[#e6dac8] flex items-center gap-2.5">
                     <img
                       src={item.product.image}
                       alt={item.product.name}
-                      className="w-14 h-14 rounded-xl object-cover shrink-0"
+                      className="w-12 h-12 rounded-lg object-cover shrink-0"
                     />
 
                     <div className="flex-1 min-w-0">
                       <h5 className="text-xs font-bold text-slate-900 truncate">{item.product.name}</h5>
                       <p className="text-[10px] text-slate-500 truncate">{item.product.storeName}</p>
-                      <p className="text-xs font-bold text-blue-600 mt-0.5">
-                        {item.product.price.toLocaleString()} FCFA
+                      <p className="text-xs font-bold text-[#ff8a1f] mt-0.5">
+                        {item.product.price.toLocaleString()} F
                       </p>
                     </div>
 
                     {/* Quantity Selector */}
-                    <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl p-1">
+                    <div className="flex items-center gap-1 bg-white border border-[#e6dac8] rounded-lg p-0.5">
                       <button
                         type="button"
                         onClick={() => updateCartQuantity(item.product.id, item.quantity - 1)}
-                        className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center"
+                        className="w-6 h-6 rounded-md bg-[#f4f0e8] hover:bg-[#efe6d8] text-slate-700 flex items-center justify-center"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
@@ -353,7 +353,7 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                       <button
                         type="button"
                         onClick={() => updateCartQuantity(item.product.id, item.quantity + 1)}
-                        className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center"
+                        className="w-6 h-6 rounded-md bg-[#ff8a1f] text-white flex items-center justify-center"
                       >
                         <Plus className="w-3 h-3" />
                       </button>
@@ -371,8 +371,8 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
               </div>
 
               {/* Delivery Details */}
-              <div className="pt-4 border-t border-slate-200 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Adresse de Livraison</h4>
+              <div className="pt-3 border-t border-[#e6dac8] space-y-2.5">
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Livraison</h4>
 
                 <div className="space-y-2">
                   <div className="relative">
@@ -383,7 +383,7 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                       placeholder="Nom du destinataire"
                       value={name}
                       onChange={e => setName(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500"
+                      className="w-full pl-9 pr-3 py-2 bg-[#fffdf8] border border-[#e6dac8] rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#ff8a1f]"
                     />
                   </div>
 
@@ -392,10 +392,10 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                     <input
                       type="text"
                       required
-                      placeholder="Téléphone portable (+229...)"
+                      placeholder="Téléphone (+229...)"
                       value={phone}
                       onChange={e => setPhone(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500"
+                      className="w-full pl-9 pr-3 py-2 bg-[#fffdf8] border border-[#e6dac8] rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#ff8a1f]"
                     />
                   </div>
 
@@ -404,58 +404,55 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                     <input
                       type="text"
                       required
-                      placeholder="Quartier, rue, repère (ex: Haie Vive)"
+                      placeholder="Quartier, rue, repère"
                       value={address}
                       onChange={e => setAddress(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500"
+                      className="w-full pl-9 pr-3 py-2 bg-[#fffdf8] border border-[#e6dac8] rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#ff8a1f]"
                     />
                   </div>
 
                   <textarea
                     rows={2}
-                    placeholder="Instructions particulières (piment à part, sonner au portail...)"
+                    placeholder="Instructions (portail, étage...)"
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 resize-none"
+                    className="w-full p-2.5 bg-[#fffdf8] border border-[#e6dac8] rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#ff8a1f] resize-none"
                   />
                 </div>
               </div>
 
-              {/* Humanized Delivery & Tariffs for Lokossa */}
-              <div className="pt-4 border-t border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                    Livraison à Lokossa
+              {/* GPS / map */}
+              <div className="pt-3 border-t border-[#e6dac8] space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-[#ff8a1f]" />
+                    Trajet Lokossa
                   </h4>
-                  <span className="text-[11px] font-bold text-orange-700 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
-                    {deliveryInfo ? `${deliveryInfo.deliveryFee.toLocaleString()} FCFA (${distanceKm} km)` : 'Distance indisponible'}
+                  <span className="text-[11px] font-bold text-[#e86f00] bg-[#ff8a1f]/10 px-2 py-0.5 rounded-md border border-[#ff8a1f]/25">
+                    {deliveryInfo ? `${deliveryInfo.deliveryFee.toLocaleString()} F · ${distanceKm} km` : 'GPS requis'}
                   </span>
                 </div>
 
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="p-3 bg-[#fffdf8] rounded-xl border border-[#e6dac8] space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <p className="text-xs font-bold text-slate-800">Trajet Commerce ➔ Votre adresse</p>
-                      <p className="text-[11px] text-slate-500">Calcul basé sur le trajet réel du livreur à Lokossa</p>
+                      <p className="text-xs font-bold text-slate-800">Boutique → Vous</p>
+                      <p className="text-[11px] text-slate-500">Cliquez la carte pour placer le pin</p>
                     </div>
 
                     <button
                       type="button"
                       onClick={handleGetGPS}
                       disabled={isGeolocating}
-                      className="px-2.5 py-1 rounded-xl bg-white border border-slate-200 hover:border-orange-300 text-[11px] font-bold text-slate-700 hover:text-orange-600 shadow-xs transition flex items-center gap-1 cursor-pointer shrink-0"
+                      className="px-2.5 py-1.5 rounded-lg bg-[#0c1a2e] text-[11px] font-bold text-white transition flex items-center gap-1 cursor-pointer shrink-0"
                     >
-                      <Compass className="w-3 h-3 text-orange-500" />
-                      {isGeolocating ? 'Localisation...' : 'Ma position GPS'}
+                      <Compass className="w-3 h-3 text-[#ffb86a]" />
+                      {isGeolocating ? '...' : 'GPS'}
                     </button>
                   </div>
                   {geoError && (
-                    <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2 mb-2">{geoError}</p>
+                    <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">{geoError}</p>
                   )}
-                  <p className="text-[10px] text-slate-400 mb-2">
-                    Astuce : vous pouvez aussi cliquer sur la carte pour placer le point de livraison.
-                  </p>
 
                   {submissionError && (
                     <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700 text-[12px]">
@@ -464,21 +461,15 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                     </div>
                   )}
 
-                  <div className="h-48 rounded-2xl overflow-hidden border border-slate-200 relative">
-                    <div className="absolute left-4 top-4 z-20 rounded-3xl bg-slate-950/95 text-white text-[11px] p-3 shadow-2xl w-[calc(100%-2rem)] max-w-[min(240px,100%)]">
+                  <div className="h-44 rounded-xl overflow-hidden border border-[#e6dac8] relative">
+                    <div className="absolute left-3 top-3 z-20 rounded-xl bg-[#0c1a2e]/95 text-white text-[11px] p-2.5 shadow-lg w-[calc(100%-1.5rem)] max-w-[220px]">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-bold">Itinéraire</span>
-                        <span className="text-slate-300">{routeLoading ? 'Chargement...' : routeDistanceKm ? `${routeDistanceKm.toFixed(1)} km` : distanceKm !== null ? `${distanceKm.toFixed(1)} km` : 'Distance indisponible'}</span>
+                        <span className="text-[#ffb86a]">{routeLoading ? '...' : routeDistanceKm ? `${routeDistanceKm.toFixed(1)} km` : distanceKm !== null ? `${distanceKm.toFixed(1)} km` : '—'}</span>
                       </div>
-                      <div className="mt-2 space-y-1">
-                        <p className="text-slate-300 text-[10px]">Boutique → Livraison</p>
-                        <p className="text-xs text-slate-100">
-                          {routeDurationMin ? `Durée estimée ${routeDurationMin} min` : 'Durée estimée indisponible'}
-                        </p>
-                        <p className="text-[10px] text-orange-200">
-                          {routeError ? routeError : 'Trajet calculé via le service cartographique configuré.'}
-                        </p>
-                      </div>
+                      <p className="mt-1 text-[10px] text-slate-300">
+                        {routeDurationMin ? `~${routeDurationMin} min` : routeError || 'Trajet GPS'}
+                      </p>
                     </div>
 
                     {storeCoords && clientPosition ? <MapContainer
@@ -512,91 +503,97 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-                    <div className="rounded-2xl bg-white p-2 border border-slate-200">
+                    <div className="rounded-lg bg-[#f4f0e8] p-2 border border-[#e6dac8]">
                       <p className="font-bold text-slate-800">Boutique</p>
-                      <p>{storeName}</p>
+                      <p className="truncate">{storeName}</p>
                     </div>
-                    <div className="rounded-2xl bg-white p-2 border border-slate-200">
-                      <p className="font-bold text-slate-800">Livraison</p>
-                      <p>{clientCoords ? `${clientCoords.lat.toFixed(5)}, ${clientCoords.lng.toFixed(5)}` : 'Position GPS indisponible'}</p>
+                    <div className="rounded-lg bg-[#f4f0e8] p-2 border border-[#e6dac8]">
+                      <p className="font-bold text-slate-800">GPS</p>
+                      <p className="truncate">{clientCoords ? `${clientCoords.lat.toFixed(4)}, ${clientCoords.lng.toFixed(4)}` : 'Non défini'}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Official Tariff Grid display */}
-                <div className="pt-2 border-t border-slate-200/80">
-                  <p className="text-[10px] font-bold uppercase text-slate-500 mb-1.5">Grille tarifaire officielle des livreurs à Lokossa :</p>
+                <div className="pt-2">
+                  <p className="text-[10px] font-bold uppercase text-slate-500 mb-1.5">Tarifs Lokossa</p>
                   <div className="grid grid-cols-3 gap-1 text-[10px]">
-                    <div className="p-1.5 bg-white rounded-lg border border-slate-200 text-center">
-                      <span className="text-slate-500 block">Moins de 1 km</span>
-                      <strong className="text-slate-800">300 FCFA</strong>
-                    </div>
-                    <div className="p-1.5 bg-white rounded-lg border border-slate-200 text-center">
-                      <span className="text-slate-500 block">1 à 2 km</span>
-                      <strong className="text-slate-800">500 FCFA</strong>
-                    </div>
-                    <div className="p-1.5 bg-white rounded-lg border border-slate-200 text-center">
-                      <span className="text-slate-500 block">2 à 3 km</span>
-                      <strong className="text-slate-800">675 FCFA</strong>
-                    </div>
-                    <div className="p-1.5 bg-white rounded-lg border border-slate-200 text-center">
-                      <span className="text-slate-500 block">3 à 5 km</span>
-                      <strong className="text-slate-800">1 125 FCFA</strong>
-                    </div>
-                    <div className="p-1.5 bg-white rounded-lg border border-slate-200 text-center">
-                      <span className="text-slate-500 block">5 à 8 km</span>
-                      <strong className="text-slate-800">1 600 FCFA</strong>
-                    </div>
-                    <div className="p-1.5 bg-white rounded-lg border border-slate-200 text-center">
-                      <span className="text-slate-500 block">8 à 12 km</span>
-                      <strong className="text-slate-800">2 100 FCFA</strong>
-                    </div>
+                    {[
+                      ['<1 km', '300'],
+                      ['1–2 km', '500'],
+                      ['2–3 km', '675'],
+                      ['3–5 km', '1 125'],
+                      ['5–8 km', '1 600'],
+                      ['8–12 km', '2 100'],
+                    ].map(([label, price]) => (
+                      <div key={label} className="p-1.5 bg-[#fffdf8] rounded-lg border border-[#e6dac8] text-center">
+                        <span className="text-slate-500 block">{label}</span>
+                        <strong className="text-slate-800">{price} F</strong>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              {/* Payment Methods */}
-              <div className="pt-4 border-t border-slate-200 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Mode de paiement</h4>
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-1.5">
-                  <p className="text-sm font-black text-emerald-900">Paiement à la livraison uniquement</p>
-                  <p className="text-[11px] text-emerald-800 leading-relaxed">
-                    Réglez en espèces auprès du livreur à la réception de votre commande. Préparez le montant exact si possible
-                    ({(cartSubtotal + cartDeliveryFee).toLocaleString()} FCFA).
+              <div className="pt-3 border-t border-[#e6dac8]">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-xs font-black text-emerald-900">Paiement à la livraison</p>
+                  <p className="text-[11px] text-emerald-800 mt-0.5">
+                    Espèces au livreur · {(cartSubtotal + cartDeliveryFee).toLocaleString()} FCFA
                   </p>
                 </div>
               </div>
+
+              {!currentUser && (
+                <div className="rounded-xl border border-[#ff8a1f]/40 bg-[#ff8a1f]/10 p-3 space-y-2">
+                  <p className="text-xs font-black text-[#9a4d00]">Compte requis pour commander</p>
+                  <p className="text-[11px] text-[#9a4d00]/90 leading-relaxed">
+                    Parcourez et remplissez votre panier librement. Connectez-vous ou inscrivez-vous pour valider la livraison.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openAuthModal('login')}
+                      className="flex-1 py-2 rounded-lg bg-[#0c1a2e] text-white text-[11px] font-bold"
+                    >
+                      Se connecter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openAuthModal('register')}
+                      className="flex-1 py-2 rounded-lg bg-[#ff8a1f] text-white text-[11px] font-bold"
+                    >
+                      S&apos;inscrire
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Footer Summary & Place / Cancel Order */}
-            <div className="p-5 sm:p-6 bg-slate-50 border-t border-slate-200 space-y-3">
-              <div className="space-y-1.5 text-xs text-slate-600">
+            {/* Footer */}
+            <div className="p-4 bg-[#fffdf8] border-t border-[#e6dac8] space-y-2.5">
+              <div className="space-y-1 text-xs text-slate-600">
                 <div className="flex justify-between">
-                  <span>Sous-total articles</span>
-                  <span className="font-semibold text-slate-900">{cartSubtotal.toLocaleString()} FCFA</span>
+                  <span>Sous-total</span>
+                  <span className="font-semibold text-slate-900">{cartSubtotal.toLocaleString()} F</span>
                 </div>
-                <div className="flex justify-between items-center text-emerald-600 font-semibold">
-                  <span className="flex items-center gap-1">
-                    Frais de livraison <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">Lokossa</span>
-                  </span>
-                  <span>{cartDeliveryFee.toLocaleString()} FCFA</span>
+                <div className="flex justify-between items-center font-semibold text-slate-700">
+                  <span>Livraison</span>
+                  <span>{cartDeliveryFee.toLocaleString()} F</span>
                 </div>
-                <div className="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-slate-200">
-                  <span>Total à payer</span>
-                  <span className="text-orange-600">{(cartSubtotal + cartDeliveryFee).toLocaleString()} FCFA</span>
+                <div className="flex justify-between text-sm font-black text-slate-900 pt-2 border-t border-[#e6dac8]">
+                  <span>Total</span>
+                  <span className="text-[#ff8a1f]">{(cartSubtotal + cartDeliveryFee).toLocaleString()} FCFA</span>
                 </div>
               </div>
 
-              {/* Action buttons: Cancel & Confirm */}
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     clearCart();
                     onClose();
                   }}
-                  className="px-4 py-3 rounded-2xl bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-300 text-slate-700 hover:text-rose-600 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-xs"
-                  title="Annuler la commande et vider le panier"
+                  className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-rose-50 border border-[#e6dac8] hover:border-rose-300 text-slate-700 hover:text-rose-600 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <Trash2 className="w-4 h-4 text-rose-500" />
                   <span>Annuler</span>
@@ -604,14 +601,26 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
                 <button
                   type="submit"
-                  disabled={isSubmitting || !canSubmitOrder}
-                  className="flex-1 py-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black text-xs sm:text-sm shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer"
+                  disabled={isSubmitting || (Boolean(currentUser) && !canSubmitOrder)}
+                  onClick={(e) => {
+                    if (!currentUser) {
+                      e.preventDefault();
+                      openAuthModal('login');
+                      setSubmissionError('Connectez-vous ou inscrivez-vous pour finaliser votre commande.');
+                    }
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-[#ff8a1f] hover:bg-[#e86f00] text-white font-black text-xs flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? (
-                    <span>Validation en cours...</span>
+                    <span>Validation...</span>
+                  ) : !currentUser ? (
+                    <>
+                      <span>Se connecter pour commander</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
                   ) : (
                     <>
-                      <span>Confirmer la commande</span>
+                      <span>Confirmer</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}

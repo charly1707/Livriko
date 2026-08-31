@@ -29,6 +29,7 @@ type AuthMode = 'register' | 'login';
 type WelcomePageProps = {
   onSeen?: () => void;
   onOpenAuth?: (mode: AuthMode, role?: UserRole) => void;
+  onBrowseMarket?: () => void;
 };
 
 const NAV_LINKS = [
@@ -103,7 +104,7 @@ const BORDER_BEIGE = 'border-[#e6dac8]';
 const BORDER_BEIGE_SOFT = 'border-[#e6dac8]/70';
 const DIVIDE_BEIGE = 'divide-y divide-[#e6dac8]/90';
 
-const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
+const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth, onBrowseMarket }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
@@ -436,6 +437,16 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
               <LockKeyhole className="h-5 w-5" aria-hidden />
               Se connecter
             </button>
+            {onBrowseMarket && (
+              <button
+                type="button"
+                onClick={onBrowseMarket}
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/40 bg-white/10 px-6 text-sm font-bold text-white transition hover:bg-white/15"
+              >
+                Voir le catalogue
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => scrollToSection('accueil-contenu')}
@@ -510,11 +521,18 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth }) => {
               <div className="mt-8 flex flex-wrap items-center gap-3.5">
                 <button
                   type="button"
-                  onClick={() => openAuth('register')}
+                  onClick={() => (onBrowseMarket ? onBrowseMarket() : openAuth('register'))}
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#ff8a1f] px-7 text-sm font-bold text-white shadow-lg shadow-orange-950/25 transition hover:bg-[#ff9a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 active:scale-[0.99]"
                 >
-                  Commander
+                  Voir le catalogue
                   <ArrowRight className="h-4 w-4" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openAuth('login')}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/50 bg-transparent px-6 text-sm font-semibold text-white transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                >
+                  Se connecter
                 </button>
                 <a
                   href={WHATSAPP_HREF}

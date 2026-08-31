@@ -248,21 +248,33 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
             <div className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center gap-3">
-              <img src={currentUser.selfiePhoto || currentUser.avatar} alt="Selfie" className="w-12 h-12 rounded-full object-cover border border-slate-200 shrink-0" />
+              {(currentUser.selfiePhoto || currentUser.avatar) ? (
+                <img src={currentUser.selfiePhoto || currentUser.avatar} alt="Selfie" className="w-12 h-12 rounded-full object-cover border border-slate-200 shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-slate-100 border border-slate-200 shrink-0" />
+              )}
               <div className="min-w-0">
                 <span className="text-[10px] font-bold text-slate-400 block uppercase">1. Photo Livreur</span>
                 <span className="text-xs font-bold text-slate-900 truncate block">{currentUser.name}</span>
               </div>
             </div>
             <div className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center gap-3">
-              <img src={currentUser.cipPhoto || ''} alt="Carte CIP" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+              {currentUser.cipPhoto ? (
+                <img src={currentUser.cipPhoto} alt="Carte CIP" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center text-[10px] text-slate-400 font-bold">—</div>
+              )}
               <div className="min-w-0">
                 <span className="text-[10px] font-bold text-slate-400 block uppercase">2. Carte CIP / ID</span>
                 <span className="text-xs font-bold text-slate-900 truncate block">Pièce d&apos;identité</span>
               </div>
             </div>
             <div className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center gap-3">
-              <img src={currentUser.vehiclePhoto || ''} alt="Moto" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+              {currentUser.vehiclePhoto ? (
+                <img src={currentUser.vehiclePhoto} alt="Moto" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center text-[10px] text-slate-400 font-bold">—</div>
+              )}
               <div className="min-w-0">
                 <span className="text-[10px] font-bold text-slate-400 block uppercase">3. Moto & Plaque</span>
                 <span className="text-xs font-bold text-slate-900 truncate block">{currentUser.vehicle || 'Moto'} {currentUser.vehiclePlate || ''}</span>

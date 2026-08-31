@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { 
-  ArrowLeft, Star, Clock, MapPin, Phone, ShoppingBag, Plus, Minus, Check, ShoppingCart, 
-  CreditCard, Smartphone, CheckCircle, ShieldCheck, ChevronRight, Utensils, Trash2, X
+import {
+  ArrowLeft, Star, Clock, MapPin, Phone, Plus, Minus, Check,
+  ShoppingCart, CheckCircle, ShieldCheck, ChevronRight, Trash2,
 } from 'lucide-react';
-import { Store, Product, CartItem } from '../../types';
+import { Store, Product } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { onImageError, resolveMediaUrl, mediaSrc } from '../../utils/media';
 
@@ -22,202 +22,180 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
   onBack,
   onOpenCart,
   onOpenChat,
-  autoAddedProduct
+  autoAddedProduct,
 }) => {
-  const { cart, addToCart, updateCartQuantity, cartTotal, cartDeliveryFee, clearCart, orders, currentUser, setActiveTrackingOrder } = useApp();
+  const {
+    cart, addToCart, updateCartQuantity, cartTotal, cartDeliveryFee,
+    clearCart, orders, currentUser, setActiveTrackingOrder,
+  } = useApp();
 
   const [recentlyAddedId, setRecentlyAddedId] = useState<string | null>(
-    autoAddedProduct ? autoAddedProduct.id : null
+    autoAddedProduct ? autoAddedProduct.id : null,
   );
 
   const sameStoreId = (a: string, b: string) =>
     a === b || a.replace(/^store-/, '') === b.replace(/^store-/, '');
 
-  // Products belonging to this store
   const storeProducts = products.filter(
-    p => sameStoreId(p.storeId, store.id) || p.storeName.toLowerCase() === store.name.toLowerCase()
+    p => sameStoreId(p.storeId, store.id) || p.storeName.toLowerCase() === store.name.toLowerCase(),
   );
 
   const fallbackImage = resolveMediaUrl(storeProducts.find(p => p.image)?.image || '');
   const coverSrc = mediaSrc(store.coverImage || store.logo || fallbackImage);
   const logoSrc = mediaSrc(store.logo || store.coverImage || fallbackImage);
 
-  // Filter items in cart that belong to this store or overall
   const cartItemsFromStore = cart.filter(
-    item => item.product.storeId === store.id || item.product.storeName.toLowerCase() === store.name.toLowerCase()
+    item => item.product.storeId === store.id || item.product.storeName.toLowerCase() === store.name.toLowerCase(),
   );
-
   const totalStoreItemsCount = cartItemsFromStore.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleAdd = (product: Product) => {
     addToCart(product, 1);
     setRecentlyAddedId(product.id);
-    setTimeout(() => {
-      setRecentlyAddedId(null);
-    }, 2000);
+    setTimeout(() => setRecentlyAddedId(null), 2000);
   };
 
-  const getCartQuantityForProduct = (productId: string) => {
-    const found = cart.find(item => item.product.id === productId);
-    return found ? found.quantity : 0;
-  };
+  const getCartQuantityForProduct = (productId: string) =>
+    cart.find(item => item.product.id === productId)?.quantity ?? 0;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-24 space-y-8 animate-in fade-in duration-200">
-      
-      {/* Top Header: Bouton de retour au marché */}
-      <div className="flex items-center justify-between">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-5 pb-28 space-y-6">
+      <div className="flex items-center justify-between gap-3">
         <button
+          type="button"
           onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-800 font-bold text-xs hover:bg-slate-50 hover:border-slate-300 shadow-xs transition cursor-pointer group"
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#fffdf8] border border-[#e6dac8] text-slate-800 font-bold text-xs hover:border-[#ff8a1f]/50 transition group"
         >
-          <ArrowLeft className="w-4 h-4 text-orange-500 group-hover:-translate-x-1 transition-transform" />
-          <span>← Retour au Marché (Tous les Commerces)</span>
+          <ArrowLeft className="w-4 h-4 text-[#ff8a1f] group-hover:-translate-x-0.5 transition-transform" />
+          Retour au marché
         </button>
-
-        <span className="text-xs font-bold text-slate-500 hidden sm:inline">
-          Espace Entreprise • {store.category.toUpperCase()}
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 hidden sm:inline">
+          {store.category}
         </span>
       </div>
 
-      {/* Auto-added Notification Banner */}
       {autoAddedProduct && (
-        <div className="p-4 rounded-2xl bg-emerald-500 text-white shadow-lg border border-emerald-400 flex flex-wrap items-center justify-between gap-3 animate-in zoom-in-95">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white shrink-0">
-              <CheckCircle className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-emerald-100 uppercase tracking-wider">Repas Sélectionné & Ajouté au Panier</p>
-              <h4 className="text-sm font-black text-white">{autoAddedProduct.name} ({autoAddedProduct.price.toLocaleString()} FCFA)</h4>
-              <p className="text-[11px] text-emerald-100">
-                Vous êtes dans l'espace <strong>{store.name}</strong>. Parcourez la carte ci-dessous pour ajouter d'autres plats !
-              </p>
+        <div className="p-4 rounded-2xl bg-emerald-500 text-white flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <CheckCircle className="w-6 h-6 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-100">Ajouté au panier</p>
+              <h4 className="text-sm font-black truncate">
+                {autoAddedProduct.name} · {autoAddedProduct.price.toLocaleString()} FCFA
+              </h4>
             </div>
           </div>
-
           <button
+            type="button"
             onClick={onOpenCart}
-            className="px-4 py-2 rounded-xl bg-white text-emerald-800 font-black text-xs shadow-md hover:bg-emerald-50 transition cursor-pointer shrink-0"
+            className="px-4 py-2 rounded-xl bg-white text-emerald-800 font-black text-xs shrink-0"
           >
-            Voir le panier ({totalStoreItemsCount}) →
+            Voir le panier ({totalStoreItemsCount})
           </button>
         </div>
       )}
 
-      {/* Store Banner & Info Card */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        {/* Cover Photo */}
-        <div className="h-48 sm:h-64 relative bg-slate-900">
-          <img 
-            src={coverSrc} 
+      {/* Store hero */}
+      <div className="bg-[#fffdf8] rounded-2xl border border-[#e6dac8] overflow-hidden">
+        <div className="h-44 sm:h-56 relative bg-[#0c1a2e]">
+          <img
+            src={coverSrc}
             alt={store.name}
             onError={onImageError}
             className="w-full h-full object-cover opacity-90"
-            referrerPolicy="no-referrer"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent" />
-          
-          <span className="absolute top-4 right-4 bg-white/95 backdrop-blur-md px-3 py-1 rounded-full text-xs font-black text-slate-900 flex items-center gap-1.5 shadow-md">
-            <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-            <span>{store.rating} / 5.0</span>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0c1a2e]/90 via-[#0c1a2e]/20 to-transparent" />
+          <span className="absolute top-3 right-3 bg-white/95 px-2.5 py-1 rounded-lg text-xs font-black text-slate-900 flex items-center gap-1">
+            <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+            {store.rating.toFixed(1)}
           </span>
-
-          <span className="absolute top-4 left-4 bg-slate-900/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-white flex items-center gap-1.5 border border-slate-700">
-            <Clock className="w-3.5 h-3.5 text-orange-400" />
-            <span>Livraison en {store.deliveryTime}</span>
+          <span className="absolute top-3 left-3 bg-[#0c1a2e]/80 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5 text-[#ff8a1f]" />
+            {store.deliveryTime}
           </span>
         </div>
 
-        {/* Store Header Details */}
-        <div className="p-6 relative -mt-12 sm:-mt-16 flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 border-b border-slate-100 bg-white">
-          <div className="flex items-end gap-4">
-            <img 
-              src={logoSrc} 
-              alt={store.name}
-              onError={onImageError}
-              className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-4 border-white shadow-xl bg-white shrink-0"
-              referrerPolicy="no-referrer"
-            />
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900">{store.name}</h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase border border-emerald-200">
-                  Partenaire Vérifié
-                </span>
+        <div className="px-4 sm:px-6 pb-5 -mt-10 relative">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div className="flex items-end gap-3">
+              <img
+                src={logoSrc}
+                alt={store.name}
+                onError={onImageError}
+                className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl object-cover border-4 border-[#fffdf8] shadow-lg bg-white shrink-0 w-16 h-16 sm:w-20 sm:h-20"
+              />
+              <div className="pb-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-xl sm:text-2xl font-black text-slate-900">{store.name}</h1>
+                  {store.isCertified && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                      <ShieldCheck className="w-3 h-3" /> Certifié
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-[#ff8a1f]" />
+                  {store.address}{store.city ? `, ${store.city}` : ''}
+                </p>
+                {store.phone && (
+                  <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5" /> {store.phone}
+                  </p>
+                )}
               </div>
-              <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                <MapPin className="w-3.5 h-3.5 text-orange-500" /> {store.address}, {store.city}
-              </p>
-              <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
-                <Phone className="w-3.5 h-3.5 text-slate-400" /> WhatsApp Direct: {store.phone}
-              </p>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => {
                 const related = orders.find(o =>
                   (o.storeId === store.id || o.storeId.replace(/^store-/, '') === store.id.replace(/^store-/, ''))
                   && o.clientId === currentUser?.id
-                  && !['cancelled'].includes(o.status)
+                  && !['cancelled'].includes(o.status),
                 );
                 if (related) setActiveTrackingOrder(related);
                 onOpenChat();
               }}
-              className="flex-1 sm:flex-initial text-center px-4 py-2.5 rounded-2xl bg-orange-500 hover:bg-orange-400 text-white font-bold text-xs shadow-md transition"
+              className="px-4 py-2.5 rounded-xl bg-[#ff8a1f] hover:bg-[#e86f00] text-white font-bold text-xs transition shrink-0"
             >
-              💬 Discuter de ma commande
+              Discuter
             </button>
           </div>
-        </div>
 
-        {/* Store Quick Features */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-100 text-center text-xs bg-slate-50/50">
-          <div className="p-3">
-            <span className="text-slate-400 block text-[10px] uppercase font-bold">Frais de livraison</span>
-            <span className="font-bold text-slate-900">Dès 450 FCFA</span>
-          </div>
-          <div className="p-3">
-            <span className="text-slate-400 block text-[10px] uppercase font-bold">Temps Moyen</span>
-            <span className="font-bold text-slate-900">{store.deliveryTime}</span>
-          </div>
-          <div className="p-3">
-            <span className="text-slate-400 block text-[10px] uppercase font-bold">Paiement Accepté</span>
-            <span className="font-bold text-slate-900">Paiement à la livraison (espèces)</span>
-          </div>
-          <div className="p-3">
-            <span className="text-slate-400 block text-[10px] uppercase font-bold">Menu / Catalogue</span>
-            <span className="font-bold text-orange-600">{storeProducts.length} article(s)</span>
+          <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { label: 'Livraison', value: 'Dès 450 F' },
+              { label: 'Délai', value: store.deliveryTime },
+              { label: 'Paiement', value: 'Espèces' },
+              { label: 'Catalogue', value: `${storeProducts.length} art.` },
+            ].map(item => (
+              <div key={item.label} className="rounded-xl bg-[#f4f0e8] border border-[#e6dac8] px-3 py-2.5 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">{item.label}</span>
+                <span className="text-xs font-black text-slate-900 mt-0.5 block">{item.value}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Menu & Products List for this Store */}
+      {/* Products */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-              <Utensils className="w-5 h-5 text-orange-500" />
-              <span>Menu & Plats disponibles chez {store.name}</span>
-            </h2>
-            <p className="text-xs text-slate-500">
-              Cliquez sur un plat pour l'ajouter directement à votre panier.
-            </p>
+            <h2 className="text-lg font-black text-slate-900">Catalogue</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Ajoutez vos articles au panier</p>
           </div>
-          <span className="px-3 py-1 rounded-full bg-orange-100 text-orange-800 text-xs font-bold">
-            {storeProducts.length} plat(s)
+          <span className="px-2.5 py-1 rounded-lg bg-[#ff8a1f]/10 text-[#e86f00] text-xs font-bold">
+            {storeProducts.length}
           </span>
         </div>
 
         {storeProducts.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500">
-            <p className="text-sm font-bold">Aucun produit listé pour cette entreprise actuellement.</p>
+          <div className="rounded-2xl border border-dashed border-[#e6dac8] bg-[#faf6ef] p-10 text-center text-sm text-slate-500">
+            Aucun produit listé pour le moment.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {storeProducts.map(product => {
               const qtyInCart = getCartQuantityForProduct(product.id);
               const isJustAdded = recentlyAddedId === product.id;
@@ -225,191 +203,132 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
               return (
                 <div
                   key={product.id}
-                  className={`bg-white rounded-3xl border transition-all overflow-hidden shadow-xs hover:shadow-md flex flex-col justify-between ${
-                    qtyInCart > 0 ? 'border-orange-500 ring-2 ring-orange-500/10' : 'border-slate-200'
+                  className={`bg-[#fffdf8] rounded-2xl border overflow-hidden flex flex-col transition ${
+                    qtyInCart > 0
+                      ? 'border-[#ff8a1f] ring-2 ring-[#ff8a1f]/15'
+                      : 'border-[#e6dac8] hover:border-[#ff8a1f]/40'
                   }`}
                 >
-                  <div>
-                    {/* Image */}
-                    <div className="h-44 relative bg-slate-100 overflow-hidden">
-                      <img 
-                        src={mediaSrc(product.image)} 
-                        alt={product.name}
-                        onError={onImageError}
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                      />
-                      {qtyInCart > 0 && (
-                        <span className="absolute top-3 right-3 bg-orange-500 text-white font-black text-xs px-3 py-1 rounded-full shadow-md flex items-center gap-1">
-                          <Check className="w-3.5 h-3.5" />
-                          <span>{qtyInCart} dans le panier</span>
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <div className="p-5 space-y-2">
-                      <h3 className="text-base font-black text-slate-900 leading-snug">
-                        {product.name}
-                      </h3>
-                      <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
-                        {product.description}
-                      </p>
-                    </div>
+                  <div className="h-40 relative bg-slate-100">
+                    <img
+                      src={mediaSrc(product.image)}
+                      alt={product.name}
+                      onError={onImageError}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    {qtyInCart > 0 && (
+                      <span className="absolute top-2.5 right-2.5 bg-[#ff8a1f] text-white font-bold text-[11px] px-2.5 py-1 rounded-lg flex items-center gap-1">
+                        <Check className="w-3 h-3" /> {qtyInCart}
+                      </span>
+                    )}
                   </div>
 
-                  {/* Pricing and Direct Add to Cart Action */}
-                  <div className="p-5 pt-0 flex items-center justify-between border-t border-slate-100 mt-2">
-                    <div>
-                      <span className="text-lg font-black text-orange-600 block">
-                        {product.price.toLocaleString()} FCFA
-                      </span>
-                      {product.unit && (
-                        <span className="text-[11px] text-slate-400 block font-normal">
-                          par {product.unit}
+                  <div className="p-4 flex-1 flex flex-col">
+                    <h3 className="text-sm font-black text-slate-900 leading-snug">{product.name}</h3>
+                    <p className="text-xs text-slate-500 mt-1 line-clamp-2 flex-1">{product.description}</p>
+
+                    <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-[#efe6d8]">
+                      <div>
+                        <span className="text-base font-black text-[#ff8a1f] block">
+                          {product.price.toLocaleString()} F
                         </span>
+                        {product.unit && (
+                          <span className="text-[10px] text-slate-400">par {product.unit}</span>
+                        )}
+                      </div>
+
+                      {qtyInCart > 0 ? (
+                        <div className="flex items-center gap-1.5 bg-[#f4f0e8] p-1 rounded-xl border border-[#e6dac8]">
+                          <button
+                            type="button"
+                            onClick={() => updateCartQuantity(product.id, qtyInCart - 1)}
+                            className="w-8 h-8 rounded-lg bg-white text-slate-800 flex items-center justify-center hover:bg-slate-100"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="font-black text-xs text-slate-900 w-5 text-center">{qtyInCart}</span>
+                          <button
+                            type="button"
+                            onClick={() => updateCartQuantity(product.id, qtyInCart + 1)}
+                            className="w-8 h-8 rounded-lg bg-[#ff8a1f] text-white flex items-center justify-center hover:bg-[#e86f00]"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleAdd(product)}
+                          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
+                            isJustAdded
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-[#0c1a2e] hover:bg-[#132d4d] text-white'
+                          }`}
+                        >
+                          {isJustAdded ? (
+                            <><Check className="w-3.5 h-3.5" /> Ajouté</>
+                          ) : (
+                            <><Plus className="w-3.5 h-3.5" /> Ajouter</>
+                          )}
+                        </button>
                       )}
                     </div>
-
-                    {qtyInCart > 0 ? (
-                      <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                        <button
-                          onClick={() => updateCartQuantity(product.id, qtyInCart - 1)}
-                          className="w-8 h-8 rounded-xl bg-white text-slate-800 font-black flex items-center justify-center hover:bg-slate-200 transition cursor-pointer"
-                        >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <span className="font-black text-xs text-slate-900 px-2">{qtyInCart}</span>
-                        <button
-                          onClick={() => updateCartQuantity(product.id, qtyInCart + 1)}
-                          className="w-8 h-8 rounded-xl bg-orange-500 text-white font-black flex items-center justify-center hover:bg-orange-600 transition cursor-pointer"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleAdd(product)}
-                        className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer ${
-                          isJustAdded
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-orange-500 hover:bg-orange-600 text-white'
-                        }`}
-                      >
-                        {isJustAdded ? (
-                          <>
-                            <Check className="w-4 h-4" />
-                            <span>Ajouté !</span>
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="w-4 h-4" />
-                            <span>Ajouter au panier</span>
-                          </>
-                        )}
-                      </button>
-                    )}
                   </div>
                 </div>
               );
             })}
           </div>
         )}
-
-        {/* Bottom Return Actions */}
-        <div className="pt-6 border-t border-slate-200 flex flex-wrap items-center justify-between gap-4">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-white border border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-50 shadow-xs transition cursor-pointer group"
-          >
-            <ArrowLeft className="w-4 h-4 text-orange-500 group-hover:-translate-x-1 transition-transform" />
-            <span>← Retour au Marché (Tous les Commerces)</span>
-          </button>
-
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
-          >
-            <span>↑ Remonter en haut de {store.name}</span>
-          </button>
-        </div>
       </div>
 
-      {/* Floating Bottom Cart Summary & Payment Bar */}
+      {/* Floating cart bar */}
       {cart.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 text-white p-3.5 sm:p-4 shadow-2xl">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
-            
-            {/* Left Info: Cart Total & Items */}
-            <div className="flex items-center gap-3 sm:gap-4 w-full md:w-auto justify-between md:justify-start">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-orange-500 text-white flex items-center justify-center font-black shrink-0 relative shadow-lg">
-                <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
-                <span className="absolute -top-1.5 -right-1.5 bg-white text-orange-600 text-[10px] sm:text-[11px] font-black w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center border-2 border-orange-500">
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#0c1a2e]/97 backdrop-blur-md border-t border-slate-800 text-white p-3 sm:p-4">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="w-11 h-11 rounded-xl bg-[#ff8a1f] flex items-center justify-center relative shrink-0">
+                <ShoppingCart className="w-5 h-5" />
+                <span className="absolute -top-1.5 -right-1.5 bg-white text-[#ff8a1f] text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">
                   {cart.reduce((sum, item) => sum + item.quantity, 0)}
                 </span>
               </div>
-
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider">Votre Commande</span>
-                  <span className="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
-                    + {cartDeliveryFee.toLocaleString()} FCFA livraison
-                  </span>
-                </div>
-                <div className="text-lg sm:text-xl font-black text-white">
+              <div className="min-w-0">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  Total · +{cartDeliveryFee.toLocaleString()} F livraison
+                </p>
+                <p className="text-lg font-black">
                   {(cartTotal + cartDeliveryFee).toLocaleString()} FCFA
-                </div>
+                </p>
               </div>
-
-              {/* Mobile Clear Button */}
               <button
                 type="button"
                 onClick={clearCart}
-                className="md:hidden px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-900/60 text-slate-300 hover:text-rose-200 text-xs font-semibold border border-slate-700 transition flex items-center gap-1 cursor-pointer shrink-0"
-                title="Annuler et vider le panier"
+                className="sm:hidden ml-auto px-2.5 py-1.5 rounded-lg bg-slate-800 text-xs font-bold text-slate-300 flex items-center gap-1"
               >
                 <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                <span>Annuler</span>
               </button>
             </div>
 
-            {/* Middle: Accepted Payment */}
-            <div className="flex items-center gap-2 text-[10px] text-slate-300 bg-slate-800/80 px-3 py-2 rounded-2xl border border-slate-700">
-              <span className="text-slate-400 font-bold">Paiement :</span>
-              <div className="flex items-center gap-2 rounded-2xl border px-2.5 py-1 bg-emerald-500/10 border-emerald-500/20 text-emerald-200">
-                <div className="w-5 h-5 rounded-lg overflow-hidden bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                  <img src="/cash.svg" alt="Espèces" className="max-h-4 max-w-4 object-contain" />
-                </div>
-                <span className="font-semibold uppercase tracking-[0.08em] leading-tight">À la livraison</span>
-              </div>
-            </div>
-
-            {/* Right Action: Cancel Button & Checkout */}
-            <div className="flex items-center gap-2.5 w-full md:w-auto">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={clearCart}
-                className="hidden md:flex px-3.5 py-3 rounded-2xl bg-slate-800 hover:bg-rose-950/80 text-slate-300 hover:text-rose-200 border border-slate-700 hover:border-rose-700 font-bold text-xs transition items-center gap-1.5 cursor-pointer shrink-0"
-                title="Annuler la commande et vider les articles"
+                className="hidden sm:flex px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-rose-950/60 text-slate-300 text-xs font-bold items-center gap-1.5"
               >
-                <Trash2 className="w-4 h-4 text-rose-400" />
-                <span>Annuler</span>
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" /> Annuler
               </button>
-
               <button
+                type="button"
                 onClick={onOpenCart}
-                className="flex-1 md:flex-none px-5 py-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black text-xs shadow-xl shadow-orange-500/20 flex items-center justify-center gap-2 transition cursor-pointer"
+                className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-[#ff8a1f] hover:bg-[#e86f00] text-white font-black text-xs flex items-center justify-center gap-2"
               >
-                <span>Finaliser la commande (paiement à la livraison)</span>
-                <ChevronRight className="w-4 h-4 text-white" />
+                Finaliser <ChevronRight className="w-4 h-4" />
               </button>
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   );
 };

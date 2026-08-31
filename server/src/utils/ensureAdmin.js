@@ -1,8 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { User } from '../models/User.js';
 
-export const DEFAULT_ADMIN_EMAIL = 'auriol@gmail.com';
-
 function adminIdentityFromEmail(email) {
   const localPart = email.split('@')[0] || 'admin';
   const capitalized = localPart.charAt(0).toUpperCase() + localPart.slice(1);
@@ -14,8 +12,13 @@ function adminIdentityFromEmail(email) {
 }
 
 export async function ensureDefaultAdmin() {
-  const email = String(process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL).trim().toLowerCase();
+  const email = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
   const password = String(process.env.ADMIN_PASSWORD || '').trim();
+
+  if (!email) {
+    console.warn('ADMIN_EMAIL manquant : le compte administrateur n\'a pas été initialisé.');
+    return { ensured: false, email: null, reason: 'missing_email' };
+  }
 
   if (!password) {
     console.warn(`ADMIN_PASSWORD manquant : le compte admin (${email}) n'a pas été initialisé.`);

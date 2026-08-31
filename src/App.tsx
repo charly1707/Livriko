@@ -88,8 +88,14 @@ function MainAppContent() {
     }
   }, [activeTrackingOrder?.status, activeTrackingOrder?.id, isChatOpen]);
 
+  const isAdminDashboard = activeRole === 'admin' && currentUser?.role === 'admin';
+  const isMerchantDashboard = (activeRole === 'vendeur' || activeRole === 'restaurant')
+    && (currentUser?.role === 'vendeur' || currentUser?.role === 'restaurant');
+  const isFullScreenDashboard = isAdminDashboard || isMerchantDashboard;
+  const isClientSpace = activeRole === 'client';
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-900 selection:bg-blue-600 selection:text-white">
+    <div className={`min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-900 selection:bg-blue-600 selection:text-white ${isFullScreenDashboard ? 'lg:h-screen lg:max-h-screen lg:overflow-hidden' : ''}`}>
       {/* Scooter Page Loading Animation */}
       {showScooterLoader && (
         <PageScooterLoader 
@@ -105,32 +111,49 @@ function MainAppContent() {
         />
       )}
 
-      {/* Header */}
-      <Header
-        onOpenCart={() => setIsCartOpen(true)}
-        onOpenNotifications={() => setIsNotifOpen(true)}
-        onOpenUserProfile={(tab = 'profil') => {
-          setUserProfileTab(tab);
-          setIsUserProfileOpen(true);
-        }}
-        isUserProfileOpen={isUserProfileOpen}
-        onOpenChat={() => setIsChatOpen(true)}
-        onOpenAuth={(mode = 'login') => {
-          openAuthModal(mode);
-        }}
-        onTriggerScooterLoader={() => {
-          setShowScooterLoader(true);
-        }}
-      />
+      {/* Header — masqué en espace admin / boutique (navigation via sidebar) */}
+      {!isFullScreenDashboard && (
+        <Header
+          onOpenCart={() => setIsCartOpen(true)}
+          onOpenNotifications={() => setIsNotifOpen(true)}
+          onOpenUserProfile={(tab = 'profil') => {
+            setUserProfileTab(tab);
+            setIsUserProfileOpen(true);
+          }}
+          isUserProfileOpen={isUserProfileOpen}
+          onOpenChat={() => setIsChatOpen(true)}
+          onOpenAuth={(mode = 'login') => {
+            openAuthModal(mode);
+          }}
+          onTriggerScooterLoader={() => {
+            setShowScooterLoader(true);
+          }}
+        />
+      )}
 
       {/* Primary Role Views */}
-      <main className="flex-1 w-full pt-20 sm:pt-24">
+      <main className={`flex-1 w-full ${
+        isFullScreenDashboard
+          ? 'lg:h-screen lg:max-h-screen lg:overflow-hidden'
+          : isClientSpace
+            ? 'pt-[5.75rem] md:pt-16'
+            : 'pt-14 sm:pt-16'
+      }`}>
         {activeRole === 'client' && <ClientView onOpenCart={() => setIsCartOpen(true)} onOpenChat={() => setIsChatOpen(true)} />}
-        <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
-          {activeRole === 'vendeur' && <VendeurView onOpenChat={() => setIsChatOpen(true)} />}
-          {activeRole === 'restaurant' && <VendeurView onOpenChat={() => setIsChatOpen(true)} />}
+
+        {isAdminDashboard && (
+          <AdminView
+            onOpenUserProfile={(tab = 'profil') => {
+              setUserProfileTab(tab);
+              setIsUserProfileOpen(true);
+            }}
+          />
+        )}
+
+        {isMerchantDashboard && <VendeurView onOpenChat={() => setIsChatOpen(true)} />}
+
+        <div className={`w-full px-3 sm:px-6 py-4 sm:py-6 ${isFullScreenDashboard ? 'hidden' : 'max-w-7xl mx-auto'}`}>
           {activeRole === 'livreur' && <LivreurView onOpenChat={() => setIsChatOpen(true)} />}
-          {activeRole === 'admin' && currentUser?.role === 'admin' && <AdminView />}
           {activeRole === 'admin' && currentUser?.role !== 'admin' && (
             <div className="p-6 sm:p-10 bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-700 text-sm font-bold">
               Accès réservé au Super Administrateur. Veuillez vous connecter avec un compte admin valide.
@@ -140,7 +163,7 @@ function MainAppContent() {
       </main>
 
       {/* Footer */}
-      <Footer />
+      {!isFullScreenDashboard && <Footer />}
 
       {/* Global Modals & Drawers */}
       <Suspense fallback={null}>
@@ -214,6 +237,7 @@ function AppWithAuthModal() {
 
 function AppRoot() {
   const { authReady, isLoggedIn, currentUserId, currentUser, storesReady, openAuthModal } = useApp();
+  const [guestBrowse, setGuestBrowse] = useState(false);
 
   const hasValidSession = isLoggedIn || Boolean(currentUserId) || Boolean(currentUser);
   const persisted = readPersistedSession();
@@ -245,12 +269,13 @@ function AppRoot() {
     );
   }
 
-  if (!hasValidSession) {
+  if (!hasValidSession && !guestBrowse) {
     return (
       <WelcomePage
         onSeen={() => {
-          // keep the welcome flow as the required entry point for unauthenticated visitors.
+          // keep the welcome flow as the landing for unauthenticated visitors.
         }}
+        onBrowseMarket={() => setGuestBrowse(true)}
         onOpenAuth={(mode, role) => {
           openAuthModal(mode, role === 'livreur' || role === 'vendeur' ? role : 'client');
         }}

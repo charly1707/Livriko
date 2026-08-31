@@ -1,24 +1,28 @@
-import './config/sanitizeEnv.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import express from 'express';
-import session from 'express-session';
-import MongoStore from 'connect-mongo';
-import mongoose from 'mongoose';
-import cors from 'cors';
-import morgan from 'morgan';
-import { createApiRouter } from './routes.js';
-import './config/cloudinary.js';
-import { ensureDefaultAdmin } from './utils/ensureAdmin.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '../..');
 const distDir = path.resolve(rootDir, 'dist');
 
+// Charger .env AVANT Cloudinary / routes (sinon api_key manquant → 503 upload)
 dotenv.config({ path: path.join(rootDir, '.env') });
 dotenv.config({ path: path.join(__dirname, '../.env') });
+
+await import('./config/sanitizeEnv.js');
+const { configureCloudinary } = await import('./config/cloudinary.js');
+configureCloudinary();
+
+const express = (await import('express')).default;
+const session = (await import('express-session')).default;
+const MongoStore = (await import('connect-mongo')).default;
+const mongoose = (await import('mongoose')).default;
+const cors = (await import('cors')).default;
+const morgan = (await import('morgan')).default;
+const { createApiRouter } = await import('./routes.js');
+const { ensureDefaultAdmin } = await import('./utils/ensureAdmin.js');
 
 const PORT = Number(process.env.PORT || 4000);
 const MONGODB_URI = process.env.MONGODB_URI;

@@ -120,9 +120,12 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSuccess, setLoginSuccess] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
+      if (isRegistering) return;
       setRegistrationError(null);
       setLoginError(null);
 
@@ -153,6 +156,7 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
         return;
       }
 
+      setIsRegistering(true);
       try {
         let newUser;
         let uploadedAvatar = avatarPreview;
@@ -257,11 +261,14 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
         }, 1200);
       } catch (err: any) {
         setRegistrationError(err.message || 'Échec de l’inscription.');
-    }
+      } finally {
+        setIsRegistering(false);
+      }
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoggingIn) return;
     setLoginError(null);
     setLoginSuccess(null);
 
@@ -269,17 +276,26 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
       setLoginError("Veuillez renseigner votre adresse e-mail ou nom d'utilisateur.");
       return;
     }
-
-    const res = await actionsRef.current.loginUser(loginEmail, loginPassword);
-    if (res.success && res.user) {
-      setLoginSuccess('Connexion réussie !');
-      actionsRef.current.setActiveRole(res.user.role, true);
-      actionsRef.current.closeAuthModal();
-      onClose();
+    if (!loginPassword || !loginPassword.trim()) {
+      setLoginError('Veuillez renseigner votre mot de passe.');
       return;
     }
 
-    setLoginError(res.error || "Adresse e-mail/identifiant ou mot de passe incorrect.");
+    setIsLoggingIn(true);
+    try {
+      const res = await actionsRef.current.loginUser(loginEmail, loginPassword);
+      if (res.success && res.user) {
+        setLoginSuccess('Connexion réussie !');
+        actionsRef.current.setActiveRole(res.user.role, true);
+        actionsRef.current.closeAuthModal();
+        onClose();
+        return;
+      }
+
+      setLoginError(res.error || "Adresse e-mail/identifiant ou mot de passe incorrect.");
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   const roleConfigs = [
@@ -642,9 +658,9 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
                 </div>
               )}
 
-              <button type="submit" className={submitRegisterClass}>
-                Créer mon compte
-                <ArrowRight className="h-4 w-4" aria-hidden />
+              <button type="submit" className={submitRegisterClass} disabled={isRegistering}>
+                {isRegistering ? 'Création du compte…' : 'Créer mon compte'}
+                {!isRegistering && <ArrowRight className="h-4 w-4" aria-hidden />}
               </button>
             </form>
           </div>
@@ -707,9 +723,9 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
                 </div>
               </div>
 
-              <button type="submit" className={submitLoginClass}>
+              <button type="submit" className={submitLoginClass} disabled={isLoggingIn}>
                 <LogIn className="h-4 w-4" aria-hidden />
-                Se connecter
+                {isLoggingIn ? 'Connexion…' : 'Se connecter'}
               </button>
             </form>
           </div>

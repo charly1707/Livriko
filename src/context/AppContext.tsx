@@ -195,9 +195,12 @@ const mapSessionUser = (user: any, fallback?: Partial<User>): User => {
     ? (String(rawStoreId).startsWith('store-') ? String(rawStoreId) : `store-${rawStoreId}`)
     : undefined;
 
+  const fullName = [user.prenom, user.nom].filter(Boolean).join(' ').trim();
+  const displayName = fullName || user.nom_utilisateur || user.name || user.email || fallback?.name || '';
+
   return {
     id: String(user.id || fallback?.id || ''),
-    name: user.prenom || user.nom_utilisateur || user.name || user.email || fallback?.name || '',
+    name: displayName,
     email: user.email || fallback?.email || '',
     phone: user.telephone || user.phone || fallback?.phone || '',
     role,
@@ -1041,6 +1044,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       platformFee: number;
     };
   }): Promise<Order> => {
+    if (!currentUser?.id) {
+      throw new Error('Connectez-vous ou créez un compte pour finaliser votre commande.');
+    }
+
     if (cart.length === 0) {
       throw new Error('Votre panier est vide. Ajoutez au moins un produit pour finaliser la commande.');
     }
