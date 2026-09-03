@@ -32,16 +32,16 @@ export function resolveActiveRole(userRole: UserRole, storedRole = readStoredAct
   const dashboardRole: UserRole = role === 'restaurant' ? 'vendeur' : role;
   const storedDashboardRole: UserRole = storedRole === 'restaurant' ? 'vendeur' : storedRole;
 
+  if (role === 'admin') {
+    return storedRole === 'client' ? 'client' : 'admin';
+  }
+
   if (storedRole === 'client') {
     return 'client';
   }
 
   if (storedDashboardRole === dashboardRole) {
     return dashboardRole;
-  }
-
-  if (storedRole === 'admin' && role === 'admin') {
-    return 'admin';
   }
 
   return dashboardRole === 'client' ? 'client' : dashboardRole;

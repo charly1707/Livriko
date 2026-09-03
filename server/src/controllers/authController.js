@@ -47,6 +47,7 @@ export async function login(req, res) {
       $or: [
         { email: identifiant.toLowerCase() },
         { nomUtilisateur: identifiant },
+        { nomUtilisateur: new RegExp(`^${identifiant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
       ],
       deletedAt: null,
     });

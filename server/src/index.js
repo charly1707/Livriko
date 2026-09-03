@@ -34,7 +34,7 @@ if (!MONGODB_URI) {
 
 async function start() {
   await mongoose.connect(MONGODB_URI);
-  console.log('MongoDB connecté');
+  console.log(`MongoDB connecté (${mongoose.connection.name})`);
 
   const app = express();
   app.set('trust proxy', 1);
