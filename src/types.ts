@@ -43,7 +43,8 @@ export interface Store {
   ownerId: string;
   logo: string;
   coverImage: string;
-  rating: number;
+  ratingAverage?: number;
+  reviewCount?: number;
   deliveryTime: string;
   address: string;
   city: string;
@@ -67,6 +68,22 @@ export interface Product {
   image: string;
   inStock: boolean;
   unit?: string;
+  ratingAverage?: number;
+  reviewCount?: number;
+}
+
+export interface CatalogReview {
+  id: string;
+  rating: number;
+  comment?: string | null;
+  clientName: string;
+  createdAt: string;
+  isOwn?: boolean;
+}
+
+export interface CatalogReviewStats {
+  average: number;
+  count: number;
 }
 
 export interface CartItem {

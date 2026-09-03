@@ -92,7 +92,6 @@ function MainAppContent() {
   const isMerchantDashboard = (activeRole === 'vendeur' || activeRole === 'restaurant')
     && (currentUser?.role === 'vendeur' || currentUser?.role === 'restaurant');
   const isFullScreenDashboard = isAdminDashboard || isMerchantDashboard;
-  const isClientSpace = activeRole === 'client';
 
   return (
     <div className={`min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-900 selection:bg-blue-600 selection:text-white ${isFullScreenDashboard ? 'lg:h-screen lg:max-h-screen lg:overflow-hidden' : ''}`}>
@@ -135,9 +134,7 @@ function MainAppContent() {
       <main className={`flex-1 w-full ${
         isFullScreenDashboard
           ? 'lg:h-screen lg:max-h-screen lg:overflow-hidden'
-          : isClientSpace
-            ? 'pt-[5.75rem] md:pt-16'
-            : 'pt-14 sm:pt-16'
+          : 'pt-14 sm:pt-16'
       }`}>
         {activeRole === 'client' && <ClientView onOpenCart={() => setIsCartOpen(true)} onOpenChat={() => setIsChatOpen(true)} />}
 

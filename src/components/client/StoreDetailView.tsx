@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import {
-  ArrowLeft, Star, Clock, MapPin, Phone, Plus, Minus, Check,
-  ShoppingCart, CheckCircle, ShieldCheck, ChevronRight, Trash2,
+  ArrowLeft, Clock, MapPin, Phone, Plus, Minus, Check,
+  ShoppingCart, CheckCircle, ShieldCheck, ChevronRight, Trash2, MessageSquare,
 } from 'lucide-react';
 import { Store, Product } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { onImageError, resolveMediaUrl, mediaSrc } from '../../utils/media';
+import { RatingStars } from './RatingStars';
+import { CatalogReviewPanel } from './CatalogReviewPanel';
 
 interface StoreDetailViewProps {
   store: Store;
@@ -32,6 +34,7 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
   const [recentlyAddedId, setRecentlyAddedId] = useState<string | null>(
     autoAddedProduct ? autoAddedProduct.id : null,
   );
+  const [reviewProductId, setReviewProductId] = useState<string | null>(null);
 
   const sameStoreId = (a: string, b: string) =>
     a === b || a.replace(/^store-/, '') === b.replace(/^store-/, '');
@@ -95,7 +98,6 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
         </div>
       )}
 
-      {/* Store hero */}
       <div className="bg-[#fffdf8] rounded-2xl border border-[#e6dac8] overflow-hidden">
         <div className="h-44 sm:h-56 relative bg-[#0c1a2e]">
           <img
@@ -105,10 +107,19 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
             className="w-full h-full object-cover opacity-90"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0c1a2e]/90 via-[#0c1a2e]/20 to-transparent" />
-          <span className="absolute top-3 right-3 bg-white/95 px-2.5 py-1 rounded-lg text-xs font-black text-slate-900 flex items-center gap-1">
-            <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-            {store.rating.toFixed(1)}
-          </span>
+          {(store.reviewCount ?? 0) > 0 ? (
+            <span className="absolute top-3 right-3 bg-white/95 px-2.5 py-1 rounded-lg">
+              <RatingStars
+                rating={store.ratingAverage ?? 0}
+                showValue
+                reviewCount={store.reviewCount}
+              />
+            </span>
+          ) : (
+            <span className="absolute top-3 right-3 bg-white/95 px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-500">
+              Pas encore noté
+            </span>
+          )}
           <span className="absolute top-3 left-3 bg-[#0c1a2e]/80 text-white px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-[#ff8a1f]" />
             {store.deliveryTime}
@@ -178,7 +189,12 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
         </div>
       </div>
 
-      {/* Products */}
+      <CatalogReviewPanel
+        targetType="store"
+        targetId={store.id}
+        targetName={store.name}
+      />
+
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -199,82 +215,112 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
             {storeProducts.map(product => {
               const qtyInCart = getCartQuantityForProduct(product.id);
               const isJustAdded = recentlyAddedId === product.id;
+              const showProductReviews = reviewProductId === product.id;
 
               return (
-                <div
-                  key={product.id}
-                  className={`bg-[#fffdf8] rounded-2xl border overflow-hidden flex flex-col transition ${
-                    qtyInCart > 0
-                      ? 'border-[#ff8a1f] ring-2 ring-[#ff8a1f]/15'
-                      : 'border-[#e6dac8] hover:border-[#ff8a1f]/40'
-                  }`}
-                >
-                  <div className="h-40 relative bg-slate-100">
-                    <img
-                      src={mediaSrc(product.image)}
-                      alt={product.name}
-                      onError={onImageError}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    {qtyInCart > 0 && (
-                      <span className="absolute top-2.5 right-2.5 bg-[#ff8a1f] text-white font-bold text-[11px] px-2.5 py-1 rounded-lg flex items-center gap-1">
-                        <Check className="w-3 h-3" /> {qtyInCart}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="p-4 flex-1 flex flex-col">
-                    <h3 className="text-sm font-black text-slate-900 leading-snug">{product.name}</h3>
-                    <p className="text-xs text-slate-500 mt-1 line-clamp-2 flex-1">{product.description}</p>
-
-                    <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-[#efe6d8]">
-                      <div>
-                        <span className="text-base font-black text-[#ff8a1f] block">
-                          {product.price.toLocaleString()} F
+                <div key={product.id} className="space-y-2">
+                  <div
+                    className={`bg-[#fffdf8] rounded-2xl border overflow-hidden flex flex-col transition ${
+                      qtyInCart > 0
+                        ? 'border-[#ff8a1f] ring-2 ring-[#ff8a1f]/15'
+                        : 'border-[#e6dac8] hover:border-[#ff8a1f]/40'
+                    }`}
+                  >
+                    <div className="h-40 relative bg-slate-100">
+                      <img
+                        src={mediaSrc(product.image)}
+                        alt={product.name}
+                        onError={onImageError}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      {qtyInCart > 0 && (
+                        <span className="absolute top-2.5 right-2.5 bg-[#ff8a1f] text-white font-bold text-[11px] px-2.5 py-1 rounded-lg flex items-center gap-1">
+                          <Check className="w-3 h-3" /> {qtyInCart}
                         </span>
-                        {product.unit && (
-                          <span className="text-[10px] text-slate-400">par {product.unit}</span>
-                        )}
-                      </div>
-
-                      {qtyInCart > 0 ? (
-                        <div className="flex items-center gap-1.5 bg-[#f4f0e8] p-1 rounded-xl border border-[#e6dac8]">
-                          <button
-                            type="button"
-                            onClick={() => updateCartQuantity(product.id, qtyInCart - 1)}
-                            className="w-8 h-8 rounded-lg bg-white text-slate-800 flex items-center justify-center hover:bg-slate-100"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="font-black text-xs text-slate-900 w-5 text-center">{qtyInCart}</span>
-                          <button
-                            type="button"
-                            onClick={() => updateCartQuantity(product.id, qtyInCart + 1)}
-                            className="w-8 h-8 rounded-lg bg-[#ff8a1f] text-white flex items-center justify-center hover:bg-[#e86f00]"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleAdd(product)}
-                          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
-                            isJustAdded
-                              ? 'bg-emerald-500 text-white'
-                              : 'bg-[#0c1a2e] hover:bg-[#132d4d] text-white'
-                          }`}
-                        >
-                          {isJustAdded ? (
-                            <><Check className="w-3.5 h-3.5" /> Ajouté</>
-                          ) : (
-                            <><Plus className="w-3.5 h-3.5" /> Ajouter</>
-                          )}
-                        </button>
                       )}
                     </div>
+
+                    <div className="p-4 flex-1 flex flex-col">
+                      <h3 className="text-sm font-black text-slate-900 leading-snug">{product.name}</h3>
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-2 flex-1">{product.description}</p>
+
+                      {(product.reviewCount ?? 0) > 0 && (
+                        <RatingStars
+                          rating={product.ratingAverage ?? 0}
+                          size="sm"
+                          showValue
+                          reviewCount={product.reviewCount}
+                          className="mt-2"
+                        />
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setReviewProductId(showProductReviews ? null : product.id)}
+                        className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-[#ff8a1f] hover:underline self-start"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        {showProductReviews ? 'Masquer les avis' : 'Voir les avis'}
+                      </button>
+
+                      <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-[#efe6d8]">
+                        <div>
+                          <span className="text-base font-black text-[#ff8a1f] block">
+                            {product.price.toLocaleString()} F
+                          </span>
+                          {product.unit && (
+                            <span className="text-[10px] text-slate-400">par {product.unit}</span>
+                          )}
+                        </div>
+
+                        {qtyInCart > 0 ? (
+                          <div className="flex items-center gap-1.5 bg-[#f4f0e8] p-1 rounded-xl border border-[#e6dac8]">
+                            <button
+                              type="button"
+                              onClick={() => updateCartQuantity(product.id, qtyInCart - 1)}
+                              className="w-8 h-8 rounded-lg bg-white text-slate-800 flex items-center justify-center hover:bg-slate-100"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="font-black text-xs text-slate-900 w-5 text-center">{qtyInCart}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateCartQuantity(product.id, qtyInCart + 1)}
+                              className="w-8 h-8 rounded-lg bg-[#ff8a1f] text-white flex items-center justify-center hover:bg-[#e86f00]"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleAdd(product)}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
+                              isJustAdded
+                                ? 'bg-emerald-500 text-white'
+                                : 'bg-[#0c1a2e] hover:bg-[#132d4d] text-white'
+                            }`}
+                          >
+                            {isJustAdded ? (
+                              <><Check className="w-3.5 h-3.5" /> Ajouté</>
+                            ) : (
+                              <><Plus className="w-3.5 h-3.5" /> Ajouter</>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
+
+                  {showProductReviews && (
+                    <CatalogReviewPanel
+                      targetType="product"
+                      targetId={product.id}
+                      targetName={product.name}
+                      compact
+                    />
+                  )}
                 </div>
               );
             })}
@@ -282,7 +328,6 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
         )}
       </div>
 
-      {/* Floating cart bar */}
       {cart.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#0c1a2e]/97 backdrop-blur-md border-t border-slate-800 text-white p-3 sm:p-4">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">

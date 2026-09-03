@@ -22,7 +22,6 @@ const mongoose = (await import('mongoose')).default;
 const cors = (await import('cors')).default;
 const morgan = (await import('morgan')).default;
 const { createApiRouter } = await import('./routes.js');
-const { ensureDefaultAdmin } = await import('./utils/ensureAdmin.js');
 
 const PORT = Number(process.env.PORT || 4000);
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -36,7 +35,6 @@ if (!MONGODB_URI) {
 async function start() {
   await mongoose.connect(MONGODB_URI);
   console.log('MongoDB connecté');
-  await ensureDefaultAdmin();
 
   const app = express();
   app.set('trust proxy', 1);

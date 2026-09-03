@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, Bike, Check, ChevronRight, Clock3,
-  FileText, MapPin, Package, Phone, Search, ShoppingBag, Star, Truck,
+  FileText, MapPin, Package, Phone, Search, ShoppingBag, Truck,
   UserRound, X,
 } from 'lucide-react';
 import axios from 'axios';
@@ -42,8 +42,6 @@ export const ServiceExpressView: React.FC<{ onBack: () => void }> = ({ onBack })
   const [selectedType, setSelectedType] = useState<ServiceType>('parcel');
   const [history, setHistory] = useState<Array<{ id: string; type: ServiceType; date: string; from: string; to: string; price: number; status: string }>>([]);
   const [statusIndex, setStatusIndex] = useState(0);
-  const [rating, setRating] = useState(0);
-  const [comment, setComment] = useState('');
   const [missionId, setMissionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fromCoords, setFromCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -398,20 +396,7 @@ export const ServiceExpressView: React.FC<{ onBack: () => void }> = ({ onBack })
               {statusIndex >= statusSteps.length - 1 && (
                 <div className="mt-5 border-t border-slate-700 pt-4">
                   <p className="font-black text-emerald-400 text-sm">Mission terminée</p>
-                  <div className="mt-3 flex gap-1">
-                    {[1, 2, 3, 4, 5].map(value => (
-                      <button key={value} type="button" onClick={() => setRating(value)}>
-                        <Star className={`h-6 w-6 ${value <= rating ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
-                      </button>
-                    ))}
-                  </div>
-                  <textarea
-                    value={comment}
-                    onChange={event => setComment(event.target.value)}
-                    placeholder="Comment s’est passée votre livraison ?"
-                    className="mt-3 w-full rounded-xl bg-slate-800 border border-slate-700 p-3 text-xs text-white placeholder:text-slate-500 resize-none"
-                    rows={3}
-                  />
+                  <p className="text-xs text-slate-400 mt-2">Merci d&apos;avoir utilisé Service Express.</p>
                 </div>
               )}
             </div>

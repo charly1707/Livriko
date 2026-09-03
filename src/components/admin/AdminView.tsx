@@ -20,11 +20,13 @@ import {
   Menu,
   X,
   ChevronRight,
+  UserCog,
+  UserPlus,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import livrikoLogo from '../../assets/images/livriko-logo-sm.webp';
 
-type AdminTab = 'overview' | 'verifications' | 'stores' | 'orders' | 'accounts' | 'archive' | 'reviews';
+type AdminTab = 'overview' | 'verifications' | 'stores' | 'orders' | 'accounts' | 'admins' | 'archive' | 'reviews';
 
 const TAB_LABELS: Record<AdminTab, string> = {
   overview: 'Tableau de bord',
@@ -32,6 +34,7 @@ const TAB_LABELS: Record<AdminTab, string> = {
   stores: 'Boutiques',
   orders: 'Commandes',
   accounts: 'Utilisateurs',
+  admins: 'Administrateurs',
   archive: 'Archives',
   reviews: 'Avis livreurs',
 };
@@ -39,7 +42,7 @@ const TAB_LABELS: Record<AdminTab, string> = {
 const NAV_SECTIONS: { title: string; items: AdminTab[] }[] = [
   { title: 'Pilotage', items: ['overview'] },
   { title: 'Opérations', items: ['verifications', 'stores', 'orders'] },
-  { title: 'Administration', items: ['accounts', 'archive', 'reviews'] },
+  { title: 'Administration', items: ['accounts', 'admins', 'archive', 'reviews'] },
 ];
 
 export const AdminView: React.FC<{
@@ -54,9 +57,11 @@ export const AdminView: React.FC<{
     rejectLivreur,
     requestIncompleteLivreur,
     toggleStoreCertification,
+    deleteStore,
     deleteUser,
     archiveOrder,
     logoutUser,
+    createAdminUser,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -65,9 +70,26 @@ export const AdminView: React.FC<{
   const [reviewFilters, setReviewFilters] = useState({ driver_id: '', rating: '' });
   const [storeCategoryFilter, setStoreCategoryFilter] = useState<string>('all');
   const [accountRoleFilter, setAccountRoleFilter] = useState<string>('all');
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    type: 'account' | 'store';
+    id: string;
+    name: string;
+    email?: string;
+  } | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [archivedOrders, setArchivedOrders] = useState<any[]>([]);
+  const [adminForm, setAdminForm] = useState({
+    prenom: '',
+    nom: '',
+    username: '',
+    email: '',
+    phone: '',
+    password: '',
+    confirmPassword: '',
+  });
+  const [adminFormError, setAdminFormError] = useState('');
+  const [adminFormSuccess, setAdminFormSuccess] = useState('');
+  const [adminFormBusy, setAdminFormBusy] = useState(false);
 
   React.useEffect(() => {
     if (activeTab !== 'reviews') return;
@@ -103,6 +125,7 @@ export const AdminView: React.FC<{
   const filteredAccounts = accountRoleFilter === 'all'
     ? allUsers.filter(u => u.role !== 'admin')
     : allUsers.filter(u => u.role === accountRoleFilter);
+  const adminUsers = allUsers.filter(u => u.role === 'admin');
 
   const navItems: { id: AdminTab; icon: React.ElementType; badge?: number }[] = [
     { id: 'overview', icon: LayoutDashboard },
@@ -110,6 +133,7 @@ export const AdminView: React.FC<{
     { id: 'stores', icon: Store, badge: stores.filter(s => !s.isCertified).length },
     { id: 'orders', icon: ShoppingBag, badge: activeOrders.length },
     { id: 'accounts', icon: Users },
+    { id: 'admins', icon: UserCog },
     { id: 'archive', icon: Archive },
     { id: 'reviews', icon: Star },
   ];
@@ -135,14 +159,18 @@ export const AdminView: React.FC<{
     URL.revokeObjectURL(url);
   };
 
-  const confirmDeleteAccount = async () => {
+  const confirmDelete = async () => {
     if (!deleteConfirm) return;
     setDeleteBusy(true);
     try {
-      await deleteUser(deleteConfirm.id);
+      if (deleteConfirm.type === 'store') {
+        await deleteStore(deleteConfirm.id);
+      } else {
+        await deleteUser(deleteConfirm.id);
+      }
       setDeleteConfirm(null);
     } catch (error: any) {
-      window.alert(error?.message || 'Impossible de supprimer le compte.');
+      window.alert(error?.message || 'Impossible de supprimer.');
     } finally {
       setDeleteBusy(false);
     }
@@ -361,6 +389,52 @@ export const AdminView: React.FC<{
   const adminTdClass = 'px-5 py-3';
   const adminTableWrapClass = 'overflow-x-auto rounded-2xl border border-[#e6dac8] bg-white shadow-sm';
 
+  const handleCreateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminFormError('');
+    setAdminFormSuccess('');
+
+    const { prenom, nom, username, email, phone, password, confirmPassword } = adminForm;
+    if (!prenom.trim() || !nom.trim() || !username.trim() || !email.trim() || !phone.trim() || !password) {
+      setAdminFormError('Tous les champs sont obligatoires.');
+      return;
+    }
+    if (password.length < 8) {
+      setAdminFormError('Le mot de passe doit contenir au moins 8 caractères.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setAdminFormError('Les mots de passe ne correspondent pas.');
+      return;
+    }
+
+    setAdminFormBusy(true);
+    try {
+      await createAdminUser({
+        prenom: prenom.trim(),
+        nom: nom.trim(),
+        username: username.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        password,
+      });
+      setAdminFormSuccess(`Compte administrateur créé pour ${email.trim().toLowerCase()}.`);
+      setAdminForm({
+        prenom: '',
+        nom: '',
+        username: '',
+        email: '',
+        phone: '',
+        password: '',
+        confirmPassword: '',
+      });
+    } catch (error) {
+      setAdminFormError(error instanceof Error ? error.message : 'Impossible de créer le compte.');
+    } finally {
+      setAdminFormBusy(false);
+    }
+  };
+
   const renderVerifications = () => renderAdminPage(
     'Certification livreurs',
     'Examinez les dossiers et validez les livreurs sous 12 heures maximum.',
@@ -428,7 +502,7 @@ export const AdminView: React.FC<{
                     Incomplet
                   </button>
                   <button
-                    onClick={() => setDeleteConfirm({ id: rider.id, name: rider.name, email: rider.email })}
+                    onClick={() => setDeleteConfirm({ type: 'account', id: rider.id, name: rider.name, email: rider.email })}
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold cursor-pointer"
                   >
                     Supprimer
@@ -541,13 +615,11 @@ export const AdminView: React.FC<{
                 </button>
                 <button
                   onClick={() => {
-                    const ownerId = store.ownerId;
-                    if (!ownerId) return;
-                    const owner = allUsers.find(u => u.id === ownerId);
                     setDeleteConfirm({
-                      id: ownerId,
-                      name: owner?.name || `Propriétaire de ${store.name}`,
-                      email: owner?.email || store.phone,
+                      type: 'store',
+                      id: store.id,
+                      name: store.name,
+                      email: store.phone,
                     });
                   }}
                   className="px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-bold"
@@ -686,7 +758,7 @@ export const AdminView: React.FC<{
                         <td className={adminTdClass}>
                           <button
                             type="button"
-                            onClick={() => setDeleteConfirm({ id: user.id, name: user.name, email: user.email })}
+                            onClick={() => setDeleteConfirm({ type: 'account', id: user.id, name: user.name, email: user.email })}
                             className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold"
                           >
                             Supprimer
@@ -703,6 +775,170 @@ export const AdminView: React.FC<{
             { label: 'Clients', value: clientsCount },
             { label: 'Vendeurs', value: allUsers.filter(u => u.role === 'vendeur' || u.role === 'restaurant').length },
             { label: 'Livreurs', value: ridersCount },
+          ],
+        );
+
+      case 'admins':
+        return renderAdminPage(
+          'Administrateurs',
+          'Créez et gérez les comptes ayant accès à la console d\'administration Livriko.',
+          (
+            <div className="space-y-6">
+              <form onSubmit={handleCreateAdmin} className="rounded-2xl border border-[#e6dac8] bg-white p-5 sm:p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-xl bg-[#ff8a1f]/10 text-[#ff8a1f] flex items-center justify-center">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">Nouvel administrateur</h3>
+                    <p className="text-sm text-slate-500">Le compte sera actif immédiatement après création.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Prénom
+                    <input
+                      type="text"
+                      value={adminForm.prenom}
+                      onChange={(e) => setAdminForm(prev => ({ ...prev, prenom: e.target.value }))}
+                      className="mt-1 w-full px-3 py-2.5 rounded-xl border border-[#e6dac8] bg-[#fffdf8] text-sm focus:outline-none focus:border-[#ff8a1f]"
+                      required
+                    />
+                  </label>
+                  <label className="block text-xs font-bold text-slate-700">
+                    Nom
+                    <input
+                      type="text"
+                      value={adminForm.nom}
+                      onChange={(e) => setAdminForm(prev => ({ ...prev, nom: e.target.value }))}
+                      className="mt-1 w-full px-3 py-2.5 rounded-xl border border-[#e6dac8] bg-[#fffdf8] text-sm focus:outline-none focus:border-[#ff8a1f]"
+                      required
+                    />
+                  </label>
+                  <label className="block text-xs font-bold text-slate-700">
+                    Nom d&apos;utilisateur
+                    <input
+                      type="text"
+                      value={adminForm.username}
+                      onChange={(e) => setAdminForm(prev => ({ ...prev, username: e.target.value }))}
+                      className="mt-1 w-full px-3 py-2.5 rounded-xl border border-[#e6dac8] bg-[#fffdf8] text-sm focus:outline-none focus:border-[#ff8a1f]"
+                      required
+                    />
+                  </label>
+                  <label className="block text-xs font-bold text-slate-700">
+                    Téléphone
+                    <input
+                      type="tel"
+                      value={adminForm.phone}
+                      onChange={(e) => setAdminForm(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="+229 ..."
+                      className="mt-1 w-full px-3 py-2.5 rounded-xl border border-[#e6dac8] bg-[#fffdf8] text-sm focus:outline-none focus:border-[#ff8a1f]"
+                      required
+                    />
+                  </label>
+                  <label className="block text-xs font-bold text-slate-700 sm:col-span-2">
+                    E-mail
+                    <input
+                      type="email"
+                      value={adminForm.email}
+                      onChange={(e) => setAdminForm(prev => ({ ...prev, email: e.target.value }))}
+                      className="mt-1 w-full px-3 py-2.5 rounded-xl border border-[#e6dac8] bg-[#fffdf8] text-sm focus:outline-none focus:border-[#ff8a1f]"
+                      required
+                    />
+                  </label>
+                  <label className="block text-xs font-bold text-slate-700">
+                    Mot de passe
+                    <input
+                      type="password"
+                      value={adminForm.password}
+                      onChange={(e) => setAdminForm(prev => ({ ...prev, password: e.target.value }))}
+                      minLength={8}
+                      className="mt-1 w-full px-3 py-2.5 rounded-xl border border-[#e6dac8] bg-[#fffdf8] text-sm focus:outline-none focus:border-[#ff8a1f]"
+                      required
+                    />
+                  </label>
+                  <label className="block text-xs font-bold text-slate-700">
+                    Confirmer le mot de passe
+                    <input
+                      type="password"
+                      value={adminForm.confirmPassword}
+                      onChange={(e) => setAdminForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      minLength={8}
+                      className="mt-1 w-full px-3 py-2.5 rounded-xl border border-[#e6dac8] bg-[#fffdf8] text-sm focus:outline-none focus:border-[#ff8a1f]"
+                      required
+                    />
+                  </label>
+                </div>
+
+                {adminFormError && (
+                  <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+                    {adminFormError}
+                  </p>
+                )}
+                {adminFormSuccess && (
+                  <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+                    {adminFormSuccess}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={adminFormBusy}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#0c1a2e] hover:bg-[#132d4d] text-white text-sm font-bold transition disabled:opacity-50"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  {adminFormBusy ? 'Création...' : 'Créer l\'administrateur'}
+                </button>
+              </form>
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-black text-slate-900">Comptes administrateurs ({adminUsers.length})</h3>
+                <div className={adminTableWrapClass}>
+                  <table className={`${adminTableClass} min-w-[640px]`}>
+                    <thead className={adminTheadClass}>
+                      <tr>
+                        <th className={adminThClass}>Nom</th>
+                        <th className={adminThClass}>E-mail</th>
+                        <th className={adminThClass}>Téléphone</th>
+                        <th className={adminThClass}>Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#efe6d8]">
+                      {adminUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="px-5 py-10 text-center text-slate-500">
+                            Aucun administrateur listé pour le moment.
+                          </td>
+                        </tr>
+                      ) : (
+                        adminUsers.map(user => (
+                          <tr key={user.id} className="hover:bg-[#fffdf8]">
+                            <td className={`${adminTdClass} font-bold text-slate-900`}>
+                              {user.name}
+                              {user.id === currentUser?.id && (
+                                <span className="ml-2 text-[10px] font-bold uppercase text-[#ff8a1f]">(vous)</span>
+                              )}
+                            </td>
+                            <td className={`${adminTdClass} text-slate-600`}>{user.email}</td>
+                            <td className={`${adminTdClass} text-slate-600`}>{user.phone || '—'}</td>
+                            <td className={adminTdClass}>
+                              <span className="inline-flex px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold uppercase">
+                                {user.statut || 'actif'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ),
+          [
+            { label: 'Admins', value: adminUsers.length },
+            { label: 'Actifs', value: adminUsers.filter(u => (u.statut || 'actif') === 'actif').length },
           ],
         );
 
@@ -1012,12 +1248,18 @@ export const AdminView: React.FC<{
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl space-y-4">
             <h3 className="text-lg font-black text-slate-900">Confirmer la suppression</h3>
-            <p className="text-sm text-slate-600">Vous êtes sur le point de désactiver le compte :</p>
+            <p className="text-sm text-slate-600">
+              {deleteConfirm.type === 'store'
+                ? 'Vous êtes sur le point de désactiver la boutique :'
+                : 'Vous êtes sur le point de désactiver le compte :'}
+            </p>
             <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm">
               <p className="font-bold text-slate-900">{deleteConfirm.name}</p>
-              <p className="text-slate-600">{deleteConfirm.email}</p>
+              {deleteConfirm.email && <p className="text-slate-600">{deleteConfirm.email}</p>}
               <p className="text-[11px] text-rose-700 mt-2">
-                Suppression douce : le compte sera désactivé. Les historiques de commandes sont conservés.
+                {deleteConfirm.type === 'store'
+                  ? 'La boutique sera retirée du catalogue. Les historiques de commandes sont conservés.'
+                  : 'Suppression douce : le compte sera désactivé. Les historiques de commandes sont conservés.'}
               </p>
             </div>
             <div className="flex items-center justify-end gap-2">
@@ -1032,7 +1274,7 @@ export const AdminView: React.FC<{
               <button
                 type="button"
                 disabled={deleteBusy}
-                onClick={() => void confirmDeleteAccount()}
+                onClick={() => void confirmDelete()}
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold disabled:opacity-60"
               >
                 {deleteBusy ? 'Suppression…' : 'Confirmer'}

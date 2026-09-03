@@ -4,6 +4,7 @@ import { currentUserId } from '../middleware/auth.js';
 import { getPayload, isSeller } from '../utils/http.js';
 import { publicId, toObjectId } from '../utils/ids.js';
 import { defaultStoreCoordinates } from '../utils/geo.js';
+import { getReviewStatsMap } from './catalogReviewController.js';
 
 function serializeStore(restaurant) {
   return {
@@ -26,7 +27,7 @@ function serializeStore(restaurant) {
 
 export async function listStores(_req, res) {
   try {
-    const restaurants = await Store.find().sort({ createdAt: -1 });
+    const restaurants = await Store.find({ statut: { $ne: 'suspendu' } }).sort({ createdAt: -1 });
     const storeIds = restaurants.map((restaurant) => restaurant._id);
     const products = await Product.find({ storeId: { $in: storeIds }, image: { $nin: [null, ''] } })
       .select('storeId image')
@@ -40,12 +41,22 @@ export async function listStores(_req, res) {
       }
     }
 
+    const statsMap = await getReviewStatsMap('store', storeIds);
+
     return res.json({
       success: true,
       restaurants: restaurants.map((restaurant) => {
         const serialized = serializeStore(restaurant);
         if (!serialized.logo) {
           serialized.logo = fallbackLogoByStoreId.get(String(restaurant._id)) || null;
+        }
+        const stats = statsMap.get(String(restaurant._id));
+        if (stats) {
+          serialized.ratingAverage = stats.ratingAverage;
+          serialized.reviewCount = stats.reviewCount;
+        } else {
+          serialized.ratingAverage = 0;
+          serialized.reviewCount = 0;
         }
         return serialized;
       }),

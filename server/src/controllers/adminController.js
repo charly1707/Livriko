@@ -3,10 +3,9 @@ import { Store } from '../models/Store.js';
 import { Order } from '../models/Order.js';
 import { Product } from '../models/Product.js';
 import { Conversation } from '../models/Conversation.js';
+import bcrypt from 'bcryptjs';
 import { getPayload } from '../utils/http.js';
 import { publicId, toObjectId } from '../utils/ids.js';
-import { sessionUser } from '../utils/http.js';
-import { ensureDefaultAdmin } from '../utils/ensureAdmin.js';
 
 function serializeAdminUser(user) {
   return {
@@ -30,6 +29,60 @@ function serializeAdminUser(user) {
     deletedAt: user.deletedAt || null,
     createdAt: user.createdAt,
   };
+}
+
+export async function createAdminUser(req, res) {
+  try {
+    const payload = getPayload(req);
+    const prenom = String(payload.prenom || '').trim();
+    const nom = String(payload.nom || '').trim();
+    const nomUtilisateur = String(payload.nom_utilisateur || '').trim();
+    const email = String(payload.email || '').trim().toLowerCase();
+    const telephone = String(payload.telephone || '').trim();
+    const motDePasse = String(payload.mot_de_passe || '');
+
+    if (!prenom || !nom || !nomUtilisateur || !email || !telephone || !motDePasse) {
+      return res.status(400).json({ success: false, message: 'Tous les champs sont obligatoires.' });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: 'Adresse e-mail invalide.' });
+    }
+
+    if (motDePasse.length < 8) {
+      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 8 caractères.' });
+    }
+
+    const exists = await User.findOne({
+      $or: [{ email }, { nomUtilisateur }],
+      deletedAt: null,
+    });
+    if (exists) {
+      return res.status(409).json({ success: false, message: 'Un compte existe déjà avec cet e-mail ou ce nom d\'utilisateur.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(motDePasse, 10);
+    const user = await User.create({
+      role: 'administrateur',
+      nom,
+      prenom,
+      nomUtilisateur,
+      email,
+      motDePasse: hashedPassword,
+      telephone,
+      statut: 'actif',
+      documentsValide: true,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Compte administrateur créé avec succès.',
+      user: serializeAdminUser(user),
+    });
+  } catch (error) {
+    console.error('Create admin user error:', error);
+    return res.status(500).json({ success: false, message: 'Impossible de créer le compte administrateur.' });
+  }
 }
 
 export async function listUsers(req, res) {
@@ -142,6 +195,52 @@ export async function toggleStoreCertification(req, res) {
   });
 }
 
+export async function deleteStore(req, res) {
+  const payload = getPayload(req);
+  const storeId = toObjectId(payload.storeId || payload.id);
+  if (!storeId) {
+    return res.status(400).json({ success: false, message: 'ID boutique invalide.' });
+  }
+
+  const hardDelete = String(payload.hardDelete || '') === 'true';
+  const store = await Store.findById(storeId);
+  if (!store) {
+    return res.status(404).json({ success: false, message: 'Boutique introuvable.' });
+  }
+
+  if (!hardDelete) {
+    store.statut = 'suspendu';
+    await store.save();
+    await Product.updateMany({ storeId: store._id }, { enStock: false });
+
+    if (store.ownerId) {
+      const owner = await User.findById(store.ownerId);
+      if (owner && !owner.deletedAt && owner.role !== 'admin' && owner.role !== 'administrateur') {
+        owner.statut = 'inactif';
+        owner.deletedAt = new Date();
+        owner.email = `deleted_${owner._id}_${owner.email}`;
+        owner.nomUtilisateur = `deleted_${owner._id}_${owner.nomUtilisateur}`;
+        await owner.save();
+      }
+    }
+
+    return res.json({
+      success: true,
+      softDeleted: true,
+      message: 'Boutique désactivée. Les historiques de commandes sont conservés.',
+    });
+  }
+
+  await Product.deleteMany({ storeId: store._id });
+  await Store.deleteOne({ _id: store._id });
+
+  return res.json({
+    success: true,
+    hardDeleted: true,
+    message: 'Boutique et catalogue supprimés définitivement.',
+  });
+}
+
 export async function deleteUserAccount(req, res) {
   const payload = getPayload(req);
   const targetId = toObjectId(payload.userId || payload.id);
@@ -196,28 +295,4 @@ export async function deleteUserAccount(req, res) {
   await user.deleteOne();
 
   return res.json({ success: true, hardDeleted: true, message: 'Compte et données associées définitivement supprimés.' });
-}
-
-export async function seedAdmin(_req, res) {
-  try {
-    const result = await ensureDefaultAdmin();
-    if (!result.ensured) {
-      return res.status(400).json({
-        success: false,
-        message: 'Définissez ADMIN_PASSWORD dans les variables d’environnement Render.',
-        email: result.email,
-      });
-    }
-
-    const user = await User.findOne({ email: result.email });
-    return res.json({
-      success: true,
-      message: result.created ? 'Compte admin créé.' : 'Compte admin synchronisé.',
-      email: result.email,
-      user: user ? sessionUser(user) : null,
-    });
-  } catch (error) {
-    console.error('Seed admin error:', error);
-    return res.status(500).json({ success: false, message: 'Impossible d’initialiser le compte admin.' });
-  }
 }

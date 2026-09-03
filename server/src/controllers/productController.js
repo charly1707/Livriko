@@ -4,6 +4,7 @@ import { currentUser, currentUserId } from '../middleware/auth.js';
 import { getPayload, isSeller } from '../utils/http.js';
 import { publicId, storePublicId, toObjectId } from '../utils/ids.js';
 import { uploadImageBuffer } from '../services/cloudinaryUpload.js';
+import { getReviewStatsMap } from './catalogReviewController.js';
 
 function serializeProduct(product, store) {
   return {
@@ -29,7 +30,14 @@ export async function listAllProducts(_req, res) {
   const products = await Product.find().sort({ createdAt: -1 });
   const stores = await Store.find({ _id: { $in: products.map((p) => p.storeId) } });
   const storeMap = new Map(stores.map((store) => [String(store._id), store]));
-  const mapped = products.map((product) => serializeProduct(product, storeMap.get(String(product.storeId))));
+  const statsMap = await getReviewStatsMap('product', products.map((product) => product._id));
+  const mapped = products.map((product) => {
+    const serialized = serializeProduct(product, storeMap.get(String(product.storeId)));
+    const stats = statsMap.get(String(product._id));
+    serialized.ratingAverage = stats?.ratingAverage ?? 0;
+    serialized.reviewCount = stats?.reviewCount ?? 0;
+    return serialized;
+  });
   return res.json({ products: mapped });
 }
 

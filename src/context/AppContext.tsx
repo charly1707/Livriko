@@ -45,6 +45,7 @@ interface AppContextType {
   rejectLivreur: (userId: string, reason?: string) => void;
   requestIncompleteLivreur: (userId: string, reason?: string) => void;
   toggleStoreCertification: (storeId: string) => void;
+  deleteStore: (storeId: string, options?: { hardDelete?: boolean }) => Promise<void>;
   updateStore: (updatedStore: Store) => void;
   refreshOrders: () => Promise<void>;
   refreshStores: () => Promise<void>;
@@ -67,6 +68,7 @@ interface AppContextType {
   setActiveCategory: (cat: CategoryType | 'all') => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  refreshCatalogData: () => Promise<void>;
   activeTrackingOrder: Order | null;
   setActiveTrackingOrder: (order: Order | null) => void;
   
@@ -108,6 +110,14 @@ interface AppContextType {
 
   // Delete user account (admin or self)
   deleteUser: (userId: string, options?: { hardDelete?: boolean }) => Promise<void>;
+  createAdminUser: (userData: {
+    prenom: string;
+    nom: string;
+    username: string;
+    email: string;
+    phone: string;
+    password: string;
+  }) => Promise<User>;
 
   // Notification
   addNotification: (title: string, message: string, targetRole: UserRole, orderId?: string) => void;
@@ -230,7 +240,8 @@ const mapApiStore = (restaurant: any): Store => {
     ownerId: String(restaurant.ownerId),
     logo,
     coverImage: logo,
-    rating: Number(restaurant.rating) || 4.8,
+    ratingAverage: Number(restaurant.ratingAverage) || 0,
+    reviewCount: Number(restaurant.reviewCount) || 0,
     deliveryTime: restaurant.deliveryTime || '30-45 min',
     address: restaurant.address,
     city: restaurant.city,
@@ -241,6 +252,27 @@ const mapApiStore = (restaurant: any): Store => {
     isOpen: Boolean(restaurant.isOpen),
     isCertified: Boolean(restaurant.isCertified),
     description: restaurant.description || '',
+  };
+};
+
+const mapApiProduct = (p: any): Product => {
+  const rawStoreId = String(p.store_id || p.restaurant_id || '');
+  const storeId = rawStoreId.startsWith('store-')
+    ? rawStoreId
+    : (rawStoreId ? `store-${rawStoreId}` : '');
+  return {
+    id: String(p.id),
+    storeId,
+    storeName: p.store_name || p.nom || 'Boutique',
+    name: p.nom,
+    description: p.description || '',
+    price: Number(p.prix) || 0,
+    category: (p.category as CategoryType) || 'restaurants',
+    image: resolveMediaUrl(p.image || ''),
+    inStock: Boolean(p.en_stock),
+    unit: p.unit || 'portion',
+    ratingAverage: Number(p.ratingAverage) || 0,
+    reviewCount: Number(p.reviewCount) || 0,
   };
 };
 
@@ -289,6 +321,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const closeAuthModal = React.useCallback(() => {
     setIsAuthModalOpen(false);
+  }, []);
+
+  const refreshCatalogData = React.useCallback(async () => {
+    try {
+      const productsUrl = buildApiUrl('/backend/index.php/api/products');
+      const res = await axios.get(productsUrl, { withCredentials: true });
+      if (res.data?.products) {
+        setProducts(res.data.products.map(mapApiProduct));
+      }
+    } catch {
+      setProducts([]);
+    }
+
+    try {
+      const restaurantsUrl = buildApiUrl('/backend/index.php/api/restaurants');
+      const res = await axios.get(restaurantsUrl, { withCredentials: true });
+      const mappedStores: Store[] = (res.data?.restaurants || []).map(mapApiStore);
+      setStores(mappedStores);
+    } catch {
+      setStores([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -346,25 +399,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const productsUrl = buildApiUrl('/backend/index.php/api/products');
         const res = await axios.get(productsUrl, { withCredentials: true });
         if (res.data?.products) {
-          const mappedProducts: Product[] = res.data.products.map((p: any) => {
-            const rawStoreId = String(p.store_id || p.restaurant_id || '');
-            const storeId = rawStoreId.startsWith('store-')
-              ? rawStoreId
-              : (rawStoreId ? `store-${rawStoreId}` : '');
-            return {
-              id: String(p.id),
-              storeId,
-              storeName: p.store_name || p.nom || 'Boutique',
-              name: p.nom,
-              description: p.description || '',
-              price: Number(p.prix) || 0,
-              category: (p.category as CategoryType) || 'restaurants',
-              image: resolveMediaUrl(p.image || ''),
-              inStock: Boolean(p.en_stock),
-              unit: p.unit || 'portion',
-            };
-          });
-          setProducts(mappedProducts);
+          setProducts(res.data.products.map(mapApiProduct));
         }
       } catch {
         setProducts([]);
@@ -671,6 +706,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const createAdminUser = async (userData: {
+    prenom: string;
+    nom: string;
+    username: string;
+    email: string;
+    phone: string;
+    password: string;
+  }): Promise<User> => {
+    const payload = new URLSearchParams();
+    payload.append('prenom', userData.prenom.trim());
+    payload.append('nom', userData.nom.trim());
+    payload.append('nom_utilisateur', userData.username.trim());
+    payload.append('email', userData.email.trim().toLowerCase());
+    payload.append('telephone', userData.phone.trim());
+    payload.append('mot_de_passe', userData.password);
+
+    try {
+      const res = await axios.post(
+        buildApiUrl('/backend/index.php/api/admin/users/create'),
+        payload,
+        { withCredentials: true },
+      );
+      if (!res.data?.success || !res.data.user) {
+        throw new Error(res.data?.message || 'Impossible de créer le compte administrateur.');
+      }
+
+      const created = mapSessionUser(res.data.user, {
+        name: `${userData.prenom} ${userData.nom}`.trim(),
+        email: userData.email.trim().toLowerCase(),
+        phone: userData.phone.trim(),
+        role: 'admin',
+      });
+
+      setAllUsers(prev => [created, ...prev.filter(u => u.id !== created.id)]);
+      await refreshAdminUsers();
+      addNotification('Administrateur créé', `Le compte ${created.email} est actif.`, 'admin');
+      return created;
+    } catch (error: any) {
+      throw new Error(getApiErrorMessage(error));
+    }
+  };
+
   const registerUser = async (userData: {
     name: string;
     email: string;
@@ -891,6 +968,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const res = await axios.post(buildApiUrl('/backend/index.php/api/admin/stores/certify'), payload, { withCredentials: true });
     if (res.data?.success) {
       setStores(prev => prev.map(s => s.id === storeId ? { ...s, isCertified: !s.isCertified } : s));
+    }
+  };
+
+  const deleteStore = async (storeId: string, options?: { hardDelete?: boolean }) => {
+    try {
+      const payload = new URLSearchParams();
+      payload.append('storeId', String(storeId).replace(/^store-/, ''));
+      if (options?.hardDelete) payload.append('hardDelete', 'true');
+      await axios.post(buildApiUrl('/backend/index.php/api/admin/stores/delete'), payload, { withCredentials: true });
+
+      const store = stores.find(s => s.id === storeId);
+      setStores(prev => prev.filter(s => s.id !== storeId));
+      if (store?.ownerId) {
+        setAllUsers(prev => prev.filter(u => u.id !== store.ownerId));
+      }
+      setProducts(prev => prev.filter(p => p.storeId !== storeId && p.storeId !== String(storeId).replace(/^store-/, '')));
+      addNotification('Boutique supprimée', 'La boutique a été désactivée avec succès.', 'admin');
+      await refreshAdminUsers();
+      await refreshCatalogData();
+    } catch (error: any) {
+      throw new Error(getApiErrorMessage(error));
     }
   };
 
@@ -1434,6 +1532,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         rejectLivreur,
         requestIncompleteLivreur,
         toggleStoreCertification,
+        deleteStore,
         updateStore,
         refreshOrders,
         refreshStores,
@@ -1453,6 +1552,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveCategory,
         searchQuery,
         setSearchQuery,
+        refreshCatalogData,
         activeTrackingOrder,
         setActiveTrackingOrder,
         reviewModalOrderId,
@@ -1471,6 +1571,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateProduct,
         deleteProduct,
         deleteUser,
+        createAdminUser,
         addNotification,
         markNotificationRead,
       }}

@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ShoppingCart, Truck, User, Bell, LogOut, ArrowLeft, MessageCircle,
-  Utensils, ShoppingBag, Package, LayoutGrid,
+  ShoppingCart, User, Bell, LogOut, ArrowLeft, MessageCircle, Search, X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { CategoryType } from '../types';
 import livrikoLogo from '../assets/images/livriko_logo_1785408725718.jpg';
 
 export const Header: React.FC<{
@@ -27,12 +25,13 @@ export const Header: React.FC<{
     activeRole,
     setActiveRole,
     cart,
-    activeCategory,
     setActiveCategory,
     currentUser,
     logoutUser,
     activeTrackingOrder,
     orders,
+    searchQuery,
+    setSearchQuery,
   } = useApp();
 
   const [isScrolled, setIsScrolled] = useState(false);
@@ -51,24 +50,11 @@ export const Header: React.FC<{
     || orders.some((order) => ['pending', 'confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(order.status)),
   );
 
-  const menuNavItems: { id: CategoryType | 'all'; label: string; icon: React.ElementType }[] = [
-    { id: 'all', label: 'Tout', icon: LayoutGrid },
-    { id: 'restaurants', label: 'Restaurants', icon: Utensils },
-    { id: 'boutiques', label: 'Boutiques', icon: ShoppingBag },
-    { id: 'supermarches', label: 'Supermarchés', icon: ShoppingCart },
-    { id: 'autres', label: 'Express', icon: Package },
-  ];
-
   const goHome = () => {
     setActiveCategory('all');
+    setSearchQuery('');
+    window.dispatchEvent(new CustomEvent('livriko:reset-browse'));
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const selectCategory = (id: CategoryType | 'all') => {
-    setActiveCategory(id);
-    if (id !== 'autres') {
-      document.getElementById('boutiques-section')?.scrollIntoView({ behavior: 'smooth' });
-    }
   };
 
   const isClient = activeRole === 'client';
@@ -79,10 +65,8 @@ export const Header: React.FC<{
         isScrolled ? 'shadow-lg border-b border-slate-800' : 'border-b border-slate-800/60'
       }`}
     >
-      {/* Single main bar */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center gap-2 sm:gap-4">
 
-        {/* Brand */}
         <button
           type="button"
           onClick={goHome}
@@ -92,7 +76,7 @@ export const Header: React.FC<{
           <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-sm group-hover:scale-105 transition">
             <img src={livrikoLogo} alt="Livriko" className="w-full h-full object-contain rounded-lg" />
           </div>
-          <div className="hidden xs:block sm:block text-left leading-tight">
+          <div className="hidden sm:block text-left leading-tight">
             <span className="text-base sm:text-lg font-black tracking-tight">
               Livr<span className="text-[#ff8a1f]">iko</span>
             </span>
@@ -102,35 +86,34 @@ export const Header: React.FC<{
           </div>
         </button>
 
-        {/* Desktop category nav — client only */}
         {isClient && (
-          <nav className="hidden md:flex flex-1 items-center justify-center gap-1 min-w-0">
-            {menuNavItems.map((item) => {
-              const Icon = item.icon;
-              const active = activeCategory === item.id;
-              return (
+          <div className="flex-1 min-w-0 max-w-xl mx-auto">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Rechercher une boutique…"
+                className="w-full h-9 sm:h-10 pl-9 pr-9 rounded-full bg-white/10 border border-white/10 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#ff8a1f]/60 focus:bg-white/15 transition"
+              />
+              {searchQuery && (
                 <button
-                  key={item.id}
                   type="button"
-                  onClick={() => selectCategory(item.id)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 ${
-                    active
-                      ? 'bg-[#ff8a1f] text-white'
-                      : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                  }`}
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/10 transition"
+                  title="Effacer"
                 >
-                  <Icon className="w-3.5 h-3.5" />
-                  {item.label}
+                  <X className="w-3.5 h-3.5" />
                 </button>
-              );
-            })}
-          </nav>
+              )}
+            </div>
+          </div>
         )}
 
         {!isClient && <div className="flex-1" />}
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto md:ml-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {!isClient && (
             <button
               type="button"
@@ -215,14 +198,14 @@ export const Header: React.FC<{
               <button
                 type="button"
                 onClick={() => onOpenAuth('login')}
-                className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold text-slate-200 hover:bg-white/10 transition"
+                className="h-9 px-4 rounded-full text-xs font-semibold text-slate-200 hover:bg-white/10 transition"
               >
                 Connexion
               </button>
               <button
                 type="button"
                 onClick={() => onOpenAuth('register')}
-                className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-[#ff8a1f] hover:bg-[#e86f00] text-white text-xs font-bold transition"
+                className="h-9 px-4 rounded-full bg-[#ff8a1f] hover:bg-[#e86f00] text-white text-xs font-semibold transition"
               >
                 S&apos;inscrire
               </button>
@@ -230,35 +213,6 @@ export const Header: React.FC<{
           )}
         </div>
       </div>
-
-      {/* Mobile category strip — client only */}
-      {isClient && (
-        <div className="md:hidden border-t border-slate-800/80 bg-[#0a1526] px-2.5 py-1.5 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-          {menuNavItems.map((item) => {
-            const Icon = item.icon;
-            const active = activeCategory === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => selectCategory(item.id)}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 transition ${
-                  active
-                    ? 'bg-[#ff8a1f] text-white'
-                    : 'bg-white/5 text-slate-300'
-                }`}
-              >
-                <Icon className="w-3 h-3" />
-                {item.label}
-              </button>
-            );
-          })}
-          <span className="ml-auto shrink-0 inline-flex items-center gap-1 text-[10px] text-slate-500 px-1">
-            <Truck className="w-3 h-3 text-[#ff8a1f]" />
-            dès 300 F
-          </span>
-        </div>
-      )}
     </header>
   );
 };

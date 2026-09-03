@@ -10,6 +10,7 @@ import * as payments from './controllers/paymentController.js';
 import * as wallet from './controllers/walletController.js';
 import * as chat from './controllers/chatController.js';
 import * as reviews from './controllers/reviewController.js';
+import * as catalogReviews from './controllers/catalogReviewController.js';
 import * as serviceExpress from './controllers/serviceExpressController.js';
 import * as maps from './controllers/mapsController.js';
 import * as subscriptions from './controllers/subscriptionController.js';
@@ -44,12 +45,13 @@ export function createApiRouter() {
   router.post('/wallet/credit', requireAuth, requireAdmin, wallet.creditWallet);
 
   router.get('/admin/users', requireAuth, requireAdmin, admin.listUsers);
+  router.post('/admin/users/create', requireAuth, requireAdmin, admin.createAdminUser);
   router.post('/admin/livreurs/approve', requireAuth, requireAdmin, admin.approveLivreur);
   router.post('/admin/livreurs/reject', requireAuth, requireAdmin, admin.rejectLivreur);
   router.post('/admin/livreurs/incomplete', requireAuth, requireAdmin, admin.requestIncompleteLivreur);
   router.post('/admin/stores/certify', requireAuth, requireAdmin, admin.toggleStoreCertification);
+  router.post('/admin/stores/delete', requireAuth, requireAdmin, admin.deleteStore);
   router.post('/admin/users/delete', requireAuth, requireAdmin, admin.deleteUserAccount);
-  router.post('/admin/seed', admin.seedAdmin);
 
   router.get('/orders', requireAuth, orders.listOrders);
   router.post('/orders', requireAuth, orders.createOrder);
@@ -71,6 +73,9 @@ export function createApiRouter() {
   router.get('/reviews/driver', reviews.listForDriver);
   router.get('/reviews/admin', requireAuth, requireAdmin, reviews.adminList);
   router.post('/reviews/report', requireAuth, reviews.createReport);
+
+  router.get('/reviews/catalog', catalogReviews.listCatalogReviews);
+  router.post('/reviews/catalog/create', requireAuth, catalogReviews.createCatalogReview);
 
   router.get('/service-express', requireAuth, serviceExpress.listMissions);
   router.post('/service-express', requireAuth, serviceExpress.createMission);
