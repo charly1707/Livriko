@@ -529,7 +529,7 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
               <div className="relative shrink-0 mx-auto sm:mx-0">
                 <div className="h-28 w-28 rounded-2xl overflow-hidden border-2 border-[#ff8a1f]/40 bg-[#faf6ef] shadow-lg">
                   {storeLogo || currentStore.logo ? (
-                    <img src={storeLogo || currentStore.logo} alt="Logo boutique" className="h-full w-full object-cover" />
+                    <img src={storeLogo || currentStore.logo} alt="Logo boutique" className="h-full w-full object-contain bg-white p-1" />
                   ) : (
                     <div className="h-full w-full flex flex-col items-center justify-center text-slate-400 gap-1">
                       <StoreIcon className="w-10 h-10" />
@@ -701,8 +701,8 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
     <div className="flex flex-col h-full">
       <div className="px-5 pt-6 pb-5 border-b border-white/8">
         <div className="flex items-center gap-3 mb-5">
-          <div className="h-11 w-11 rounded-2xl overflow-hidden ring-2 ring-[#ff8a1f]/40 shrink-0">
-            <img src={livrikoLogo} alt="Livriko" className="h-full w-full object-cover" />
+          <div className="h-12 w-12 rounded-2xl overflow-hidden bg-white p-1 ring-2 ring-[#ff8a1f]/40 shrink-0">
+            <img src={livrikoLogo} alt="Livriko" className="h-full w-full object-contain" />
           </div>
           <div className="min-w-0">
             <p className="text-[15px] font-black leading-none">Livr<span className="text-[#ff8a1f]">iko</span></p>
@@ -712,7 +712,7 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
         <div className="flex items-center gap-3 rounded-2xl bg-white/5 p-3">
           <button type="button" onClick={() => selectTab('settings')} className="relative shrink-0 group" title="Modifier la photo de la boutique">
             {(storeLogo || currentStore.logo) ? (
-              <img src={storeLogo || currentStore.logo} alt="" className="w-12 h-12 rounded-xl object-cover border border-white/10" />
+              <img src={storeLogo || currentStore.logo} alt="" className="w-12 h-12 rounded-xl object-contain bg-white p-0.5 border border-white/10" />
             ) : (
               <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center">
                 <StoreIcon className="w-5 h-5 text-[#9eb0c7]" />

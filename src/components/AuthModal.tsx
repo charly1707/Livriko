@@ -1,12 +1,13 @@
 import React, { useState, startTransition, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, User, Store, Truck, ShieldCheck, CheckCircle, Clock, ArrowRight, LogIn, UserPlus, Eye, EyeOff,
+  X, User, Store, Truck, ShieldCheck, CheckCircle, Clock, ArrowRight, LogIn, UserPlus, Eye, EyeOff, Compass,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole, CategoryType } from '../types';
 import { uploadRegisterImageFile } from '../utils/imageUpload';
 import { MediaPicker } from './MediaPicker';
+import { captureActorPosition } from '../utils/geolocation';
 import livrikoLogo from '../assets/images/livriko_logo_1785408725718.jpg';
 
 interface AuthModalProps {
@@ -69,6 +70,27 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
     };
   }, [isOpen]);
 
+  const captureGps = React.useCallback(async () => {
+    setGeoStatus('loading');
+    setGeoError('');
+    try {
+      const point = await captureActorPosition();
+      setGeoCoords({ lat: point.lat, lng: point.lng });
+      setStoreAddress((prev) => prev.trim() ? prev : point.address);
+      setGeoStatus('ready');
+      return point;
+    } catch (error: any) {
+      setGeoStatus('error');
+      setGeoError(error?.message || 'Impossible de lire le GPS.');
+      return null;
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!isOpen || mode !== 'register') return;
+    void captureGps();
+  }, [isOpen, mode, captureGps]);
+
   // Common form fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -85,7 +107,10 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
   // Vendeur specific
   const [storeName, setStoreName] = useState('');
   const [storeCategory, setStoreCategory] = useState<CategoryType>('restaurants');
-  const [storeAddress, setStoreAddress] = useState('Quartier Agamé, Lokossa');
+  const [storeAddress, setStoreAddress] = useState('');
+  const [geoCoords, setGeoCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [geoError, setGeoError] = useState('');
 
   // Livreur specific security fields
   const [vehicle, setVehicle] = useState('Moto TVS HLX 125');
@@ -213,6 +238,9 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
             vehiclePhoto: uploadedVehicle,
             verificationStatus: 'pending',
             verificationSubmittedAt: 'À l\'instant',
+            lat: geoCoords?.lat,
+            lng: geoCoords?.lng,
+            location: geoCoords ? { lat: geoCoords.lat, lng: geoCoords.lng, address: storeAddress || city } : undefined,
           });
 
           setRegistrationSuccessMessage(
@@ -223,8 +251,8 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
             setRegistrationError("Le nom de la boutique est obligatoire.");
             return;
           }
-          if (!storeAddress.trim()) {
-            setRegistrationError("L'adresse de la boutique est obligatoire.");
+          if (!storeAddress.trim() && !geoCoords) {
+            setRegistrationError("Activez le GPS pour enregistrer l’emplacement exact de la boutique.");
             return;
           }
           newUser = await actionsRef.current.registerUser({
@@ -237,7 +265,10 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
             avatar: uploadedAvatar,
             storeName: storeName || `Boutique de ${name}`,
             storeCategory,
-            storeAddress,
+            storeAddress: storeAddress || undefined,
+            lat: geoCoords?.lat,
+            lng: geoCoords?.lng,
+            location: geoCoords ? { lat: geoCoords.lat, lng: geoCoords.lng, address: storeAddress } : undefined,
           });
 
           setRegistrationSuccessMessage(`Félicitations ! Votre espace boutique "${newUser.name}" a été activé.`);
@@ -250,6 +281,9 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
             role: selectedRole,
             city,
             avatar: uploadedAvatar || undefined,
+            lat: geoCoords?.lat,
+            lng: geoCoords?.lng,
+            location: geoCoords ? { lat: geoCoords.lat, lng: geoCoords.lng, address: storeAddress || city } : undefined,
           });
 
           setRegistrationSuccessMessage(`Compte créé avec succès ! Bienvenue sur Livriko, ${newUser.name}.`);
@@ -336,7 +370,7 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200/80 bg-white px-4 py-3.5 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
-            <img src={livrikoLogo} alt="" className="h-9 w-9 rounded-full object-cover" />
+            <img src={livrikoLogo} alt="" className="h-10 w-10 rounded-xl bg-white object-contain p-0.5 ring-1 ring-black/5" />
             <div className="min-w-0">
               <p className="truncate text-sm font-black text-[#0b2a4a]">
                 Livr<span className="text-[#ff8a1f]">iko</span>
@@ -557,16 +591,29 @@ export const AuthModal: React.FC<AuthModalProps> = memo(function AuthModal({
                   </div>
 
                   <div>
-                    <label className={labelClass} htmlFor="reg-address">Adresse</label>
+                    <label className={labelClass} htmlFor="reg-address">Adresse GPS de la boutique</label>
                     <input
                       id="reg-address"
                       type="text"
-                      required
                       value={storeAddress}
                       onChange={(e) => setStoreAddress(e.target.value)}
-                      placeholder="ex: Quartier Agamé, Lokossa"
+                      placeholder="Détectée automatiquement par GPS"
                       className={inputClass}
                     />
+                    <button
+                      type="button"
+                      onClick={() => void captureGps()}
+                      className="mt-2 inline-flex h-10 items-center gap-2 rounded-xl bg-[#0c1a2e] px-3 text-xs font-bold text-white"
+                    >
+                      <Compass className="h-4 w-4 text-[#ffb86a]" />
+                      {geoStatus === 'loading' ? 'Lecture GPS…' : 'Prendre ma position actuelle'}
+                    </button>
+                    {geoStatus === 'ready' && geoCoords && (
+                      <p className="mt-1.5 text-[11px] font-semibold text-emerald-700">
+                        Position enregistrée : {geoCoords.lat.toFixed(5)}, {geoCoords.lng.toFixed(5)}
+                      </p>
+                    )}
+                    {geoError && <p className="mt-1.5 text-[11px] font-semibold text-rose-600">{geoError}</p>}
                   </div>
                 </div>
               )}

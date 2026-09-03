@@ -99,14 +99,22 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
       )}
 
       <div className="bg-[#fffdf8] rounded-2xl border border-[#e6dac8] overflow-hidden">
-        <div className="h-44 sm:h-56 relative bg-[#0c1a2e]">
+        <div className={`h-44 sm:h-56 relative ${
+          !store.coverImage || store.coverImage === store.logo ? 'bg-[#fff7ed]' : 'bg-[#0c1a2e]'
+        }`}>
           <img
             src={coverSrc}
             alt={store.name}
             onError={onImageError}
-            className="w-full h-full object-cover opacity-90"
+            className={!store.coverImage || store.coverImage === store.logo
+              ? 'w-full h-full object-contain p-6'
+              : 'w-full h-full object-cover opacity-90'}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0c1a2e]/90 via-[#0c1a2e]/20 to-transparent" />
+          <div className={`absolute inset-0 ${
+            !store.coverImage || store.coverImage === store.logo
+              ? 'bg-gradient-to-t from-[#fffdf8] via-transparent to-transparent'
+              : 'bg-gradient-to-t from-[#0c1a2e]/90 via-[#0c1a2e]/20 to-transparent'
+          }`} />
           {(store.reviewCount ?? 0) > 0 ? (
             <span className="absolute top-3 right-3 bg-white/95 px-2.5 py-1 rounded-lg">
               <RatingStars
@@ -133,7 +141,7 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
                 src={logoSrc}
                 alt={store.name}
                 onError={onImageError}
-                className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl object-cover border-4 border-[#fffdf8] shadow-lg bg-white shrink-0 w-16 h-16 sm:w-20 sm:h-20"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-contain bg-white p-1 border-4 border-[#fffdf8] shadow-lg shrink-0"
               />
               <div className="pb-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">

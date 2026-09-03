@@ -3,7 +3,6 @@ import { User } from '../models/User.js';
 import { Store } from '../models/Store.js';
 import { currentUser, currentUserId } from '../middleware/auth.js';
 import { getPayload, sessionUser, isSeller } from '../utils/http.js';
-import { defaultStoreCoordinates } from '../utils/geo.js';
 import { storePublicId } from '../utils/ids.js';
 
 const ALLOWED_ROLES = ['client', 'restaurant', 'vendeur', 'livreur'];
@@ -123,6 +122,9 @@ export async function register(req, res) {
       vehicle: payload.vehicle || null,
       vehiclePlate: payload.vehicle_plate || payload.vehiclePlate || null,
       city: payload.ville || payload.city || 'Lokossa',
+      lat: Number.isFinite(Number(payload.lat)) ? Number(payload.lat) : null,
+      lng: Number.isFinite(Number(payload.lng)) ? Number(payload.lng) : null,
+      address: String(payload.adresse || payload.address || '').trim() || null,
       documentsValide: role === 'livreur' ? false : true,
       verificationStatus: role === 'livreur' ? 'pending' : null,
       selfiePhoto: payload.selfie_photo || payload.selfiePhoto || null,
@@ -132,18 +134,19 @@ export async function register(req, res) {
 
     let createdStore = null;
     if (role === 'restaurant' || role === 'vendeur') {
-      const coords = defaultStoreCoordinates(payload.lat, payload.lng);
+      const storeLat = Number.isFinite(Number(payload.lat)) ? Number(payload.lat) : null;
+      const storeLng = Number.isFinite(Number(payload.lng)) ? Number(payload.lng) : null;
       createdStore = await Store.create({
         ownerId: utilisateur._id,
         nom: payload.restaurant_name || `${nom} Boutique`,
-        adresse: payload.adresse || 'Centre-ville, Lokossa',
+        adresse: payload.adresse || payload.address || '',
         ville: payload.ville || 'Lokossa',
         telephone,
         logo: payload.logo || null,
         category: payload.store_category || payload.category || 'restaurants',
         statut: 'approuve',
-        lat: coords.lat,
-        lng: coords.lng,
+        lat: storeLat,
+        lng: storeLng,
       });
     }
 
@@ -215,6 +218,17 @@ export async function updateProfile(req, res) {
   if (payload.vehicle) user.vehicle = String(payload.vehicle).trim();
   if (payload.vehicle_plate || payload.vehiclePlate) {
     user.vehiclePlate = String(payload.vehicle_plate || payload.vehiclePlate).trim();
+  }
+  if (payload.lat != null && payload.lat !== '') {
+    const lat = Number(payload.lat);
+    if (Number.isFinite(lat)) user.lat = lat;
+  }
+  if (payload.lng != null && payload.lng !== '') {
+    const lng = Number(payload.lng);
+    if (Number.isFinite(lng)) user.lng = lng;
+  }
+  if (payload.address || payload.adresse) {
+    user.address = String(payload.address || payload.adresse).trim();
   }
 
   // Courier document updates / resubmission after reject or incomplete

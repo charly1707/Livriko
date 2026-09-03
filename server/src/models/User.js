@@ -28,6 +28,9 @@ const userSchema = new mongoose.Schema({
   vehiclePhoto: { type: String, default: null },
   vehiclePlate: { type: String, default: null },
   walletBalance: { type: Number, default: 0 },
+  lat: { type: Number, default: null },
+  lng: { type: Number, default: null },
+  address: { type: String, default: '' },
   deletedAt: { type: Date, default: null },
 }, { timestamps: true });
 

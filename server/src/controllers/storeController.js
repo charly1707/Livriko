@@ -3,7 +3,6 @@ import { Product } from '../models/Product.js';
 import { currentUserId } from '../middleware/auth.js';
 import { getPayload, isSeller } from '../utils/http.js';
 import { publicId, toObjectId } from '../utils/ids.js';
-import { defaultStoreCoordinates } from '../utils/geo.js';
 import { getReviewStatsMap } from './catalogReviewController.js';
 
 function serializeStore(restaurant) {
@@ -98,12 +97,6 @@ export async function updateStore(req, res) {
   if (payload.lng != null && payload.lng !== '') store.lng = Number(payload.lng);
   if (payload.isOpen != null) {
     store.statut = String(payload.isOpen) === 'true' ? 'approuve' : 'en_attente';
-  }
-
-  if (store.lat == null || store.lng == null) {
-    const coords = defaultStoreCoordinates(store.lat, store.lng);
-    store.lat = coords.lat;
-    store.lng = coords.lng;
   }
 
   await store.save();

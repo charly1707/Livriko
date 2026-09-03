@@ -34,6 +34,9 @@ interface AppContextType {
     storeName?: string;
     storeCategory?: CategoryType;
     storeAddress?: string;
+    lat?: number;
+    lng?: number;
+    location?: { lat: number; lng: number; address: string };
     selfiePhoto?: string;
     cipPhoto?: string;
     vehiclePhoto?: string;
@@ -227,6 +230,13 @@ const mapSessionUser = (user: any, fallback?: Partial<User>): User => {
     vehiclePhoto: user.vehiclePhoto || fallback?.vehiclePhoto || undefined,
     isCertified: user.documentsValide ?? fallback?.isCertified,
     statut: user.statut || fallback?.statut || 'actif',
+    location: (Number.isFinite(Number(user.lat)) && Number.isFinite(Number(user.lng)))
+      ? {
+          lat: Number(user.lat),
+          lng: Number(user.lng),
+          address: user.address || fallback?.location?.address || '',
+        }
+      : fallback?.location,
   };
 };
 
@@ -450,6 +460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               city: u.city || undefined,
               walletBalance: u.walletBalance,
               statut: u.statut || 'actif',
+              createdAt: u.createdAt || undefined,
             }));
             setAllUsers(mappedUsers);
           }
@@ -546,6 +557,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           city: u.city || undefined,
           walletBalance: u.walletBalance,
           statut: u.statut || 'actif',
+          createdAt: u.createdAt || undefined,
         }));
         setAllUsers(mappedUsers);
       }
@@ -761,6 +773,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     storeName?: string;
     storeCategory?: CategoryType;
     storeAddress?: string;
+    lat?: number;
+    lng?: number;
+    location?: { lat: number; lng: number; address: string };
     selfiePhoto?: string;
     cipPhoto?: string;
     vehiclePhoto?: string;
@@ -784,11 +799,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (userData.vehiclePlate) payload.append('vehicle_plate', userData.vehiclePlate);
     if (userData.role === 'restaurant' || userData.role === 'vendeur') {
       payload.append('restaurant_name', userData.storeName || `Boutique de ${userData.name}`);
-      payload.append('adresse', userData.storeAddress || 'Centre-ville, Lokossa');
+      payload.append('adresse', userData.storeAddress || userData.location?.address || '');
       payload.append('ville', userData.city || 'Lokossa');
       if (userData.storeCategory) payload.append('store_category', userData.storeCategory);
       if (userData.avatar) payload.append('logo', userData.avatar);
     }
+    const lat = userData.lat ?? userData.location?.lat;
+    const lng = userData.lng ?? userData.location?.lng;
+    if (lat != null) payload.append('lat', String(lat));
+    if (lng != null) payload.append('lng', String(lng));
+    if (userData.location?.address) payload.append('address', userData.location.address);
 
     try {
       const registerUrl = buildApiUrl('/backend/index.php/api/auth/register');
@@ -869,6 +889,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.vehiclePhoto) payload.append('vehicle_photo', updates.vehiclePhoto);
     if (updates.password) payload.append('newPassword', updates.password);
     if ((updates as any).currentPassword) payload.append('currentPassword', String((updates as any).currentPassword));
+    if (updates.location?.lat != null) payload.append('lat', String(updates.location.lat));
+    if (updates.location?.lng != null) payload.append('lng', String(updates.location.lng));
+    if (updates.location?.address) payload.append('address', updates.location.address);
 
     try {
       const res = await axios.post(buildApiUrl('/backend/index.php/api/auth/profile'), payload, { withCredentials: true });

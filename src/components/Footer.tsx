@@ -31,7 +31,7 @@ export const Footer: React.FC = () => {
             <img
               src={livrikoLogo}
               alt="Livriko"
-              className="w-7 h-7 rounded-lg object-contain bg-white p-0.5 shrink-0"
+              className="w-9 h-9 rounded-xl object-contain bg-white p-0.5 shrink-0"
             />
             <div className="min-w-0">
               <p className="text-sm font-black text-white leading-none">

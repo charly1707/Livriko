@@ -34,6 +34,7 @@ export interface User {
   isCertified?: boolean;
   statut?: 'actif' | 'inactif' | 'suspendu' | 'bloque';
   deletedAt?: string | null;
+  createdAt?: string;
 }
 
 export interface Store {

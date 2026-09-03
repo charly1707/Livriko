@@ -73,8 +73,8 @@ export const Header: React.FC<{
           className="flex items-center gap-2 shrink-0 cursor-pointer group"
           title="Accueil Livriko"
         >
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-sm group-hover:scale-105 transition">
-            <img src={livrikoLogo} alt="Livriko" className="w-full h-full object-contain rounded-lg" />
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-sm group-hover:scale-105 transition">
+            <img src={livrikoLogo} alt="Livriko" className="w-full h-full object-contain" />
           </div>
           <div className="hidden sm:block text-left leading-tight">
             <span className="text-base sm:text-lg font-black tracking-tight">

@@ -182,6 +182,9 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
   const renderStoreCard = (store: Store, featured = false) => {
     const storeProducts = getStoreProducts(store);
     const categoryLabel = CATEGORIES.find(c => c.id === store.category)?.label || 'Commerce';
+    const bannerSrc = mediaSrc(store.coverImage || store.logo);
+    const logoSrc = mediaSrc(store.logo || store.coverImage);
+    const logoAsBanner = !store.coverImage || store.coverImage === store.logo;
     return (
       <article
         key={store.id}
@@ -190,15 +193,19 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
           featured ? 'rounded-[28px]' : 'rounded-[24px]'
         }`}
       >
-        <div className={`relative bg-zinc-100 overflow-hidden ${featured ? 'h-56 sm:h-72' : 'h-40 sm:h-44'}`}>
+        <div className={`relative overflow-hidden ${featured ? 'h-56 sm:h-72' : 'h-40 sm:h-44'} ${
+          logoAsBanner ? 'bg-[#fff7ed] flex items-center justify-center' : 'bg-zinc-100'
+        }`}>
           <img
-            src={mediaSrc(store.coverImage || store.logo)}
+            src={bannerSrc}
             alt={store.name}
             onError={onImageError}
-            className="w-full h-full object-cover group-hover:scale-[1.04] transition duration-500"
+            className={logoAsBanner
+              ? `max-h-[82%] max-w-[82%] object-contain ${featured ? 'p-4' : 'p-3'}`
+              : 'w-full h-full object-cover group-hover:scale-[1.04] transition duration-500'}
             loading="lazy"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+          <div className={`absolute inset-0 ${logoAsBanner ? 'bg-gradient-to-t from-black/20 via-transparent to-transparent' : 'bg-gradient-to-t from-black/55 via-black/10 to-transparent'}`} />
           {featured && (
             <span className="absolute top-3 left-3 h-7 px-3 rounded-full bg-[#ff8a1f] text-white text-[11px] font-semibold flex items-center">
               En vedette
@@ -217,10 +224,10 @@ export const ClientView: React.FC<{ onOpenCart: () => void; onOpenChat: () => vo
         </div>
         <div className={`flex items-center gap-3 ${featured ? 'p-4 sm:p-5' : 'p-3.5'}`}>
           <img
-            src={mediaSrc(store.logo || store.coverImage)}
+            src={logoSrc}
             alt=""
             onError={onImageError}
-            className="w-11 h-11 rounded-full object-cover bg-zinc-100 shrink-0 ring-2 ring-white shadow-sm"
+            className="w-12 h-12 rounded-2xl object-contain bg-white p-1 shrink-0 ring-2 ring-white shadow-sm"
           />
           <div className="min-w-0 flex-1">
             <h3 className={`font-semibold text-zinc-900 truncate ${featured ? 'text-lg' : 'text-[15px]'}`}>

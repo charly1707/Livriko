@@ -7,30 +7,34 @@ import {
   TrendingUp,
   ShoppingBag,
   CheckCircle2,
-  Clock,
   AlertTriangle,
   XCircle,
-  Download,
   LayoutDashboard,
   Archive,
   Star,
   DollarSign,
   LogOut,
-  User,
   Menu,
   X,
   ChevronRight,
   UserCog,
   UserPlus,
+  FileText,
+  Eye,
+  Loader2,
+  Search,
+  User as UserIcon,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { User } from '../../types';
+import { downloadLivreurDossierPdf, downloadStoreDossierPdf } from '../../utils/dossierPdf';
 import livrikoLogo from '../../assets/images/livriko-logo-sm.webp';
 
 type AdminTab = 'overview' | 'verifications' | 'stores' | 'orders' | 'accounts' | 'admins' | 'archive' | 'reviews';
 
 const TAB_LABELS: Record<AdminTab, string> = {
   overview: 'Tableau de bord',
-  verifications: 'Certification livreurs',
+  verifications: 'Candidatures livreurs',
   stores: 'Boutiques',
   orders: 'Commandes',
   accounts: 'Utilisateurs',
@@ -90,6 +94,17 @@ export const AdminView: React.FC<{
   const [adminFormError, setAdminFormError] = useState('');
   const [adminFormSuccess, setAdminFormSuccess] = useState('');
   const [adminFormBusy, setAdminFormBusy] = useState(false);
+  const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
+  const [verificationFilter, setVerificationFilter] = useState<'todo' | 'pending' | 'incomplete' | 'rejected' | 'approved' | 'all'>('todo');
+  const [selectedRiderId, setSelectedRiderId] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ src: string; label: string } | null>(null);
+  const [decisionModal, setDecisionModal] = useState<{
+    type: 'approve' | 'reject' | 'incomplete';
+    rider: User;
+  } | null>(null);
+  const [decisionReason, setDecisionReason] = useState('');
+  const [decisionBusy, setDecisionBusy] = useState(false);
+  const [riderQuery, setRiderQuery] = useState('');
 
   React.useEffect(() => {
     if (activeTab !== 'reviews') return;
@@ -112,8 +127,9 @@ export const AdminView: React.FC<{
   const totalGMV = orders.reduce((sum, o) => sum + o.totalAmount, 0);
   const totalCommission = Math.round(totalGMV * 0.10);
   const pendingLivreurs = allUsers.filter(u =>
-    u.role === 'livreur' && (u.verificationStatus === 'pending' || u.verificationStatus === 'incomplete')
+    u.role === 'livreur' && (u.verificationStatus === 'pending' || u.verificationStatus === 'incomplete' || !u.verificationStatus)
   );
+  const allLivreurs = allUsers.filter(u => u.role === 'livreur');
   const approvedLivreurs = allUsers.filter(u => u.role === 'livreur' && u.verificationStatus === 'approved');
   const vendorsCount = stores.length;
   const ridersCount = allUsers.filter(u => u.role === 'livreur').length;
@@ -147,16 +163,46 @@ export const AdminView: React.FC<{
     .slice(0, 2) || 'AD';
   const adminDisplayName = currentUser?.name?.trim() || 'Administrateur';
 
-  const downloadDossier = (data: object, fileName: string) => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const downloadLivreurPdf = async (rider: User) => {
+    setPdfBusyId(rider.id);
+    try {
+      await downloadLivreurDossierPdf(rider);
+    } catch (error: any) {
+      window.alert(error?.message || 'Impossible de générer le PDF.');
+    } finally {
+      setPdfBusyId(null);
+    }
+  };
+
+  const downloadStorePdf = async (store: typeof stores[number]) => {
+    setPdfBusyId(store.id);
+    try {
+      await downloadStoreDossierPdf(store);
+    } catch (error: any) {
+      window.alert(error?.message || 'Impossible de générer le PDF.');
+    } finally {
+      setPdfBusyId(null);
+    }
+  };
+
+  const confirmDecision = async () => {
+    if (!decisionModal) return;
+    setDecisionBusy(true);
+    try {
+      if (decisionModal.type === 'approve') {
+        await approveLivreur(decisionModal.rider.id);
+      } else if (decisionModal.type === 'reject') {
+        await rejectLivreur(decisionModal.rider.id, decisionReason.trim() || 'Pièces illisibles ou non conformes');
+      } else {
+        await requestIncompleteLivreur(decisionModal.rider.id, decisionReason.trim() || 'Merci de compléter votre dossier.');
+      }
+      setDecisionModal(null);
+      setDecisionReason('');
+    } catch (error: any) {
+      window.alert(error?.message || 'Impossible de traiter la candidature.');
+    } finally {
+      setDecisionBusy(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -265,7 +311,7 @@ export const AdminView: React.FC<{
           </div>
           <div className="flex-1 min-h-0 lg:overflow-hidden p-3.5 space-y-2.5">
             {[
-              { tab: 'verifications' as AdminTab, label: 'Certifier les livreurs', count: pendingLivreurs.length, icon: ShieldCheck },
+              { tab: 'verifications' as AdminTab, label: 'Candidatures livreurs', count: pendingLivreurs.length, icon: ShieldCheck },
               { tab: 'stores' as AdminTab, label: 'Certifier les boutiques', count: uncertifiedStores, icon: Store },
               { tab: 'orders' as AdminTab, label: 'Suivre les commandes', count: activeOrders.length, icon: ShoppingBag },
               { tab: 'accounts' as AdminTab, label: 'Gérer les comptes', count: allUsers.filter(u => u.role !== 'admin').length, icon: Users },
@@ -435,122 +481,261 @@ export const AdminView: React.FC<{
     }
   };
 
-  const renderVerifications = () => renderAdminPage(
-    'Certification livreurs',
-    'Examinez les dossiers et validez les livreurs sous 12 heures maximum.',
-    (
-      <div className="space-y-4">
-        {pendingLivreurs.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#e6dac8] bg-[#faf6ef] p-12 text-center">
-            <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-            <p className="text-base font-bold text-slate-800">Tous les dossiers livreurs sont à jour</p>
-            <p className="text-sm text-slate-500 mt-2">Les nouvelles demandes apparaîtront ici automatiquement.</p>
+  const renderVerifications = () => {
+    const rejectedLivreurs = allLivreurs.filter(u => u.verificationStatus === 'rejected');
+    const query = riderQuery.trim().toLowerCase();
+    const filteredRiders = allLivreurs.filter(rider => {
+      const status = rider.verificationStatus || 'pending';
+      if (verificationFilter === 'all') return true;
+      if (verificationFilter === 'todo') return status === 'pending' || status === 'incomplete';
+      return status === verificationFilter;
+    }).filter(rider => {
+      if (!query) return true;
+      return [rider.name, rider.phone, rider.email, rider.vehiclePlate]
+        .some(value => (value || '').toLowerCase().includes(query));
+    }).sort((a, b) => {
+      const rank = (status?: string) => (
+        status === 'pending' ? 0 : status === 'incomplete' ? 1 : status === 'rejected' ? 2 : 3
+      );
+      return rank(a.verificationStatus) - rank(b.verificationStatus);
+    });
+    const selectedRider = filteredRiders.find(r => r.id === selectedRiderId) || filteredRiders[0] || null;
+
+    const formatDate = (value?: string) => {
+      if (!value) return 'Non renseignée';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    const statusMeta = (status?: string) => {
+      if (status === 'approved') return { label: 'Certifié', className: 'bg-emerald-100 text-emerald-800' };
+      if (status === 'rejected') return { label: 'Refusé', className: 'bg-rose-100 text-rose-800' };
+      if (status === 'incomplete') return { label: 'Incomplet', className: 'bg-amber-100 text-amber-800' };
+      return { label: 'En attente', className: 'bg-orange-100 text-orange-800' };
+    };
+
+    const docsOf = (rider: User) => ([
+      { label: 'Selfie', src: rider.selfiePhoto || rider.avatar },
+      { label: 'CIP / pièce', src: rider.cipPhoto },
+      { label: 'Photo moto', src: rider.vehiclePhoto },
+    ]);
+
+    return renderAdminPage(
+      'Candidatures livreurs',
+      'Examinez les pièces, téléchargez le dossier PDF, puis approuvez ou renvoyez la candidature.',
+      (
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              value={riderQuery}
+              onChange={(e) => { setRiderQuery(e.target.value); setSelectedRiderId(null); }}
+              placeholder="Rechercher un candidat (nom, téléphone, e-mail, plaque)…"
+              className="w-full h-11 pl-10 pr-4 rounded-2xl border border-[#e6dac8] bg-white text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#ff8a1f]"
+            />
           </div>
-        ) : (
-          pendingLivreurs.map(rider => (
-            <article key={rider.id} className="rounded-2xl border-2 border-amber-200 bg-amber-50/50 p-5 sm:p-6 space-y-5">
-              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                <div className="flex items-start gap-4 min-w-0">
-                  {rider.avatar ? (
-                    <img src={rider.avatar} alt={rider.name} className="w-16 h-16 rounded-full object-cover border-2 border-amber-400 shrink-0" />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-amber-100 border-2 border-amber-400 shrink-0 flex items-center justify-center text-amber-700 font-black">
-                      {(rider.name || '?').slice(0, 1).toUpperCase()}
+
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'todo' as const, label: 'À traiter', count: pendingLivreurs.length },
+              { id: 'pending' as const, label: 'Nouvelles', count: allLivreurs.filter(u => (u.verificationStatus || 'pending') === 'pending').length },
+              { id: 'incomplete' as const, label: 'Incomplets', count: allLivreurs.filter(u => u.verificationStatus === 'incomplete').length },
+              { id: 'rejected' as const, label: 'Refusés', count: rejectedLivreurs.length },
+              { id: 'approved' as const, label: 'Certifiés', count: approvedLivreurs.length },
+              { id: 'all' as const, label: 'Tous', count: allLivreurs.length },
+            ].map(filter => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => { setVerificationFilter(filter.id); setSelectedRiderId(null); }}
+                className={`h-9 px-3.5 rounded-full text-xs font-bold transition ${
+                  verificationFilter === filter.id
+                    ? 'bg-[#0c1a2e] text-white'
+                    : 'bg-white border border-[#e6dac8] text-slate-600 hover:border-[#ff8a1f]'
+                }`}
+              >
+                {filter.label} ({filter.count})
+              </button>
+            ))}
+          </div>
+
+          {filteredRiders.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#e6dac8] bg-[#faf6ef] p-12 text-center">
+              <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+              <p className="text-base font-bold text-slate-800">Aucune candidature dans cette vue</p>
+              <p className="text-sm text-slate-500 mt-2">Les nouveaux dossiers livreurs apparaîtront ici automatiquement.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] gap-4">
+              <div className="space-y-2 xl:max-h-[calc(100vh-18rem)] xl:overflow-y-auto pr-1">
+                {filteredRiders.map(rider => {
+                  const meta = statusMeta(rider.verificationStatus);
+                  const missing = docsOf(rider).filter(d => !d.src).length + (rider.vehiclePlate ? 0 : 1);
+                  const active = (selectedRider?.id || '') === rider.id;
+                  return (
+                    <button
+                      key={rider.id}
+                      type="button"
+                      onClick={() => setSelectedRiderId(rider.id)}
+                      className={`w-full text-left rounded-2xl border p-3.5 transition ${
+                        active
+                          ? 'border-[#ff8a1f] bg-white shadow-sm'
+                          : 'border-[#e6dac8] bg-[#fffdf8] hover:border-[#ffb86a]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {rider.avatar || rider.selfiePhoto ? (
+                          <img src={rider.avatar || rider.selfiePhoto} alt="" className="w-11 h-11 rounded-full object-cover" />
+                        ) : (
+                          <span className="w-11 h-11 rounded-full bg-amber-100 text-amber-800 font-black flex items-center justify-center">
+                            {(rider.name || '?').slice(0, 1).toUpperCase()}
+                          </span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-black text-slate-900 truncate">{rider.name}</p>
+                          <p className="text-[11px] text-slate-500 truncate">{rider.phone || rider.email}</p>
+                        </div>
+                        <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${meta.className}`}>
+                          {meta.label}
+                        </span>
+                      </div>
+                      {missing > 0 && rider.verificationStatus !== 'approved' && (
+                        <p className="mt-2 text-[11px] font-semibold text-amber-700">{missing} élément(s) manquant(s)</p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedRider && (
+                <article className="rounded-2xl border border-[#e6dac8] bg-white p-5 sm:p-6 space-y-5">
+                  <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                    <div className="flex items-start gap-4 min-w-0">
+                      {selectedRider.avatar || selectedRider.selfiePhoto ? (
+                        <img src={selectedRider.avatar || selectedRider.selfiePhoto} alt={selectedRider.name} className="w-16 h-16 rounded-2xl object-cover border border-[#e6dac8]" />
+                      ) : (
+                        <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-800 font-black text-xl">
+                          {(selectedRider.name || '?').slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${statusMeta(selectedRider.verificationStatus).className}`}>
+                          {statusMeta(selectedRider.verificationStatus).label}
+                        </span>
+                        <h3 className="text-xl font-black text-slate-900 mt-2">{selectedRider.name}</h3>
+                        <p className="text-sm text-slate-600 mt-1 break-words">{selectedRider.phone} · {selectedRider.email}</p>
+                        <p className="text-sm font-semibold text-slate-800 mt-1">
+                          {selectedRider.vehicle || 'Véhicule non renseigné'}
+                          {selectedRider.vehiclePlate ? ` · ${selectedRider.vehiclePlate}` : ' · plaque manquante'}
+                          {selectedRider.city ? ` · ${selectedRider.city}` : ''}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">Inscription : {formatDate(selectedRider.createdAt)}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={pdfBusyId === selectedRider.id}
+                      onClick={() => void downloadLivreurPdf(selectedRider)}
+                      className="inline-flex items-center justify-center gap-2 h-11 px-4 rounded-full bg-[#0c1a2e] hover:bg-[#132d4d] text-white text-sm font-bold disabled:opacity-60"
+                    >
+                      {pdfBusyId === selectedRider.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                      Télécharger le PDF
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { label: 'Téléphone', value: selectedRider.phone || '—' },
+                      { label: 'E-mail', value: selectedRider.email || '—' },
+                      { label: 'Plaque', value: selectedRider.vehiclePlate || 'Manquante' },
+                      { label: 'Ville', value: selectedRider.city || 'Lokossa' },
+                    ].map(item => (
+                      <div key={item.label} className="rounded-xl border border-[#e6dac8] bg-[#fffdf8] px-3 py-2.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
+                        <p className="text-sm font-bold text-slate-800 mt-0.5 truncate" title={item.value}>{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {docsOf(selectedRider).map(item => (
+                      <div key={item.label} className="rounded-xl border border-[#e6dac8] bg-[#fffdf8] p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-bold uppercase text-slate-500">{item.label}</span>
+                          <span className={`text-[10px] font-bold uppercase ${item.src ? 'text-emerald-600' : 'text-rose-500'}`}>
+                            {item.src ? 'Fourni' : 'Manquant'}
+                          </span>
+                        </div>
+                        {item.src ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewImage({ src: item.src as string, label: item.label })}
+                            className="relative block w-full group"
+                          >
+                            <img src={item.src} alt={item.label} className="w-full h-40 object-cover rounded-lg" />
+                            <span className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/25 transition flex items-center justify-center">
+                              <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100" />
+                            </span>
+                          </button>
+                        ) : (
+                          <div className="h-40 rounded-lg bg-slate-100 flex items-center justify-center text-sm text-slate-400">
+                            Non fourni
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {selectedRider.rejectionReason && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      <span className="font-bold">Observation : </span>{selectedRider.rejectionReason}
                     </div>
                   )}
-                  <div className="min-w-0">
-                    <span className="inline-block px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold uppercase">
-                      En attente · 12h max
-                    </span>
-                    <h3 className="text-lg font-black text-slate-900 mt-2 truncate">{rider.name}</h3>
-                    <p className="text-sm text-slate-600 break-words mt-1">{rider.phone} · {rider.email}</p>
-                    <p className="text-sm font-semibold text-slate-800 mt-1">
-                      {rider.vehicle || 'Moto non renseignée'}
-                      {rider.vehiclePlate ? ` · ${rider.vehiclePlate}` : ''}
-                    </p>
+
+                  <div className="flex flex-wrap gap-2.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => { setDecisionReason(''); setDecisionModal({ type: 'approve', rider: selectedRider }); }}
+                      className="inline-flex items-center gap-2 h-11 px-4 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold"
+                    >
+                      <ShieldCheck className="w-4 h-4" /> Approuver
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDecisionReason('Pièces illisibles ou non conformes'); setDecisionModal({ type: 'reject', rider: selectedRider }); }}
+                      className="inline-flex items-center gap-2 h-11 px-4 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold"
+                    >
+                      <XCircle className="w-4 h-4" /> Refuser
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDecisionReason('Merci de compléter votre dossier.'); setDecisionModal({ type: 'incomplete', rider: selectedRider }); }}
+                      className="inline-flex items-center gap-2 h-11 px-4 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold"
+                    >
+                      <AlertTriangle className="w-4 h-4" /> Demander un complément
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteConfirm({ type: 'account', id: selectedRider.id, name: selectedRider.name, email: selectedRider.email })}
+                      className="inline-flex items-center gap-2 h-11 px-4 rounded-full border border-slate-200 text-slate-700 text-sm font-bold hover:bg-slate-50"
+                    >
+                      Supprimer
+                    </button>
                   </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2.5">
-                  <button
-                    onClick={() => approveLivreur(rider.id)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold cursor-pointer"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    Approuver
-                  </button>
-                  <button
-                    onClick={() => {
-                      const reason = window.prompt('Motif du refus :', 'Pièces illisibles ou non conformes');
-                      if (reason === null) return;
-                      rejectLivreur(rider.id, reason || 'Pièces illisibles');
-                    }}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold cursor-pointer"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Refuser
-                  </button>
-                  <button
-                    onClick={() => {
-                      const reason = window.prompt('Informations manquantes :', 'Merci de compléter votre dossier.');
-                      if (reason === null) return;
-                      requestIncompleteLivreur(rider.id, reason);
-                    }}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold cursor-pointer"
-                  >
-                    <AlertTriangle className="w-4 h-4" />
-                    Incomplet
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirm({ type: 'account', id: rider.id, name: rider.name, email: rider.email })}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold cursor-pointer"
-                  >
-                    Supprimer
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[
-                  { label: 'Selfie', src: rider.selfiePhoto || rider.avatar },
-                  { label: 'CIP / ID', src: rider.cipPhoto },
-                  { label: 'Moto', src: rider.vehiclePhoto },
-                ].map(item => (
-                  <div key={item.label} className="rounded-xl border border-[#e6dac8] bg-white p-4 text-center">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase">{item.label}</span>
-                    {item.src ? (
-                      <img src={item.src} alt={item.label} className="mt-3 w-full h-36 object-cover rounded-lg" />
-                    ) : (
-                      <div className="mt-3 h-36 rounded-lg bg-slate-100 flex items-center justify-center text-sm text-slate-400">Non fourni</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-slate-600">
-                  Statut : <span className="font-bold">{rider.verificationStatus?.toUpperCase() || 'EN ATTENTE'}</span>
-                  {rider.rejectionReason && <> · Motif : {rider.rejectionReason}</>}
-                </p>
-                <button
-                  onClick={() => downloadDossier(rider, `dossier-livreur-${rider.id}.json`)}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0c1a2e] text-white text-sm font-bold hover:bg-[#132d4d]"
-                >
-                  <Download className="w-4 h-4" />
-                  Télécharger le dossier
-                </button>
-              </div>
-            </article>
-          ))
-        )}
-      </div>
-    ),
-    [
-      { label: 'En attente', value: pendingLivreurs.length },
-      { label: 'Certifiés', value: approvedLivreurs.length },
-      { label: 'Total', value: ridersCount },
-    ],
-  );
+                </article>
+              )}
+            </div>
+          )}
+        </div>
+      ),
+      [
+        { label: 'À traiter', value: pendingLivreurs.length },
+        { label: 'Certifiés', value: approvedLivreurs.length },
+        { label: 'Total', value: ridersCount },
+      ],
+    );
+  };
 
   const renderStores = () => renderAdminPage(
     'Boutiques partenaires',
@@ -582,7 +767,7 @@ export const AdminView: React.FC<{
             <article key={store.id} className="rounded-2xl border border-[#e6dac8] bg-white p-5 space-y-4 shadow-sm">
               <div className="flex items-center gap-4">
                 {store.logo ? (
-                  <img src={store.logo} alt={store.name} className="w-14 h-14 rounded-xl object-cover border border-[#e6dac8]" />
+                  <img src={store.logo} alt={store.name} className="w-14 h-14 rounded-xl object-contain bg-white p-1 border border-[#e6dac8]" />
                 ) : (
                   <div className="w-14 h-14 rounded-xl bg-slate-100 border border-[#e6dac8] flex items-center justify-center">
                     <Store className="w-6 h-6 text-slate-400" />
@@ -607,11 +792,13 @@ export const AdminView: React.FC<{
                   {store.isCertified ? 'Certifié · Retirer' : 'Certifier'}
                 </button>
                 <button
-                  onClick={() => downloadDossier(store, `dossier-boutique-${store.id}.json`)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0c1a2e] text-white text-sm font-bold"
+                  type="button"
+                  disabled={pdfBusyId === store.id}
+                  onClick={() => void downloadStorePdf(store)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0c1a2e] text-white text-sm font-bold disabled:opacity-60"
                 >
-                  <Download className="w-4 h-4" />
-                  Dossier
+                  {pdfBusyId === store.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                  PDF
                 </button>
                 <button
                   onClick={() => {
@@ -1078,8 +1265,8 @@ export const AdminView: React.FC<{
       {/* En-tête marque */}
       <div className="px-5 pt-6 pb-5 border-b border-white/8">
         <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-2xl overflow-hidden ring-2 ring-[#ff8a1f]/40 shadow-lg shadow-[#ff8a1f]/10 shrink-0">
-            <img src={livrikoLogo} alt="Livriko" className="h-full w-full object-cover" />
+          <div className="h-12 w-12 rounded-2xl overflow-hidden bg-white p-1 ring-2 ring-[#ff8a1f]/40 shadow-lg shadow-[#ff8a1f]/10 shrink-0">
+            <img src={livrikoLogo} alt="Livriko" className="h-full w-full object-contain" />
           </div>
           <div className="min-w-0">
             <p className="text-[15px] font-black leading-none tracking-tight">
@@ -1169,7 +1356,7 @@ export const AdminView: React.FC<{
               onClick={() => onOpenUserProfile('profil')}
               className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white/6 text-[12px] font-semibold text-[#d5e0ee] hover:bg-white/10 hover:text-white transition cursor-pointer"
             >
-              <User className="w-4 h-4" />
+              <UserIcon className="w-4 h-4" />
               Mon profil
             </button>
           )}
@@ -1243,6 +1430,70 @@ export const AdminView: React.FC<{
           </div>
         </div>
       </div>
+
+      {decisionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl space-y-4">
+            <h3 className="text-lg font-black text-slate-900">
+              {decisionModal.type === 'approve' && 'Approuver cette candidature'}
+              {decisionModal.type === 'reject' && 'Refuser cette candidature'}
+              {decisionModal.type === 'incomplete' && 'Demander un complément'}
+            </h3>
+            <p className="text-sm text-slate-600">
+              {decisionModal.rider.name} · {decisionModal.rider.email}
+            </p>
+            {decisionModal.type === 'approve' ? (
+              <p className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
+                Le livreur pourra ensuite accepter des courses Livriko.
+              </p>
+            ) : (
+              <label className="block text-sm font-bold text-slate-700">
+                Motif envoyé au candidat
+                <textarea
+                  value={decisionReason}
+                  onChange={(e) => setDecisionReason(e.target.value)}
+                  rows={4}
+                  className="mt-2 w-full rounded-2xl border border-[#e6dac8] bg-[#fffdf8] px-3 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:border-[#ff8a1f]"
+                />
+              </label>
+            )}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={decisionBusy}
+                onClick={() => setDecisionModal(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={decisionBusy}
+                onClick={() => void confirmDecision()}
+                className={`px-4 py-2 rounded-xl text-white text-xs font-bold disabled:opacity-60 ${
+                  decisionModal.type === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700' : decisionModal.type === 'reject' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'
+                }`}
+              >
+                {decisionBusy ? 'Traitement…' : decisionModal.type === 'approve' ? 'Confirmer l’approbation' : 'Envoyer la décision'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" onClick={() => setPreviewImage(null)}>
+          <div className="w-full max-w-3xl space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between text-white">
+              <p className="text-sm font-bold">{previewImage.label}</p>
+              <button type="button" onClick={() => setPreviewImage(null)} className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <img src={previewImage.src} alt={previewImage.label} className="w-full max-h-[80vh] object-contain rounded-2xl bg-black" />
+          </div>
+        </div>
+      )}
 
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">

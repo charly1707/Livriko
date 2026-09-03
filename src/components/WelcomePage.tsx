@@ -221,8 +221,8 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth, onBrowseM
             <img
               src={livrikoLogo}
               alt="Logo Livriko"
-              className={`h-9 w-9 rounded-full object-cover sm:h-10 sm:w-10 ${
-                lightHeader && !mobileMenuOpen ? 'ring-2 ring-white/70' : ''
+              className={`h-10 w-10 rounded-xl bg-white object-contain p-0.5 sm:h-11 sm:w-11 ${
+                lightHeader && !mobileMenuOpen ? 'ring-2 ring-white/70' : 'ring-1 ring-black/5'
               }`}
             />
             <span
@@ -840,7 +840,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth, onBrowseM
       <footer className={`border-t ${BORDER_BEIGE} ${PAGE_BG} py-6 sm:py-8`}>
         <div className="mx-auto flex max-w-[96rem] flex-col items-start gap-2 px-5 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12 xl:px-16">
           <div className="flex items-center gap-2">
-            <img src={livrikoLogo} alt="" className="h-7 w-7 rounded-full object-cover" />
+            <img src={livrikoLogo} alt="" className="h-9 w-9 rounded-xl bg-white object-contain p-0.5 ring-1 ring-black/5" />
             <span className="text-sm font-bold text-[#0b2a4a]">
               Livr<span className="text-[#ff8a1f]">iko</span>
             </span>
