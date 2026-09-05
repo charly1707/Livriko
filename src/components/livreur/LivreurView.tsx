@@ -159,6 +159,8 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
   const isRejected = currentUser?.verificationStatus === 'rejected';
   const isIncomplete = currentUser?.verificationStatus === 'incomplete';
   const needsResubmission = isRejected || isIncomplete;
+  const isApprovedLivreur = currentUser?.verificationStatus === 'approved'
+    || (Boolean(currentUser?.isCertified) && !isPendingVerification && !needsResubmission);
 
   const [resubmitSelfie, setResubmitSelfie] = useState(currentUser?.selfiePhoto || '');
   const [resubmitCip, setResubmitCip] = useState(currentUser?.cipPhoto || '');
@@ -198,6 +200,7 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
         cipPhoto: cipUrl,
         vehiclePhoto: vehicleUrl,
         avatar: selfieUrl,
+        verificationStatus: 'pending',
       });
       setResubmitMessage('Dossier renvoyé pour vérification. Statut : en attente de certification.');
     } catch (error: any) {
@@ -206,6 +209,146 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
       setResubmitBusy(false);
     }
   };
+
+  // Compte créé mais pas encore validé : aucune interaction opérationnelle
+  if (!isApprovedLivreur) {
+    return (
+      <div className="space-y-6 pb-12 max-w-3xl mx-auto">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+          <span className="text-xs font-semibold text-slate-500">
+            Espace Livreur • {currentUser?.name || 'Livreur'}
+          </span>
+        </div>
+
+        {isPendingVerification && currentUser && (
+          <div className="bg-amber-50 rounded-3xl border-2 border-amber-300 p-6 sm:p-8 space-y-6 shadow-md">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0">
+                <Clock className="w-6 h-6 animate-pulse" />
+              </div>
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 font-mono text-[10px] uppercase font-bold">
+                  En attente de certification
+                </span>
+                <h2 className="text-xl font-black text-amber-950 mt-1">
+                  Votre compte est créé — validation admin en cours
+                </h2>
+                <p className="text-sm text-amber-800 mt-1">
+                  Vous ne pouvez pas encore accepter de courses ni utiliser les services Livriko.
+                  L&apos;administrateur vérifie vos pièces (selfie, CIP, moto &amp; plaque) sous 12h maximum.
+                  Vous serez débloqué dès l&apos;approbation.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+              <div className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center gap-3">
+                {(currentUser.selfiePhoto || currentUser.avatar) ? (
+                  <img src={currentUser.selfiePhoto || currentUser.avatar} alt="Selfie" className="w-12 h-12 rounded-full object-cover border border-slate-200 shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-slate-100 border border-slate-200 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">1. Photo Livreur</span>
+                  <span className="text-xs font-bold text-slate-900 truncate block">{currentUser.name}</span>
+                </div>
+              </div>
+              <div className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center gap-3">
+                {currentUser.cipPhoto ? (
+                  <img src={currentUser.cipPhoto} alt="Carte CIP" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center text-[10px] text-slate-400 font-bold">—</div>
+                )}
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">2. Carte CIP / ID</span>
+                  <span className="text-xs font-bold text-slate-900 truncate block">Pièce d&apos;identité</span>
+                </div>
+              </div>
+              <div className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center gap-3">
+                {currentUser.vehiclePhoto ? (
+                  <img src={currentUser.vehiclePhoto} alt="Moto" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center text-[10px] text-slate-400 font-bold">—</div>
+                )}
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">3. Moto & Plaque</span>
+                  <span className="text-xs font-bold text-slate-900 truncate block">{currentUser.vehicle || 'Moto'} {currentUser.vehiclePlate || ''}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-white/80 border border-amber-200 p-4 text-xs text-amber-900 font-semibold">
+              Astuce : restez connecté ou reconnectez-vous plus tard. Dès validation, l&apos;espace livreur s&apos;ouvrira automatiquement.
+            </div>
+          </div>
+        )}
+
+        {needsResubmission && currentUser && (
+          <div className={`rounded-3xl border-2 p-6 sm:p-8 space-y-5 shadow-md ${isRejected ? 'bg-rose-50 border-rose-300' : 'bg-orange-50 border-orange-300'}`}>
+            <div>
+              <span className={`px-2.5 py-0.5 rounded-full font-mono text-[10px] uppercase font-bold ${isRejected ? 'bg-rose-200 text-rose-900' : 'bg-orange-200 text-orange-900'}`}>
+                {isRejected ? 'Certification refusée' : 'Informations incomplètes'}
+              </span>
+              <h2 className={`text-xl font-black mt-2 ${isRejected ? 'text-rose-950' : 'text-orange-950'}`}>
+                Action requise de votre part
+              </h2>
+              <p className={`text-xs mt-1 ${isRejected ? 'text-rose-800' : 'text-orange-800'}`}>
+                {currentUser.rejectionReason || 'Merci de compléter ou corriger vos documents pour reprendre la certification.'}
+              </p>
+              <p className={`text-sm mt-2 font-semibold ${isRejected ? 'text-rose-900' : 'text-orange-900'}`}>
+                Tant que le dossier n&apos;est pas approuvé, vous ne pouvez pas prendre de courses ni utiliser le site livreur.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <MediaPicker
+                label="Selfie"
+                value={resubmitSelfie}
+                captureMode="user"
+                compact
+                onChange={(preview, file) => { setResubmitSelfie(preview); setResubmitSelfieFile(file); }}
+                onClear={() => { setResubmitSelfie(''); setResubmitSelfieFile(null); }}
+              />
+              <MediaPicker
+                label="CIP / Pièce ID"
+                value={resubmitCip}
+                captureMode="environment"
+                allowDocuments
+                onChange={(preview, file) => { setResubmitCip(preview); setResubmitCipFile(file); }}
+                onClear={() => { setResubmitCip(''); setResubmitCipFile(null); }}
+              />
+              <MediaPicker
+                label="Photo moto"
+                value={resubmitVehicle}
+                captureMode="environment"
+                onChange={(preview, file) => { setResubmitVehicle(preview); setResubmitVehicleFile(file); }}
+                onClear={() => { setResubmitVehicle(''); setResubmitVehicleFile(null); }}
+              />
+            </div>
+
+            <button
+              type="button"
+              disabled={resubmitBusy}
+              onClick={() => void handleResubmitDocuments()}
+              className="px-5 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold disabled:opacity-60"
+            >
+              {resubmitBusy ? 'Envoi…' : 'Renvoyer mon dossier pour certification'}
+            </button>
+            {resubmitMessage && <p className="text-xs font-semibold text-slate-700">{resubmitMessage}</p>}
+          </div>
+        )}
+
+        {!isPendingVerification && !needsResubmission && (
+          <div className="bg-amber-50 rounded-3xl border-2 border-amber-300 p-6 shadow-md">
+            <h2 className="text-xl font-black text-amber-950">Validation admin requise</h2>
+            <p className="text-sm text-amber-800 mt-2">
+              Votre compte livreur n&apos;est pas encore certifié. Aucune course ni service n&apos;est accessible pour le moment.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-12">
@@ -223,118 +366,6 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
           Espace Livreur • {currentUser?.name || 'Livreur'}
         </span>
       </div>
-
-      {/* VERIFICATION PENDING WORKFLOW BANNER */}
-      {isPendingVerification && currentUser && (
-        <div className="bg-amber-50 rounded-3xl border-2 border-amber-300 p-6 sm:p-8 space-y-6 shadow-md">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0">
-                <Clock className="w-6 h-6 animate-pulse" />
-              </div>
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 font-mono text-[10px] uppercase font-bold">
-                  En attente de certification
-                </span>
-                <h2 className="text-xl font-black text-amber-950 mt-1">
-                  Vérification de Sécurité & Conformité en Cours
-                </h2>
-                <p className="text-xs text-amber-800">
-                  L&apos;administrateur vérifie vos pièces obligatoires (Selfie, CIP et Photo Moto) sous 12h maximum.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <div className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center gap-3">
-              {(currentUser.selfiePhoto || currentUser.avatar) ? (
-                <img src={currentUser.selfiePhoto || currentUser.avatar} alt="Selfie" className="w-12 h-12 rounded-full object-cover border border-slate-200 shrink-0" />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-slate-100 border border-slate-200 shrink-0" />
-              )}
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold text-slate-400 block uppercase">1. Photo Livreur</span>
-                <span className="text-xs font-bold text-slate-900 truncate block">{currentUser.name}</span>
-              </div>
-            </div>
-            <div className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center gap-3">
-              {currentUser.cipPhoto ? (
-                <img src={currentUser.cipPhoto} alt="Carte CIP" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
-              ) : (
-                <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center text-[10px] text-slate-400 font-bold">—</div>
-              )}
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold text-slate-400 block uppercase">2. Carte CIP / ID</span>
-                <span className="text-xs font-bold text-slate-900 truncate block">Pièce d&apos;identité</span>
-              </div>
-            </div>
-            <div className="p-3 bg-white rounded-2xl border border-amber-200 flex items-center gap-3">
-              {currentUser.vehiclePhoto ? (
-                <img src={currentUser.vehiclePhoto} alt="Moto" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />
-              ) : (
-                <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center text-[10px] text-slate-400 font-bold">—</div>
-              )}
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold text-slate-400 block uppercase">3. Moto & Plaque</span>
-                <span className="text-xs font-bold text-slate-900 truncate block">{currentUser.vehicle || 'Moto'} {currentUser.vehiclePlate || ''}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {needsResubmission && currentUser && (
-        <div className={`rounded-3xl border-2 p-6 sm:p-8 space-y-5 shadow-md ${isRejected ? 'bg-rose-50 border-rose-300' : 'bg-orange-50 border-orange-300'}`}>
-          <div>
-            <span className={`px-2.5 py-0.5 rounded-full font-mono text-[10px] uppercase font-bold ${isRejected ? 'bg-rose-200 text-rose-900' : 'bg-orange-200 text-orange-900'}`}>
-              {isRejected ? 'Certification refusée' : 'Informations incomplètes'}
-            </span>
-            <h2 className={`text-xl font-black mt-2 ${isRejected ? 'text-rose-950' : 'text-orange-950'}`}>
-              Action requise de votre part
-            </h2>
-            <p className={`text-xs mt-1 ${isRejected ? 'text-rose-800' : 'text-orange-800'}`}>
-              {currentUser.rejectionReason || 'Merci de compléter ou corriger vos documents pour reprendre la certification.'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <MediaPicker
-              label="Selfie"
-              value={resubmitSelfie}
-              captureMode="user"
-              compact
-              onChange={(preview, file) => { setResubmitSelfie(preview); setResubmitSelfieFile(file); }}
-              onClear={() => { setResubmitSelfie(''); setResubmitSelfieFile(null); }}
-            />
-            <MediaPicker
-              label="CIP / Pièce ID"
-              value={resubmitCip}
-              captureMode="environment"
-              allowDocuments
-              onChange={(preview, file) => { setResubmitCip(preview); setResubmitCipFile(file); }}
-              onClear={() => { setResubmitCip(''); setResubmitCipFile(null); }}
-            />
-            <MediaPicker
-              label="Photo moto"
-              value={resubmitVehicle}
-              captureMode="environment"
-              onChange={(preview, file) => { setResubmitVehicle(preview); setResubmitVehicleFile(file); }}
-              onClear={() => { setResubmitVehicle(''); setResubmitVehicleFile(null); }}
-            />
-          </div>
-
-          <button
-            type="button"
-            disabled={resubmitBusy}
-            onClick={() => void handleResubmitDocuments()}
-            className="px-5 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold disabled:opacity-60"
-          >
-            {resubmitBusy ? 'Envoi…' : 'Renvoyer mon dossier pour certification'}
-          </button>
-          {resubmitMessage && <p className="text-xs font-semibold text-slate-700">{resubmitMessage}</p>}
-        </div>
-      )}
       
       {/* Rider Status & Profile Card */}
       <div className="bg-linear-to-r from-emerald-700 via-emerald-800 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
@@ -346,16 +377,14 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
           />
           <div>
             <div className="flex items-center gap-2">
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${currentUser?.verificationStatus === 'approved' ? 'bg-emerald-500/30 text-emerald-200' : 'bg-amber-500/30 text-amber-200'}`}>
-                {currentUser?.verificationStatus === 'approved' ? 'Livreur Certifié Livriko' : 'En Attente de Validation (12h max)'}
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/30 text-emerald-200">
+                Livreur Certifié Livriko
               </span>
               <span className="text-xs text-emerald-200">• {currentUser?.vehicle || 'Moto'}</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-white mt-0.5 flex flex-wrap items-center gap-2 wrap-break-word">
               {currentUser?.name || 'Livreur Livriko'}
-              {currentUser?.verificationStatus === 'approved' && (
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
-              )}
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
             </h1>
             <p className="text-xs text-emerald-100 font-mono">ID Livreur : #LVK-RIDER-{currentUser?.id ? currentUser.id.slice(-4) : '0000'}</p>
           </div>

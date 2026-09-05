@@ -78,6 +78,12 @@ export async function createMission(req, res) {
 export async function listMissions(req, res) {
   const userId = currentUserId(req);
   const role = currentUser(req)?.role || 'client';
+  if (role === 'livreur') {
+    const rider = await User.findById(userId);
+    if (!rider?.documentsValide || rider.verificationStatus !== 'approved') {
+      return res.json({ success: true, missions: [] });
+    }
+  }
   const filter = role === 'livreur'
     ? { status: { $in: ['searching', 'assigned', 'to_pickup', 'picked_up', 'delivering'] } }
     : { clientId: userId };
@@ -105,6 +111,15 @@ export async function updateMissionStatus(req, res) {
   }
   if (role !== 'livreur' && !(role === 'client' && status === 'cancelled')) {
     return res.status(403).json({ success: false, message: 'Seul un livreur peut faire avancer cette mission.' });
+  }
+  if (role === 'livreur') {
+    const rider = await User.findById(userId);
+    if (!rider?.documentsValide || rider.verificationStatus !== 'approved') {
+      return res.status(403).json({
+        success: false,
+        message: 'Votre dossier livreur doit être approuvé par l’administrateur avant d’accepter des missions.',
+      });
+    }
   }
   if (role === 'livreur' && status === 'assigned') {
     mission.livreurId = userId;

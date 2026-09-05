@@ -37,7 +37,7 @@ function GlobalAuthModal() {
   );
 }
 
-function MainAppContent() {
+function MainAppContent({ onExitToWelcome }: { onExitToWelcome?: () => void }) {
   const { 
     activeRole, 
     activeTrackingOrder, 
@@ -94,7 +94,7 @@ function MainAppContent() {
   const isFullScreenDashboard = isAdminDashboard || isMerchantDashboard;
 
   return (
-    <div className={`min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-900 selection:bg-blue-600 selection:text-white ${isFullScreenDashboard ? 'lg:h-screen lg:max-h-screen lg:overflow-hidden' : ''}`}>
+    <div className={`min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-900 selection:bg-[#ff8a1f]/25 selection:text-slate-900 ${isFullScreenDashboard ? 'lg:h-screen lg:max-h-screen lg:overflow-hidden' : ''}`}>
       {/* Scooter Page Loading Animation */}
       {showScooterLoader && (
         <PageScooterLoader 
@@ -127,6 +127,7 @@ function MainAppContent() {
           onTriggerScooterLoader={() => {
             setShowScooterLoader(true);
           }}
+          onExitToWelcome={onExitToWelcome}
         />
       )}
 
@@ -136,7 +137,13 @@ function MainAppContent() {
           ? 'lg:h-screen lg:max-h-screen lg:overflow-hidden'
           : 'pt-14 sm:pt-16'
       }`}>
-        {activeRole === 'client' && <ClientView onOpenCart={() => setIsCartOpen(true)} onOpenChat={() => setIsChatOpen(true)} />}
+        {activeRole === 'client' && (
+          <ClientView
+            onOpenCart={() => setIsCartOpen(true)}
+            onOpenChat={() => setIsChatOpen(true)}
+            onExitToWelcome={onExitToWelcome}
+          />
+        )}
 
         {isAdminDashboard && (
           <AdminView
@@ -280,5 +287,13 @@ function AppRoot() {
     );
   }
 
-  return <MainAppContent />;
+  return (
+    <MainAppContent
+      onExitToWelcome={
+        !hasValidSession && guestBrowse
+          ? () => setGuestBrowse(false)
+          : undefined
+      }
+    />
+  );
 }

@@ -1340,6 +1340,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const activeRider = customRider || currentUser;
     if (!activeRider || activeRider.role !== 'livreur') return;
 
+    if (activeRider.verificationStatus !== 'approved') {
+      addNotification(
+        'Certification requise',
+        'Votre dossier livreur doit être approuvé par l’administrateur avant d’accepter des courses.',
+        'livreur',
+        orderId,
+      );
+      return;
+    }
+
     if (!customRider && currentUser?.role === 'livreur') {
       const storeLat = order.storeLat ?? LOKOSSA_DEFAULT.lat;
       const storeLng = order.storeLng ?? LOKOSSA_DEFAULT.lng;

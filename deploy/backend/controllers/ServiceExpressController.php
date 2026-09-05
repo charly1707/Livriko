@@ -65,6 +65,10 @@ class ServiceExpressController
         }
         $role = $_SESSION['utilisateur']['role'] ?? 'client';
         if ($role === 'livreur') {
+            if (!$this->isApprovedLivreur($userId)) {
+                $this->json(['success' => true, 'missions' => []]);
+                return;
+            }
             $stmt = $this->db->query("SELECT id FROM service_express_missions WHERE statut IN ('searching','assigned','to_pickup','picked_up','delivering') ORDER BY date_creation DESC");
         } else {
             $stmt = $this->db->prepare('SELECT id FROM service_express_missions WHERE client_id = ? ORDER BY date_creation DESC');
@@ -99,12 +103,27 @@ class ServiceExpressController
             $this->json(['success' => false, 'message' => 'Seul un livreur peut faire avancer cette mission.'], 403);
             return;
         }
+        if ($role === 'livreur' && !$this->isApprovedLivreur($userId)) {
+            $this->json(['success' => false, 'message' => 'Votre dossier livreur doit être approuvé par l’administrateur avant d’accepter des missions.'], 403);
+            return;
+        }
         if ($role === 'livreur' && $status === 'assigned') {
             $this->db->prepare('UPDATE service_express_missions SET livreur_id = (SELECT id FROM livreurs WHERE utilisateur_id = ? LIMIT 1) WHERE id = ?')->execute([$userId, $missionId]);
         }
         $this->db->prepare('UPDATE service_express_missions SET statut = ?, date_completion = CASE WHEN ? = \'completed\' THEN NOW() ELSE date_completion END WHERE id = ?')->execute([$status, $status, $missionId]);
         $this->db->prepare('INSERT INTO historique_service_express (mission_id, statut) VALUES (?, ?)')->execute([$missionId, $status]);
         $this->json(['success' => true, 'mission' => $this->find($missionId)]);
+    }
+
+    private function isApprovedLivreur(int $userId): bool
+    {
+        $stmt = $this->db->prepare('SELECT documents_valide FROM livreurs WHERE utilisateur_id = ? LIMIT 1');
+        $stmt->execute([$userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return false;
+        }
+        return (int)($row['documents_valide'] ?? 0) === 1;
     }
 
     private function find(int $id): ?array
