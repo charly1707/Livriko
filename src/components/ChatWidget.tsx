@@ -42,21 +42,28 @@ export const ChatWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
         .filter((store) => sameUserId(store.ownerId, currentUser?.id) || store.id === currentUser?.storeId)
         .map((store) => store.id.replace(/^store-/, '')),
     );
+    // Fallback : si la liste magasins n’est pas encore sync, accepter les commandes du magasin de session
+    if (currentUser?.storeId) {
+      myStoreIds.add(String(currentUser.storeId).replace(/^store-/, ''));
+    }
     const mine = orders.filter((order) => {
       if (!CHAT_READ_STATUSES.includes(order.status)) return false;
       const storeBare = String(order.storeId || '').replace(/^store-/, '');
       if (activeRole === 'client') return sameUserId(order.clientId, currentUser?.id);
       if (activeRole === 'vendeur' || activeRole === 'restaurant') {
-        return myStoreIds.has(storeBare) || sameUserId(order.clientId, currentUser?.id);
+        return myStoreIds.has(storeBare)
+          || sameUserId(order.clientId, currentUser?.id)
+          || (activeTrackingOrder && order.id === activeTrackingOrder.id);
       }
       if (activeRole === 'livreur') {
-        return sameUserId(order.riderId, currentUser?.id);
+        return sameUserId(order.riderId, currentUser?.id)
+          || (activeTrackingOrder && order.id === activeTrackingOrder.id);
       }
       return true;
     });
     const unique = mine.filter((order, index, list) => list.findIndex((item) => item.id === order.id) === index);
     return unique.sort((a, b) => Number(Boolean(CHAT_OPEN_STATUSES.includes(b.status))) - Number(Boolean(CHAT_OPEN_STATUSES.includes(a.status))));
-  }, [orders, currentUser?.id, currentUser?.storeId, activeRole, stores]);
+  }, [orders, currentUser?.id, currentUser?.storeId, activeRole, stores, activeTrackingOrder]);
 
   const selectedOrder = useMemo(() => {
     return chatOrders.find((order) => order.id === selectedOrderId || orderDbId(order) === selectedOrderId)
@@ -172,7 +179,7 @@ export const ChatWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
   return (
     <div className="fixed inset-0 z-1200 bg-slate-900/60 backdrop-blur-sm flex items-end justify-end p-4 sm:p-6">
-      <div className="w-full max-w-xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[90vh]">
+      <div className="w-full max-w-xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[min(90vh,720px)] sm:h-[90vh] max-h-[100dvh]">
         <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-slate-200 bg-slate-950 text-white">
           <div className="flex items-center gap-3 min-w-0">
             <MessageCircle className="w-5 h-5 text-orange-400 shrink-0" />

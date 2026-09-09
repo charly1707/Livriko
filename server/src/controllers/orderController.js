@@ -70,6 +70,10 @@ async function serializeOrder(order, extras = {}) {
     cancellationReason: order.cancellationReason || null,
     archived: Boolean(order.archived),
     archivedAt: order.archivedAt || null,
+    history: (order.history || []).map((entry) => ({
+      status: entry.status,
+      at: entry.at,
+    })),
   };
 }
 

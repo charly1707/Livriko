@@ -145,7 +145,7 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   const storeId = cart[0]?.product.storeId;
   const store = stores.find(s => s.id === storeId);
   const storeName = store?.name ?? cart[0]?.product.storeName ?? 'Boutique Livriko';
-  const storeLat = store?.lat ?? 6.3833;
+  const storeLat = store?.lat ?? 6.6387;
   const storeLng = store?.lng ?? 1.7167;
   const distanceKm = calculateRoadDistanceKm(storeLat, storeLng, clientCoords?.lat, clientCoords?.lng);
   const deliveryInfo = distanceKm === null ? null : calculateDeliveryFee(distanceKm);

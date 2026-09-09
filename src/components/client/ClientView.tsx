@@ -139,9 +139,11 @@ export const ClientView: React.FC<{
     return matchesCategory && matchesSearch;
   }).filter(p => !SERVICE_CATEGORIES.has(p.category));
 
-  const activeOrder = orders.find(
-    o => String(o.clientId) === String(currentUser?.id) && !['delivered', 'cancelled'].includes(o.status),
+  const activeOrders = orders.filter(
+    o => String(o.clientId).replace(/^usr-/, '') === String(currentUser?.id || '').replace(/^usr-/, '')
+      && !['delivered', 'cancelled'].includes(o.status),
   );
+  const activeOrder = activeOrders[0];
 
   const openStore = (store: Store) => {
     setViewingStore(store);
@@ -232,7 +234,9 @@ export const ClientView: React.FC<{
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-[#ffb86a]">
-                    Commande en cours · {activeOrder.code}
+                    {activeOrders.length > 1
+                      ? `${activeOrders.length} commandes en cours`
+                      : `Commande en cours · ${activeOrder.code}`}
                   </p>
                   <p className="text-sm font-semibold truncate mt-0.5">{activeOrder.storeName}</p>
                 </div>
@@ -250,7 +254,8 @@ export const ClientView: React.FC<{
                   onClick={() => setActiveTrackingOrder(activeOrder)}
                   className="px-4 py-2 rounded-xl bg-[#ff8a1f] hover:bg-[#e86f00] text-sm font-bold flex items-center gap-1 transition"
                 >
-                  Suivre <ArrowRight className="w-4 h-4" />
+                  {activeOrders.length > 1 ? 'Mes commandes en cours' : 'Suivre ma commande'}
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>

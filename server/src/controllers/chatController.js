@@ -3,15 +3,33 @@ import { Order } from '../models/Order.js';
 import { Store } from '../models/Store.js';
 import { User } from '../models/User.js';
 import { currentUser, currentUserId } from '../middleware/auth.js';
-import { getPayload, isAdmin } from '../utils/http.js';
+import { getPayload, isAdmin, isSeller } from '../utils/http.js';
 import { publicId, toObjectId } from '../utils/ids.js';
 import { uploadImageBuffer } from '../services/cloudinaryUpload.js';
 
 const CHAT_OPEN_STATUSES = ['pending', 'confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'];
 const CHAT_READ_STATUSES = [...CHAT_OPEN_STATUSES, 'delivered'];
+const PARTICIPANT_ROLES = new Set(['client', 'restaurant', 'vendeur', 'livreur']);
 
 function isParticipant(conversation, userId) {
   return (conversation.participants || []).some((participant) => String(participant.userId) === String(userId));
+}
+
+function sanitizeParticipants(participants = []) {
+  const byUser = new Map();
+  for (const participant of participants) {
+    const uid = toObjectId(participant?.userId);
+    if (!uid) continue;
+    let role = String(participant?.role || 'client');
+    if (role === 'vendeur') role = 'restaurant';
+    if (!PARTICIPANT_ROLES.has(role)) role = 'client';
+    byUser.set(String(uid), {
+      userId: uid,
+      role,
+      addedAt: participant.addedAt || new Date(),
+    });
+  }
+  return [...byUser.values()];
 }
 
 async function orderParticipants(order) {
@@ -25,7 +43,7 @@ async function orderParticipants(order) {
   if (order.delivery?.riderId) {
     participants.push({ userId: order.delivery.riderId, role: 'livreur' });
   }
-  return participants;
+  return sanitizeParticipants(participants);
 }
 
 function canAccessOrder(order, store, userId, role) {
@@ -33,6 +51,8 @@ function canAccessOrder(order, store, userId, role) {
   if (String(order.clientId) === String(userId)) return true;
   if (store?.ownerId && String(store.ownerId) === String(userId)) return true;
   if (order.delivery?.riderId && String(order.delivery.riderId) === String(userId)) return true;
+  // Vendeur connecté : autoriser si le magasin de session correspond à la commande
+  if (isSeller(role) && store && String(store.ownerId) === String(userId)) return true;
   return false;
 }
 
@@ -40,14 +60,14 @@ function participantRoleForUser(order, store, userId, role) {
   if (String(order.clientId) === String(userId)) return 'client';
   if (store?.ownerId && String(store.ownerId) === String(userId)) return 'restaurant';
   if (order.delivery?.riderId && String(order.delivery.riderId) === String(userId)) return 'livreur';
-  if (role === 'vendeur' || role === 'restaurant') return 'restaurant';
+  if (isSeller(role)) return 'restaurant';
   if (role === 'livreur') return 'livreur';
   return 'client';
 }
 
 async function syncParticipants(conversation, order) {
   const next = await orderParticipants(order);
-  const byUser = new Map((conversation.participants || []).map((p) => [String(p.userId), p]));
+  const byUser = new Map((sanitizeParticipants(conversation.participants || [])).map((p) => [String(p.userId), p]));
   for (const participant of next) {
     byUser.set(String(participant.userId), participant);
   }
@@ -77,7 +97,8 @@ function serializeMessage(message, conversationId, sender, role) {
 }
 
 async function loadConversationContext(req, orderIdValue, convIdValue) {
-  const userId = currentUserId(req);
+  const rawUserId = currentUserId(req);
+  const userId = toObjectId(rawUserId) || rawUserId;
   const role = currentUser(req)?.role;
   const orderId = toObjectId(orderIdValue);
   let convId = toObjectId(convIdValue);
@@ -112,14 +133,22 @@ async function loadConversationContext(req, orderIdValue, convIdValue) {
       }
     }
   } else {
+    const before = JSON.stringify((conversation.participants || []).map((p) => `${p.userId}:${p.role}`));
     await syncParticipants(conversation, order);
     if (!isParticipant(conversation, userId) && !isAdmin(role)) {
-      conversation.participants.push({
-        userId,
-        role: participantRoleForUser(order, store, userId, role),
-      });
+      const oid = toObjectId(userId);
+      if (oid) {
+        conversation.participants.push({
+          userId: oid,
+          role: participantRoleForUser(order, store, userId, role),
+        });
+        conversation.participants = sanitizeParticipants(conversation.participants);
+      }
     }
-    await conversation.save();
+    const after = JSON.stringify((conversation.participants || []).map((p) => `${p.userId}:${p.role}`));
+    if (before !== after) {
+      await conversation.save();
+    }
   }
 
   return { conversation, order, store, userId, role };
@@ -155,12 +184,12 @@ export async function addParticipant(req, res) {
   const payload = getPayload(req);
   const convId = toObjectId(payload.conversation_id);
   const userId = toObjectId(payload.user_id);
-  const role = payload.role || 'livreur';
+  const role = payload.role === 'vendeur' ? 'restaurant' : (payload.role || 'livreur');
   const allowedRoles = ['client', 'restaurant', 'vendeur', 'livreur'];
   if (!convId || !userId) {
     return res.status(400).json({ error: 'Missing parameters' });
   }
-  if (!allowedRoles.includes(role)) {
+  if (!allowedRoles.includes(role) && role !== 'restaurant') {
     return res.status(400).json({ error: 'Role invalide' });
   }
 
@@ -173,12 +202,13 @@ export async function addParticipant(req, res) {
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
-  if (user.role !== role && !(role === 'restaurant' && user.role === 'vendeur')) {
+  if (user.role !== role && !(role === 'restaurant' && (user.role === 'vendeur' || user.role === 'restaurant'))) {
     return res.status(400).json({ error: 'Le rôle de l’utilisateur ne correspond pas' });
   }
 
   if (!isParticipant(conversation, userId)) {
-    conversation.participants.push({ userId, role });
+    conversation.participants.push({ userId, role: role === 'vendeur' ? 'restaurant' : role });
+    conversation.participants = sanitizeParticipants(conversation.participants);
     await conversation.save();
   }
   return res.json({ ok: true });
@@ -198,32 +228,45 @@ export async function sendMessage(req, res) {
       return res.status(loaded.error.status).json(loaded.error.body);
     }
 
-    const { conversation, order, userId } = loaded;
+    const { conversation, order, userId, role } = loaded;
     if (!CHAT_OPEN_STATUSES.includes(order.status)) {
       return res.status(403).json({ error: 'Cette commande est terminée : envoi désactivé.' });
     }
 
+    const senderObjectId = toObjectId(userId);
+    if (!senderObjectId) {
+      return res.status(401).json({ error: 'Session invalide. Reconnectez-vous.' });
+    }
+
+    // Nettoyer d’éventuels participants invalides (anciennes conversations) avant save
+    conversation.participants = sanitizeParticipants(conversation.participants);
+
     conversation.messages.push({
-      senderId: userId,
+      senderId: senderObjectId,
       message,
       messageType: type,
     });
     await conversation.save();
     const saved = conversation.messages[conversation.messages.length - 1];
+    const senderRole = participantRoleForUser(order, loaded.store, userId, role);
     return res.json({
       id: publicId(saved),
       conversation_id: publicId(conversation),
-      sender_id: String(userId),
-      senderId: String(userId),
+      sender_id: String(senderObjectId),
+      senderId: String(senderObjectId),
       message,
       content: message,
       message_type: type,
       created_at: saved.createdAt,
-      sender_role: currentUser(req)?.role || 'client',
+      sender_role: senderRole,
+      role: senderRole,
     });
   } catch (error) {
     console.error('Chat send error:', error);
-    return res.status(500).json({ error: 'Envoi du message impossible.' });
+    return res.status(500).json({
+      error: 'Envoi du message impossible.',
+      detail: process.env.NODE_ENV === 'development' ? String(error?.message || error) : undefined,
+    });
   }
 }
 

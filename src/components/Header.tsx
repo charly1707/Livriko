@@ -34,6 +34,7 @@ export const Header: React.FC<{
     currentUser,
     logoutUser,
     activeTrackingOrder,
+    setActiveTrackingOrder,
     orders,
     searchQuery,
     setSearchQuery,
@@ -50,6 +51,14 @@ export const Header: React.FC<{
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const isUserConnected = Boolean(currentUser?.id);
   const currentUserLabel = currentUser?.name || currentUser?.email || 'Mon compte';
+  const sameId = (a?: string | null, b?: string | null) =>
+    String(a || '').replace(/^(usr-|ord-)/, '') === String(b || '').replace(/^(usr-|ord-)/, '');
+  const myClientOrders = orders.filter((order) =>
+    sameId(order.clientId, currentUser?.id) || (currentUser?.phone && order.clientPhone === currentUser.phone),
+  );
+  const activeClientOrders = myClientOrders.filter((order) =>
+    !['delivered', 'cancelled'].includes(order.status),
+  );
   const hasActiveChatOrder = Boolean(
     (activeTrackingOrder && ['pending', 'confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(activeTrackingOrder.status))
     || orders.some((order) => ['pending', 'confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(order.status)),
@@ -187,6 +196,33 @@ export const Header: React.FC<{
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Marché</span>
+            </button>
+          )}
+
+          {isClient && isUserConnected && (activeClientOrders.length > 0 || myClientOrders.length > 0) && (
+            <button
+              type="button"
+              onClick={() => {
+                if (activeClientOrders.length > 0) {
+                  setActiveTrackingOrder(activeClientOrders[0]);
+                  return;
+                }
+                onOpenUserProfile('commandes');
+              }}
+              className="relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#ff8a1f] hover:bg-[#e86f00] text-white font-bold text-[11px] sm:text-xs transition max-w-[9.5rem] sm:max-w-none"
+              title={activeClientOrders.length > 0 ? 'Suivre ma commande' : 'Histor historique de commandes'}
+            >
+              <Package className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">
+                {activeClientOrders.length > 0
+                  ? (activeClientOrders.length === 1 ? 'Suivre ma commande' : 'Mes commandes en cours')
+                  : 'Mes commandes'}
+              </span>
+              {activeClientOrders.length > 0 && (
+                <span className="min-w-4 h-4 px-1 rounded-full bg-white text-[#e86f00] font-black text-[10px] flex items-center justify-center">
+                  {activeClientOrders.length}
+                </span>
+              )}
             </button>
           )}
 

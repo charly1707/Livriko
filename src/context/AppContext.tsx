@@ -104,7 +104,7 @@ interface AppContextType {
   }) => Promise<Order>;
   requestRiderForOrder: (orderId: string) => void;
   acceptDeliveryOrder: (orderId: string, customRider?: User) => void;
-  updateOrderStatus: (orderId: string, status: OrderStatus, finalDistanceKm?: number, reason?: string) => void;
+  updateOrderStatus: (orderId: string, status: OrderStatus, finalDistanceKm?: number, reason?: string) => void | Promise<void>;
 
   // Product Management (Vendeur)
   addProduct: (newProd: ProductPayload) => Promise<void>;
@@ -140,7 +140,7 @@ const getDefaultApiBase = () => {
 };
 const buildApiUrl = (path: string) => `${API_BASE || getDefaultApiBase()}${path}`;
 
-const LOKOSSA_DEFAULT = { lat: 6.3833, lng: 1.7167 };
+const LOKOSSA_DEFAULT = { lat: 6.6387, lng: 1.7167 };
 
 const orderDbId = (orderId: string) => String(orderId).replace(/^ord-/, '');
 
@@ -183,7 +183,15 @@ const mapApiOrder = (order: any): Order => ({
   storeAddress: order.storeAddress || '',
   storeLat: order.storeLat ?? undefined,
   storeLng: order.storeLng ?? undefined,
-  items: Array.isArray(order.items) ? order.items : [],
+  items: Array.isArray(order.items)
+    ? order.items.map((item: any) => ({
+        productId: String(item.productId || item.product_id || ''),
+        productName: String(item.productName || item.product_name || item.nom || 'Article'),
+        unitPrice: Number(item.unitPrice ?? item.unit_price ?? item.prix ?? 0),
+        quantity: Math.max(1, Number(item.quantity ?? item.quantite ?? 1)),
+        subtotal: Number(item.subtotal ?? ((item.unitPrice ?? item.prix ?? 0) * (item.quantity ?? 1)) ?? 0),
+      }))
+    : [],
   subtotal: Number(order.subtotal) || 0,
   deliveryFee: Number(order.deliveryFee) || 0,
   totalAmount: Number(order.totalAmount) || 0,
@@ -199,7 +207,35 @@ const mapApiOrder = (order: any): Order => ({
   notes: order.notes || undefined,
   archived: Boolean(order.archived),
   archivedAt: order.archivedAt || undefined,
+  history: Array.isArray(order.history)
+    ? order.history.map((entry: any) => ({
+        status: String(entry.status || ''),
+        at: entry.at ? String(entry.at) : '',
+      }))
+    : undefined,
 });
+
+const cleanDisplayName = (...parts: Array<string | null | undefined>) => {
+  const tokens = parts
+    .flatMap((part) => String(part || '').trim().split(/\s+/))
+    .filter(Boolean);
+  const unique: string[] = [];
+  for (const token of tokens) {
+    if (unique.length === 0 || unique[unique.length - 1].toLowerCase() !== token.toLowerCase()) {
+      unique.push(token);
+    }
+  }
+  // Si le même prénom/nom est répété non-consécutivement (ex: Adia X Adia), garder une seule fois chaque token
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const token of unique) {
+    const key = token.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(token);
+  }
+  return deduped.join(' ').trim();
+};
 
 const mapSessionUser = (user: any, fallback?: Partial<User>): User => {
   const role = normalizeUserRole(user.role || fallback?.role || 'client');
@@ -208,8 +244,12 @@ const mapSessionUser = (user: any, fallback?: Partial<User>): User => {
     ? (String(rawStoreId).startsWith('store-') ? String(rawStoreId) : `store-${rawStoreId}`)
     : undefined;
 
-  const fullName = [user.prenom, user.nom].filter(Boolean).join(' ').trim();
-  const displayName = fullName || user.nom_utilisateur || user.name || user.email || fallback?.name || '';
+  const displayName = cleanDisplayName(
+    user.prenom,
+    user.nom,
+    user.name,
+    user.nom_utilisateur,
+  ) || user.email || fallback?.name || '';
 
   return {
     id: String(user.id || fallback?.id || ''),
@@ -1041,34 +1081,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: 'n-1',
-      title: 'Bienvenue sur Livriko !',
-      message: 'Livraison rapide de tous vos produits à partir de 450 FCFA.',
-      timestamp: 'A l\'instant',
-      read: false,
-      targetRole: 'client',
-    },
-    {
-      id: 'n-2',
-      title: 'Nouvelle commande reçue',
-      message: 'Commande #LVK-7843 enregistrée pour Chez Maman Africa.',
-      timestamp: 'Il y a 6 min',
-      read: false,
-      targetRole: 'vendeur',
-      orderId: 'ord-102',
-    },
-    {
-      id: 'n-3',
-      title: 'Livraison en cours',
-      message: 'Commande #LVK-7842 est en route vers le client.',
-      timestamp: 'Il y a 10 min',
-      read: false,
-      targetRole: 'livreur',
-      orderId: 'ord-101',
-    }
-  ]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
 
   // Cart logic
@@ -1282,8 +1295,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     addNotification(
       'Nouvelle commande reçue !',
-      `Commande ${persistedOrder.code} de ${persistedOrder.clientName} (${persistedOrder.totalAmount.toLocaleString()} FCFA) reçue.`,
+      [
+        `${persistedOrder.code} — ${persistedOrder.clientName} (${persistedOrder.clientPhone || 'tél. n/d'})`,
+        `Articles : ${persistedOrder.items.map((item) => `${item.quantity}× ${item.productName}`).join(', ') || 'détail indisponible'}`,
+        `Sous-total produits : ${persistedOrder.subtotal.toLocaleString()} FCFA`,
+        `Livraison : ${(persistedOrder.deliveryFee || 0).toLocaleString()} FCFA`,
+        `Total : ${persistedOrder.totalAmount.toLocaleString()} FCFA`,
+        `Adresse : ${persistedOrder.clientAddress}`,
+      ].join('\n'),
       'vendeur',
+      persistedOrder.id,
+    );
+
+    addNotification(
+      'Commande envoyée',
+      `Votre commande ${persistedOrder.code} a bien été transmise à ${persistedOrder.storeName}.`,
+      'client',
       persistedOrder.id,
     );
 
@@ -1402,6 +1429,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw error;
     }
 
+    const orderSnapshot = orders.find(o => o.id === orderId);
+
     setOrders(prev => prev.map(o => {
       if (o.id !== orderId) return o;
       const updated: Order = { ...o, status };
@@ -1421,10 +1450,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     }));
 
-    // If order delivered, and current user is the client of that order, prompt for review
-    if (status === 'delivered') {
-      const deliveredOrder = orders.find(o => o.id === orderId);
-      if (deliveredOrder && currentUser && String(deliveredOrder.clientId) === String(currentUser.id)) {
+    // Re-sync from server so client/vendeur voient immédiatement le statut livré
+    try {
+      await refreshOrders();
+    } catch {
+      // ignore
+    }
+
+    if (status === 'delivered' && orderSnapshot) {
+      const coursePrice = (finalDistanceKm && finalDistanceKm > 0)
+        ? calculateDeliveryFee(finalDistanceKm).deliveryFee
+        : (orderSnapshot.finalDeliveryFee ?? orderSnapshot.deliveryFee ?? 0);
+      const riderLabel = orderSnapshot.riderName || 'Le livreur';
+      addNotification(
+        'Course terminée — colis remis',
+        `${riderLabel} a terminé la course ${orderSnapshot.code}.\nPrix de la course (livraison) : ${coursePrice.toLocaleString()} FCFA.\nTotal payé : ${(orderSnapshot.subtotal + coursePrice).toLocaleString()} FCFA.`,
+        'client',
+        orderId,
+      );
+
+      if (currentUser && String(orderSnapshot.clientId) === String(currentUser.id)) {
         try {
           setReviewModalOrderId(orderId);
         } catch {}
@@ -1438,16 +1483,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       rider_assigned: 'Livreur assigné • En route vers la boutique',
       picked_up: 'Colis récupéré chez le vendeur',
       delivering: 'Course démarrée • Livreur en route vers vous !',
-      delivered: 'Commande livrée avec succès ! 🎉',
+      delivered: 'Commande livrée avec succès !',
       cancelled: reason ? `Commande refusée (${reason})` : 'Commande annulée',
     };
 
-    addNotification(
-      status === 'cancelled' ? 'Commande Refusée/Annulée' : 'Mise à jour de votre commande',
-      `Statut : ${statusLabels[status]}`,
-      'client',
-      orderId
-    );
+    if (status !== 'delivered') {
+      addNotification(
+        status === 'cancelled' ? 'Commande Refusée/Annulée' : 'Mise à jour de votre commande',
+        `Statut : ${statusLabels[status]}`,
+        'client',
+        orderId
+      );
+    }
 
     if (activeTrackingOrder && activeTrackingOrder.id === orderId) {
       setActiveTrackingOrder(prev => prev ? {

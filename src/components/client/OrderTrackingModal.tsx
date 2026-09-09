@@ -142,11 +142,22 @@ export const OrderTrackingModal: React.FC<{ order: Order; onClose: () => void }>
         )}
 
         <div className="p-4 sm:p-5">
-          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Étapes</h4>
+          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Évolution de la commande</h4>
           <div className="space-y-3">
             {steps.map((step, idx) => {
-              const isDone = idx <= currentStepIndex;
-              const isCurrent = idx === currentStepIndex;
+              const isDone = currentStepIndex >= 0 && idx <= currentStepIndex;
+              const isCurrent = order.status !== 'cancelled' && idx === currentStepIndex;
+              const historyEntry = (order.history || []).find((h) => h.status === step.status);
+              let when = '';
+              if (historyEntry?.at) {
+                try {
+                  when = new Date(historyEntry.at).toLocaleString('fr-FR', {
+                    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                  });
+                } catch {
+                  when = String(historyEntry.at);
+                }
+              }
 
               return (
                 <div key={step.status} className="flex items-start gap-3 relative">
@@ -176,11 +187,20 @@ export const OrderTrackingModal: React.FC<{ order: Order; onClose: () => void }>
                       )}
                     </p>
                     <p className="text-[11px] text-slate-500">{step.desc}</p>
+                    {when && (
+                      <p className="text-[10px] text-slate-400 mt-0.5">{when}</p>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
+
+          {order.status === 'cancelled' && (
+            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+              Commande annulée{order.cancellationReason ? ` : ${order.cancellationReason}` : '.'}
+            </div>
+          )}
 
           <div className="mt-5 pt-4 border-t border-[#e6dac8] space-y-1.5 text-xs">
             <div className="flex justify-between text-slate-600">

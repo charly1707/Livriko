@@ -154,10 +154,19 @@ function MainAppContent({ onExitToWelcome }: { onExitToWelcome?: () => void }) {
           />
         )}
 
-        {isMerchantDashboard && <VendeurView onOpenChat={() => setIsChatOpen(true)} />}
+        {isMerchantDashboard && (
+          <VendeurView
+            onOpenChat={() => setIsChatOpen(true)}
+            onOpenNotifications={() => setIsNotifOpen(true)}
+          />
+        )}
 
         <div className={`w-full px-3 sm:px-6 py-4 sm:py-6 ${isFullScreenDashboard ? 'hidden' : 'max-w-7xl mx-auto'}`}>
-          {activeRole === 'livreur' && <LivreurView onOpenChat={() => setIsChatOpen(true)} />}
+          {activeRole === 'livreur' && (
+            <div className="w-full min-w-0 overflow-x-hidden">
+              <LivreurView onOpenChat={() => setIsChatOpen(true)} />
+            </div>
+          )}
           {activeRole === 'admin' && currentUser?.role !== 'admin' && (
             <div className="p-6 sm:p-10 bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-700 text-sm font-bold">
               Accès réservé au Super Administrateur. Veuillez vous connecter avec un compte admin valide.

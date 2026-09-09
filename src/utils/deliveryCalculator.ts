@@ -124,7 +124,8 @@ export function calculateHaversineDistance(
       Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c;
-  return Math.max(0.3, Math.round(distance * 10) / 10);
+  // Arrondi au 0,1 km (aligné serveur) — pas de plancher artificiel qui fausse les courtes distances.
+  return Math.max(0.1, Math.round(distance * 10) / 10);
 }
 
 export function buildDeliveryQuoteFromCoordinates(

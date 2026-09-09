@@ -210,8 +210,36 @@ export async function updateProfile(req, res) {
     return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
   }
 
-  if (payload.name || payload.prenom) user.prenom = String(payload.name || payload.prenom).trim();
-  if (payload.nom) user.nom = String(payload.nom).trim();
+  if (payload.name || payload.prenom) {
+    const rawName = String(payload.name || payload.prenom || '').trim().replace(/\s+/g, ' ');
+    // Évite le double/triple affichage : "Adia Adia Adia" quand name remplit prenom et que nom reste.
+    if (payload.name && !payload.prenom && !payload.nom) {
+      const parts = rawName.split(' ').filter(Boolean);
+      const uniqueParts = [];
+      for (const part of parts) {
+        if (uniqueParts.length === 0 || uniqueParts[uniqueParts.length - 1].toLowerCase() !== part.toLowerCase()) {
+          uniqueParts.push(part);
+        }
+      }
+      user.prenom = uniqueParts[0] || rawName;
+      user.nom = uniqueParts.slice(1).join(' ') || '';
+    } else {
+      user.prenom = String(payload.prenom || payload.name || '').trim();
+      if (payload.nom != null) user.nom = String(payload.nom).trim();
+    }
+  }
+  if (payload.nom && !payload.name) user.nom = String(payload.nom).trim();
+
+  // Nettoyage si prenom/nom sont identiques ou redondants
+  if (user.prenom && user.nom) {
+    const p = String(user.prenom).trim();
+    const n = String(user.nom).trim();
+    if (p.toLowerCase() === n.toLowerCase()) {
+      user.nom = '';
+    } else if (p.toLowerCase().endsWith(` ${n.toLowerCase()}`)) {
+      user.prenom = p.slice(0, p.length - n.length - 1).trim() || p;
+    }
+  }
   if (payload.phone || payload.telephone) user.telephone = String(payload.phone || payload.telephone).trim();
   if (payload.avatar != null) user.avatar = String(payload.avatar).trim() || null;
   if (payload.city || payload.ville) user.city = String(payload.city || payload.ville).trim();

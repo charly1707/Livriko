@@ -121,7 +121,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   if (!isOpen || !currentUser) return null;
 
-  const userOrders = orders.filter(o => o.clientId === currentUser.id || o.clientPhone === currentUser.phone);
+  const userOrders = orders.filter((o) => {
+    const sameClient = String(o.clientId || '').replace(/^usr-/, '') === String(currentUser.id || '').replace(/^usr-/, '');
+    const samePhone = Boolean(currentUser.phone) && o.clientPhone === currentUser.phone;
+    return sameClient || samePhone;
+  });
   const avatarSrc = selectedAvatar || currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80';
   const initials = (currentUser.name || 'U')
     .split(/\s+/)
@@ -330,8 +334,30 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     </form>
   );
 
-  const renderCommandesTab = () => (
-    <div className="space-y-4">
+  const renderCommandesTab = () => {
+    const statusLabel = (status: string) => {
+      const labels: Record<string, string> = {
+        pending: 'En attente',
+        confirmed: 'Confirmée',
+        rider_requested: 'Recherche livreur',
+        rider_assigned: 'Livreur assigné',
+        picked_up: 'Colis récupéré',
+        delivering: 'En livraison',
+        delivered: 'Livrée',
+        cancelled: 'Annulée',
+      };
+      return labels[status] || status;
+    };
+    const statusClass = (status: string) => {
+      if (status === 'delivered') return 'bg-emerald-100 text-emerald-800';
+      if (status === 'cancelled') return 'bg-rose-100 text-rose-800';
+      return 'bg-blue-100 text-blue-800';
+    };
+    const activeOnes = userOrders.filter((o) => !['delivered', 'cancelled'].includes(o.status));
+    const historyOnes = userOrders.filter((o) => ['delivered', 'cancelled'].includes(o.status));
+
+    return (
+    <div className="space-y-5">
       {userOrders.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-[#e6dac8] bg-[#faf6ef] p-12 text-center">
           <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto mb-3" />
@@ -339,40 +365,78 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <p className="text-sm text-slate-500 mt-2">Explorez le marché et passez votre première commande.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {userOrders.map(order => (
-            <article key={order.id} className="rounded-2xl border border-[#e6dac8] bg-white p-5 flex flex-wrap items-center justify-between gap-4 hover:shadow-sm transition">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-sm font-black text-[#1d4ed8]">{order.code}</span>
-                  <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase ${
-                    order.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
-                  }`}>
-                    {order.status === 'delivered' ? 'Livré' : 'En cours'}
-                  </span>
-                </div>
-                <p className="text-base font-bold text-slate-900 mt-2">{order.storeName}</p>
-                <p className="text-sm text-slate-500 mt-1">
-                  {order.items.length} article(s) · {order.totalAmount.toLocaleString()} FCFA
-                </p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {order.distanceKm ?? 2} km · {(order.finalDeliveryFee ?? order.estimatedDeliveryFee ?? order.deliveryFee).toLocaleString()} FCFA livraison
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => { setActiveTrackingOrder(order); onClose(); }}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0c1a2e] hover:bg-[#132d4d] text-white text-sm font-bold transition shrink-0"
-              >
-                Suivre
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </article>
-          ))}
-        </div>
+        <>
+          {activeOnes.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-xs font-black uppercase tracking-wider text-[#ff8a1f]">Commandes en cours</h4>
+              {activeOnes.map((order) => (
+                <article key={order.id} className="rounded-2xl border border-[#ff8a1f]/35 bg-white p-5 flex flex-wrap items-center justify-between gap-4 hover:shadow-sm transition">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-black text-[#1d4ed8]">{order.code}</span>
+                      <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase ${statusClass(order.status)}`}>
+                        {statusLabel(order.status)}
+                      </span>
+                    </div>
+                    <p className="text-base font-bold text-slate-900 mt-2">{order.storeName}</p>
+                    <p className="text-sm text-slate-500 mt-1">
+                      {order.items.length} article(s) · {order.totalAmount.toLocaleString()} FCFA
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTrackingOrder(order); onClose(); }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#ff8a1f] hover:bg-[#e86f00] text-white text-sm font-bold transition shrink-0"
+                  >
+                    Suivre ma commande
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">Historique</h4>
+            {historyOnes.length === 0 ? (
+              <p className="text-sm text-slate-500 rounded-xl border border-dashed border-[#e6dac8] bg-[#faf6ef] p-4">
+                Aucune commande terminée pour l’instant. Elles apparaîtront ici après livraison.
+              </p>
+            ) : (
+              historyOnes.map((order) => (
+                <article key={order.id} className="rounded-2xl border border-[#e6dac8] bg-white p-5 flex flex-wrap items-center justify-between gap-4 hover:shadow-sm transition">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-black text-[#1d4ed8]">{order.code}</span>
+                      <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase ${statusClass(order.status)}`}>
+                        {statusLabel(order.status)}
+                      </span>
+                    </div>
+                    <p className="text-base font-bold text-slate-900 mt-2">{order.storeName}</p>
+                    <p className="text-sm text-slate-500 mt-1">
+                      {order.items.length} article(s) · {order.totalAmount.toLocaleString()} FCFA
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {order.distanceKm ?? '—'} km · {(order.finalDeliveryFee ?? order.estimatedDeliveryFee ?? order.deliveryFee).toLocaleString()} FCFA livraison
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTrackingOrder(order); onClose(); }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0c1a2e] hover:bg-[#132d4d] text-white text-sm font-bold transition shrink-0"
+                  >
+                    Détails
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </article>
+              ))
+            )}
+          </div>
+        </>
       )}
     </div>
-  );
+    );
+  };
 
   const renderAdressesTab = () => (
     <form onSubmit={handleAddressSave} className="space-y-5">

@@ -228,7 +228,7 @@ export const AdminView: React.FC<{
   const certifiedStores = stores.filter(s => s.isCertified).length;
 
   const renderOverview = () => (
-    <div className="flex flex-col gap-3.5 xl:gap-5 lg:h-full lg:overflow-hidden">
+    <div className="flex flex-col gap-3.5 xl:gap-5 min-h-0">
       {/* Ligne 1 — accueil + stats rapides */}
       <section className="shrink-0 rounded-2xl bg-gradient-to-r from-[#0c1a2e] to-[#1a3d66] px-6 py-5 sm:px-7 sm:py-6 text-white">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
@@ -309,7 +309,7 @@ export const AdminView: React.FC<{
             <h2 className="text-lg font-black text-slate-900">À traiter en priorité</h2>
             <p className="text-sm text-slate-500 mt-1">{pendingLivreurs.length} dossier(s) · {uncertifiedStores} boutique(s)</p>
           </div>
-          <div className="flex-1 min-h-0 lg:overflow-hidden p-3.5 space-y-2.5">
+          <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-2.5">
             {[
               { tab: 'verifications' as AdminTab, label: 'Candidatures livreurs', count: pendingLivreurs.length, icon: ShieldCheck },
               { tab: 'stores' as AdminTab, label: 'Certifier les boutiques', count: uncertifiedStores, icon: Store },
@@ -355,7 +355,7 @@ export const AdminView: React.FC<{
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          <div className="flex-1 min-h-0 lg:overflow-hidden overflow-x-auto">
+          <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto">
             <table className="w-full text-left text-[15px]">
               <thead className="bg-[#faf6ef]">
                 <tr className="text-xs font-bold uppercase text-slate-500">
@@ -423,7 +423,7 @@ export const AdminView: React.FC<{
   );
 
   const renderAdminPage = (title: string, subtitle: string, body: React.ReactNode, stats?: { label: string; value: string | number }[]) => (
-    <div className="flex flex-col gap-3.5 xl:gap-5 lg:h-full lg:overflow-hidden">
+    <div className="flex flex-col gap-3.5 xl:gap-5 min-h-0">
       {renderAdminPageHeader(title, subtitle, stats)}
       {renderAdminPageBody(body)}
     </div>
@@ -1404,7 +1404,7 @@ export const AdminView: React.FC<{
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="h-[calc(100%-3.25rem)]">{renderSidebarContent()}</div>
+        <div className="h-[calc(100%-3.25rem)] overflow-y-auto">{renderSidebarContent()}</div>
       </aside>
 
       {/* Contenu principal */}
@@ -1424,8 +1424,8 @@ export const AdminView: React.FC<{
           </div>
         </div>
 
-        <div className="flex-1 lg:min-h-0 p-4 sm:p-5">
-          <div key={activeTab} className="lg:h-full lg:overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 lg:p-5">
+          <div key={activeTab} className="min-h-0 pb-8 lg:pb-4">
             {renderContent()}
           </div>
         </div>

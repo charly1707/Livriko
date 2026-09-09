@@ -70,19 +70,34 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
   const [activeTab, setActiveTab] = useState<'active' | 'available' | 'history'>('active');
   const [serviceMissions, setServiceMissions] = useState<ServiceMission[]>([]);
 
-  const handleCompleteDelivery = (order: Order) => {
-    const initialDistance = order.finalDistanceKm ?? order.distanceKm;
-    if (!initialDistance || initialDistance <= 0) {
-      window.alert('La distance réelle de la livraison est indisponible.');
-      return;
+  const handleCompleteDelivery = async (order: Order) => {
+    // Distance calculée automatiquement par le site (commande / GPS boutique→client) — pas de saisie compteur.
+    let finalDistanceKm = order.finalDistanceKm ?? order.distanceKm ?? undefined;
+    if ((!finalDistanceKm || finalDistanceKm <= 0)
+      && isValidCoordinates(order.storeLat, order.storeLng)
+      && isValidCoordinates(order.clientLat, order.clientLng)) {
+      finalDistanceKm = calculateHaversineDistance(
+        order.storeLat,
+        order.storeLng,
+        order.clientLat,
+        order.clientLng,
+      ) ?? undefined;
     }
-    const entered = window.prompt('Entrez la distance finale relevée au compteur (km)', String(initialDistance));
-    const finalDistanceKm = entered ? parseFloat(entered.replace(',', '.')) : undefined;
-    if (!finalDistanceKm || Number.isNaN(finalDistanceKm) || finalDistanceKm <= 0) {
-      window.alert('Une distance réelle valide est nécessaire pour terminer la livraison.');
-      return;
+    if (!finalDistanceKm || finalDistanceKm <= 0) {
+      finalDistanceKm = 1;
     }
-    updateOrderStatus(order.id, 'delivered', finalDistanceKm);
+    try {
+      // Enchaîner les étapes serveur si le livreur confirme la remise depuis « colis récupéré »
+      if (order.status === 'picked_up') {
+        await updateOrderStatus(order.id, 'delivering');
+      }
+      await updateOrderStatus(order.id, 'delivered', finalDistanceKm);
+    } catch (error: any) {
+      const message = error?.response?.data?.message
+        || error?.message
+        || 'Impossible de confirmer la remise du colis. Vérifiez les étapes de la course.';
+      window.alert(message);
+    }
   };
 
   // Orders available for rider acceptance (where store requested a rider)
@@ -216,7 +231,7 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
       <div className="space-y-6 pb-12 max-w-3xl mx-auto">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
           <span className="text-xs font-semibold text-slate-500">
-            Espace Livreur • {currentUser?.name || 'Livreur'}
+            Espace Livreur
           </span>
         </div>
 
@@ -363,7 +378,7 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
           <span>← Retour à l'Accueil (Marché Client)</span>
         </button>
         <span className="text-xs font-semibold text-slate-500">
-          Espace Livreur • {currentUser?.name || 'Livreur'}
+          Espace Livreur
         </span>
       </div>
       
@@ -376,7 +391,7 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
             className="w-16 h-16 rounded-full object-cover border-4 border-white/20 shadow-md"
           />
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/30 text-emerald-200">
                 Livreur Certifié Livriko
               </span>
@@ -386,7 +401,6 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
               {currentUser?.name || 'Livreur Livriko'}
               <ShieldCheck className="w-5 h-5 text-emerald-400" />
             </h1>
-            <p className="text-xs text-emerald-100 font-mono">ID Livreur : #LVK-RIDER-{currentUser?.id ? currentUser.id.slice(-4) : '0000'}</p>
           </div>
         </div>
 
@@ -621,13 +635,13 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
                         </button>
                       )}
 
-                      {order.status === 'delivering' && (
+                      {(order.status === 'delivering' || order.status === 'picked_up') && (
                         <button
-                          onClick={() => handleCompleteDelivery(order)}
+                          onClick={() => void handleCompleteDelivery(order)}
                           className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-lg transition flex items-center gap-2 cursor-pointer"
                         >
                           <CheckCircle2 className="w-4 h-4" />
-                          Terminer la livraison (Compteur final)
+                          Colis remis au client
                         </button>
                       )}
                     </div>
@@ -784,10 +798,10 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
                         <span className="px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white font-mono text-xs font-bold">
                           {order.code}
                         </span>
-                        <span className="text-xs font-bold text-slate-800">Course Effectuée par {order.riderName || currentUser?.name}</span>
+                        <span className="text-xs font-bold text-slate-800">Course livrée</span>
                       </div>
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                        ✔ LIVRÉE ET REGLEÉ
+                        ✔ LIVRÉE
                       </span>
                     </div>
 

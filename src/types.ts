@@ -162,6 +162,7 @@ export interface Order {
   estimatedMinutes?: number;
   archived?: boolean;
   archivedAt?: string | null;
+  history?: { status: string; at: string }[];
 }
 
 export interface NotificationItem {

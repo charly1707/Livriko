@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Store as StoreIcon, Package, Plus, Edit3, Trash2, Truck, CheckCircle2, Clock,
   DollarSign, X, Image as ImageIcon, ShieldCheck, XCircle, Settings,
-  MessageCircle, LayoutDashboard, ShoppingBag, Menu, ChevronRight, TrendingUp, Camera, LogOut,
+  MessageCircle, LayoutDashboard, ShoppingBag, Menu, ChevronRight, TrendingUp, Camera, LogOut, Bell,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Product, CategoryType } from '../../types';
@@ -25,7 +25,7 @@ const NAV_SECTIONS: { title: string; items: VendeurTab[] }[] = [
   { title: 'Boutique', items: ['settings'] },
 ];
 
-export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat }) => {
+export const VendeurView: React.FC<{ onOpenChat?: () => void; onOpenNotifications?: () => void }> = ({ onOpenChat, onOpenNotifications }) => {
   const {
     currentUser,
     stores,
@@ -42,7 +42,12 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
     setActiveTrackingOrder,
     archiveOrder,
     logoutUser,
+    notifications,
   } = useApp();
+
+  const unreadBoutiqueNotifs = notifications.filter(
+    (n) => !n.read && (n.targetRole === 'vendeur' || n.targetRole === 'restaurant'),
+  ).length;
 
   const currentStore = stores.find(s =>
     (currentUser?.storeId && s.id === currentUser.storeId)
@@ -295,19 +300,48 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
     </section>
   );
 
-  const renderOrderCard = (order: typeof storeOrders[number]) => (
+  const renderOrderCard = (order: typeof storeOrders[number]) => {
+    const statusLabels: Record<string, string> = {
+      pending: 'Nouvelle — à confirmer',
+      confirmed: 'En préparation',
+      rider_requested: 'Livreur recherché',
+      rider_assigned: 'Livreur assigné',
+      picked_up: 'Colis récupéré',
+      delivering: 'En livraison',
+      delivered: 'Livrée',
+      cancelled: 'Annulée',
+    };
+    return (
     <article key={order.id} className="rounded-2xl border border-[#e6dac8] bg-white p-5 flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-      <div className="space-y-2 min-w-0 flex-1">
+      <div className="space-y-3 min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-sm font-black text-[#1d4ed8]">{order.code}</span>
           <span className="text-xs text-slate-400">{order.createdAt}</span>
-          <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold uppercase">{order.status}</span>
+          <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold uppercase">
+            {statusLabels[order.status] || order.status}
+          </span>
         </div>
         <p className="text-sm font-bold text-slate-900">Client : {order.clientName} · {order.clientPhone}</p>
         <p className="text-sm text-slate-600">Livraison : {order.clientAddress}</p>
-        <p className="text-xs text-slate-500">
-          {order.items.map(i => `${i.quantity}x ${i.productName}`).join(', ')}
-        </p>
+        <div className="rounded-xl border border-[#e6dac8] bg-[#faf6ef] p-3 space-y-1.5">
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#ff8a1f]">Articles commandés</p>
+          {order.items.length === 0 ? (
+            <p className="text-xs text-slate-500 italic">Aucun détail produit disponible</p>
+          ) : (
+            <ul className="space-y-1">
+              {order.items.map((item, idx) => (
+                <li key={`${order.id}-item-${idx}`} className="flex items-center justify-between gap-3 text-sm text-slate-800">
+                  <span className="min-w-0 truncate">
+                    <strong className="text-[#0c1a2e]">{item.quantity}×</strong>{' '}{item.productName || 'Article'}
+                  </span>
+                  <span className="shrink-0 font-semibold text-slate-600">
+                    {(item.subtotal || item.unitPrice * item.quantity).toLocaleString()} F
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         {['pending', 'confirmed', 'rider_requested', 'rider_assigned', 'picked_up', 'delivering'].includes(order.status) && (
           <button
             type="button"
@@ -360,10 +394,11 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
         )}
       </div>
     </article>
-  );
+    );
+  };
 
   const renderOverview = () => (
-    <div className="flex flex-col gap-3.5 xl:gap-5 lg:h-full lg:overflow-hidden">
+    <div className="flex flex-col gap-3.5 xl:gap-5 min-h-0">
       {renderPageHeader(
         currentStore.name,
         `${currentStore.category} · ${currentStore.city} · ${currentStore.isOpen ? 'Ouverte' : 'Fermée'}`,
@@ -446,7 +481,7 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
   );
 
   const renderOrders = () => (
-    <div className="flex flex-col gap-3.5 lg:h-full lg:overflow-hidden">
+    <div className="flex flex-col gap-3.5 min-h-0">
       {renderPageHeader('Commandes clients', 'Acceptez, préparez et sollicitez un livreur.', [
         { label: 'Total', value: storeOrders.length },
         { label: 'En attente', value: pendingOrdersCount },
@@ -465,7 +500,7 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
   );
 
   const renderCatalog = () => (
-    <div className="flex flex-col gap-3.5 lg:h-full lg:overflow-hidden">
+    <div className="flex flex-col gap-3.5 min-h-0">
       {renderPageHeader('Catalogue', 'Publiez et gérez vos articles en vente.', [
         { label: 'Articles', value: storeProducts.length },
         { label: 'En stock', value: storeProducts.filter(p => p.inStock).length },
@@ -512,7 +547,7 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
   );
 
   const renderSettings = () => (
-    <div className="flex flex-col gap-3.5 lg:h-full lg:overflow-hidden">
+    <div className="flex flex-col gap-3.5 min-h-0">
       {renderPageHeader('Paramètres', 'Photo de boutique, informations et statut d\'ouverture.')}
       <div className="flex-1 lg:min-h-0 overflow-y-auto rounded-2xl border border-[#e6dac8] bg-[#fffdf8] p-4 sm:p-5">
         <form onSubmit={handleSaveStoreProfile} className="max-w-3xl space-y-5">
@@ -755,7 +790,24 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
         ))}
       </nav>
 
-      <div className="px-3 pb-5 pt-3 border-t border-white/8">
+      <div className="px-3 pb-5 pt-3 border-t border-white/8 space-y-2">
+        {onOpenNotifications && (
+          <button
+            type="button"
+            onClick={onOpenNotifications}
+            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-white/8 border border-white/10 text-[12px] font-semibold text-[#f8f4ec] hover:bg-white/12 transition"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Bell className="w-4 h-4 text-[#ffb86a]" />
+              Notifications
+            </span>
+            {unreadBoutiqueNotifs > 0 && (
+              <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-[#ff8a1f] text-white text-[10px] font-black flex items-center justify-center">
+                {unreadBoutiqueNotifs}
+              </span>
+            )}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => void logoutUser()}
@@ -781,7 +833,7 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
         <div className="flex items-center justify-end px-4 pt-4">
           <button type="button" onClick={() => setIsMobileSidebarOpen(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 text-[#c5d3e4]"><X className="w-5 h-5" /></button>
         </div>
-        <div className="h-[calc(100%-3.25rem)]">{renderSidebarContent()}</div>
+        <div className="h-[calc(100%-3.25rem)] overflow-y-auto">{renderSidebarContent()}</div>
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col lg:min-h-0 lg:overflow-hidden">
@@ -792,8 +844,8 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
             <p className="text-[15px] font-bold truncate">{TAB_LABELS[activeTab]}</p>
           </div>
         </div>
-        <div className="flex-1 lg:min-h-0 p-4 sm:p-5">
-          <div key={activeTab} className="lg:h-full lg:overflow-hidden">{renderContent()}</div>
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 lg:p-5">
+          <div key={activeTab} className="min-h-0 pb-8 lg:pb-4">{renderContent()}</div>
         </div>
       </div>
 
