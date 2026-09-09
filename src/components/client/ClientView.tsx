@@ -440,7 +440,7 @@ export const ClientView: React.FC<{
               },
               {
                 title: 'Livraison rapide',
-                desc: 'Dès 300 FCFA · tarif au km',
+                desc: 'Forfait 1 000 FCFA',
                 icon: Truck,
                 action: () => setActiveCategory('autres'),
                 dark: false,

@@ -429,7 +429,7 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                     Trajet Lokossa
                   </h4>
                   <span className="text-[11px] font-bold text-[#e86f00] bg-[#ff8a1f]/10 px-2 py-0.5 rounded-md border border-[#ff8a1f]/25">
-                    {deliveryInfo ? `${deliveryInfo.deliveryFee.toLocaleString()} F · ${distanceKm} km` : 'GPS requis'}
+                    {deliveryInfo ? `${deliveryInfo.deliveryFee.toLocaleString()} F (forfait)` : 'GPS requis'}
                   </span>
                 </div>
 
@@ -515,21 +515,10 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                 </div>
 
                 <div className="pt-2">
-                  <p className="text-[10px] font-bold uppercase text-slate-500 mb-1.5">Tarifs Lokossa</p>
-                  <div className="grid grid-cols-3 gap-1 text-[10px]">
-                    {[
-                      ['<1 km', '300'],
-                      ['1–2 km', '500'],
-                      ['2–3 km', '675'],
-                      ['3–5 km', '1 125'],
-                      ['5–8 km', '1 600'],
-                      ['8–12 km', '2 100'],
-                    ].map(([label, price]) => (
-                      <div key={label} className="p-1.5 bg-[#fffdf8] rounded-lg border border-[#e6dac8] text-center">
-                        <span className="text-slate-500 block">{label}</span>
-                        <strong className="text-slate-800">{price} F</strong>
-                      </div>
-                    ))}
+                  <p className="text-[10px] font-bold uppercase text-slate-500 mb-1.5">Tarif livraison Lokossa</p>
+                  <div className="rounded-xl border border-[#ff8a1f]/35 bg-[#ff8a1f]/10 px-3 py-2.5 text-center">
+                    <p className="text-[11px] text-slate-600">Forfait unique (toutes distances)</p>
+                    <strong className="text-base text-[#e86f00]">1 000 FCFA</strong>
                   </div>
                 </div>
               </div>

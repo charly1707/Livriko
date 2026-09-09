@@ -49,9 +49,14 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void; onOpenNotification
     (n) => !n.read && (n.targetRole === 'vendeur' || n.targetRole === 'restaurant'),
   ).length;
 
+  const sameStoreId = (a?: string | null, b?: string | null) =>
+    String(a || '').replace(/^store-/, '') === String(b || '').replace(/^store-/, '');
+  const sameOwnerId = (a?: string | null, b?: string | null) =>
+    String(a || '').replace(/^usr-/, '') === String(b || '').replace(/^usr-/, '');
+
   const currentStore = stores.find(s =>
-    (currentUser?.storeId && s.id === currentUser.storeId)
-    || s.ownerId === currentUser?.id,
+    (currentUser?.storeId && sameStoreId(s.id, currentUser.storeId))
+    || sameOwnerId(s.ownerId, currentUser?.id),
   );
 
   const [activeTab, setActiveTab] = useState<VendeurTab>('overview');
@@ -118,7 +123,8 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void; onOpenNotification
     if (productCategoryFilter === 'all') return true;
     return p.category === productCategoryFilter;
   });
-  const storeOrders = orders.filter(o => o.storeId === currentStore.id && !o.archived);
+  const storeOrders = orders.filter(o => sameStoreId(o.storeId, currentStore.id) && !o.archived);
+  const awaitingValidation = storeOrders.filter(o => o.status === 'pending');
   const totalRevenue = storeOrders.filter(o => o.status === 'delivered').reduce((sum, o) => sum + o.subtotal, 0);
   const netRevenue = Math.round(totalRevenue * 0.95);
   const commission = Math.round(totalRevenue * 0.05);
@@ -127,7 +133,7 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void; onOpenNotification
 
   const navItems: { id: VendeurTab; icon: React.ElementType; badge?: number }[] = [
     { id: 'overview', icon: LayoutDashboard },
-    { id: 'orders', icon: ShoppingBag, badge: pendingOrdersCount },
+    { id: 'orders', icon: ShoppingBag, badge: awaitingValidation.length || pendingOrdersCount },
     { id: 'catalog', icon: Package, badge: storeProducts.length },
     { id: 'settings', icon: Settings },
   ];
@@ -365,22 +371,45 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void; onOpenNotification
           </button>
         )}
         {order.status === 'pending' && (
-          <div className="space-y-2">
-            <p className="text-xs text-slate-500">Accusez réception pour démarrer la préparation.</p>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => updateOrderStatus(order.id, 'confirmed')} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">
-                <CheckCircle2 className="w-4 h-4" /> Commencer la préparation
+          <div className="w-full space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3">
+            <p className="text-xs font-semibold text-emerald-900">
+              Nouvelle commande — validez pour confirmer au client.
+            </p>
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await updateOrderStatus(order.id, 'confirmed');
+                  } catch (error: any) {
+                    window.alert(error?.response?.data?.message || error?.message || 'Impossible de valider la commande.');
+                  }
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black shadow-sm"
+              >
+                <CheckCircle2 className="w-4 h-4" /> Valider la commande
               </button>
-              <button type="button" onClick={() => updateOrderStatus(order.id, 'cancelled')} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold">
+              <button
+                type="button"
+                onClick={() => void updateOrderStatus(order.id, 'cancelled', undefined, 'Refusée par le prestataire')}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold"
+              >
                 <XCircle className="w-4 h-4" /> Refuser
               </button>
             </div>
           </div>
         )}
         {order.status === 'confirmed' && (
-          <button type="button" onClick={() => requestRiderForOrder(order.id)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#ff8a1f] hover:bg-[#e86f00] text-white text-sm font-bold">
-            <Truck className="w-4 h-4" /> Rechercher un livreur
-          </button>
+          <div className="w-full space-y-2">
+            <button
+              type="button"
+              onClick={() => void requestRiderForOrder(order.id)}
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#ff8a1f] hover:bg-[#e86f00] text-white text-sm font-black"
+            >
+              <Truck className="w-4 h-4" /> Rechercher un livreur
+            </button>
+            <p className="text-[11px] text-slate-500">Commande validée — demandez un livreur quand c’est prêt.</p>
+          </div>
         )}
         {order.status === 'rider_requested' && (
           <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-sm font-bold">
@@ -473,18 +502,32 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void; onOpenNotification
           <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3">
             {storeOrders.length === 0 ? (
               <p className="text-sm text-slate-500 text-center py-10">Aucune commande reçue.</p>
-            ) : storeOrders.slice(0, 5).map(renderOrderCard)}
+            ) : (
+              <>
+                {awaitingValidation.length > 0 && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 space-y-2">
+                    <p className="text-xs font-black text-emerald-900 uppercase tracking-wider">
+                      À valider ({awaitingValidation.length})
+                    </p>
+                    {awaitingValidation.slice(0, 3).map(renderOrderCard)}
+                  </div>
+                )}
+                {storeOrders.filter((o) => o.status !== 'pending').slice(0, 4).map(renderOrderCard)}
+              </>
+            )}
           </div>
         </div>
       </section>
     </div>
   );
 
-  const renderOrders = () => (
+  const renderOrders = () => {
+    const otherOrders = storeOrders.filter((o) => o.status !== 'pending');
+    return (
     <div className="flex flex-col gap-3.5 min-h-0">
-      {renderPageHeader('Commandes clients', 'Acceptez, préparez et sollicitez un livreur.', [
-        { label: 'Total', value: storeOrders.length },
-        { label: 'En attente', value: pendingOrdersCount },
+      {renderPageHeader('Commandes clients', 'Validez les commandes, préparez, puis sollicitez un livreur.', [
+        { label: 'À valider', value: awaitingValidation.length },
+        { label: 'En cours', value: pendingOrdersCount },
         { label: 'Livrées', value: deliveredCount },
       ])}
       <div className="flex-1 lg:min-h-0 lg:overflow-y-auto rounded-2xl border border-[#e6dac8] bg-[#fffdf8] p-4 sm:p-5 space-y-4">
@@ -494,10 +537,35 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void; onOpenNotification
             <p className="text-base font-bold text-slate-700">Aucune commande reçue</p>
             <p className="text-sm text-slate-500 mt-2">Les commandes de vos clients apparaîtront ici.</p>
           </div>
-        ) : storeOrders.map(renderOrderCard)}
+        ) : (
+          <>
+            {awaitingValidation.length > 0 && (
+              <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-black text-emerald-950">
+                    À valider ({awaitingValidation.length})
+                  </h3>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-white/80 px-2 py-1 rounded-full">
+                    Action requise
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {awaitingValidation.map(renderOrderCard)}
+                </div>
+              </div>
+            )}
+            {otherOrders.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Autres commandes</h3>
+                {otherOrders.map(renderOrderCard)}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
-  );
+    );
+  };
 
   const renderCatalog = () => (
     <div className="flex flex-col gap-3.5 min-h-0">

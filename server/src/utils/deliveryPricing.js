@@ -1,19 +1,13 @@
 /**
- * Barème officiel Livriko (Lokossa) — source de vérité serveur.
+ * Barème Livriko (Lokossa) — forfait livraison unique.
+ * Frais de livraison fixes : 1 000 FCFA (indépendants de la distance GPS).
+ * La distance reste calculée pour l’info course / affichage.
  */
+export const FLAT_DELIVERY_FEE = 1000;
+
 export function calculateDeliveryFee(distanceKm) {
   const dist = Math.max(0.1, Math.round(Number(distanceKm) * 10) / 10);
-  let rawFee = 300;
-
-  if (dist <= 1) rawFee = 300;
-  else if (dist <= 2) rawFee = 300 + (dist - 1) * 200;
-  else if (dist <= 3) rawFee = 500 + (dist - 2) * 175;
-  else if (dist <= 5) rawFee = 675 + (dist - 3) * 225;
-  else if (dist <= 8) rawFee = 1125 + (dist - 5) * (475 / 3);
-  else if (dist <= 12) rawFee = 1600 + (dist - 8) * 125;
-  else rawFee = 2100 + (dist - 12) * 125;
-
-  const deliveryFee = Math.max(300, Math.round(rawFee / 5) * 5);
+  const deliveryFee = FLAT_DELIVERY_FEE;
   const driverEarnings = Math.round(deliveryFee * 0.85);
   const platformFee = deliveryFee - driverEarnings;
 
