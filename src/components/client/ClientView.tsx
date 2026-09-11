@@ -440,7 +440,7 @@ export const ClientView: React.FC<{
               },
               {
                 title: 'Livraison rapide',
-                desc: 'Forfait 1 000 FCFA',
+                desc: 'Forfait 500 FCFA',
                 icon: Truck,
                 action: () => setActiveCategory('autres'),
                 dark: false,

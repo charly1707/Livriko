@@ -4,11 +4,14 @@ import livrikoLogo from '../assets/images/livriko_logo_1785408725718.jpg';
 interface PageScooterLoaderProps {
   onComplete?: () => void;
   duration?: number;
+  /** Contexte affiché pendant l’animation (commande validée). */
+  mode?: 'boot' | 'order';
 }
 
 export const PageScooterLoader: React.FC<PageScooterLoaderProps> = ({ 
   onComplete,
-  duration = 2400 
+  duration = 2400,
+  mode = 'boot',
 }) => {
   const [progress, setProgress] = useState(0);
   const [isFadingOut, setIsFadingOut] = useState(false);
@@ -34,15 +37,21 @@ export const PageScooterLoader: React.FC<PageScooterLoaderProps> = ({
 
   // Dynamic status messages as the scooter drives
   const getStatusText = () => {
-    if (progress < 25) return "Samuel, votre livreur Livriko, enfile son casque...";
-    if (progress < 60) return "Moto TVS démarrée, prise en charge de votre commande...";
-    if (progress < 85) return "Traversée rapide des quartiers de Lokossa...";
-    return "Livraison imminente à votre porte !";
+    if (mode === 'order') {
+      if (progress < 25) return 'Commande validée ! Le livreur Livriko enfile son casque...';
+      if (progress < 60) return 'Moto démarrée — votre commande est prise en charge...';
+      if (progress < 85) return 'En route dans les quartiers de Lokossa...';
+      return 'Suivez l’évolution de votre livraison en direct !';
+    }
+    if (progress < 25) return 'Samuel, votre livreur Livriko, enfile son casque...';
+    if (progress < 60) return 'Moto démarrée, prise en charge de votre commande...';
+    if (progress < 85) return 'Traversée rapide des quartiers de Lokossa...';
+    return 'Livraison imminente à votre porte !';
   };
 
   return (
     <div 
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-between bg-gradient-to-b from-slate-900 via-slate-900 to-blue-950 text-white transition-opacity duration-500 p-6 ${
+      className={`fixed inset-0 z-1200 flex flex-col items-center justify-between bg-gradient-to-b from-slate-900 via-slate-900 to-blue-950 text-white transition-opacity duration-500 p-6 ${
         isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
     >
@@ -53,7 +62,7 @@ export const PageScooterLoader: React.FC<PageScooterLoaderProps> = ({
           <span className="text-xs font-bold tracking-wider text-slate-300 uppercase">Ville de Lokossa</span>
         </div>
         <span className="text-xs font-semibold text-orange-400 bg-orange-500/10 px-3 py-1 rounded-full border border-orange-500/30">
-          Tarif fixe dès 450 FCFA
+          Tarif fixe 500 FCFA
         </span>
       </div>
 

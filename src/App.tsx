@@ -46,24 +46,29 @@ function MainAppContent({ onExitToWelcome }: { onExitToWelcome?: () => void }) {
     reviewModalOrderId,
     setReviewModalOrderId,
     openAuthModal,
+    scooterCelebrationKey,
   } = useApp();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const chatAutoOpenedRef = useRef<string | null>(null);
-  const [showScooterLoader, setShowScooterLoader] = useState(() => {
-    try {
-      return !sessionStorage.getItem('livriko_loader_shown');
-    } catch {
-      return false;
-    }
-  });
+  const [showScooterLoader, setShowScooterLoader] = useState(false);
+  const [scooterMode, setScooterMode] = useState<'boot' | 'order'>('boot');
+  const lastScooterKeyRef = useRef(0);
 
   // User Profile Modal state
   const [isUserProfileOpen, setIsUserProfileOpen] = useState(false);
   const [userProfileTab, setUserProfileTab] = useState<'profil' | 'commandes' | 'adresses' | 'parametres'>('profil');
 
-  // Trigger brief loader when switching roles to make app feel dynamic
+  // Lancer l’animation moto quand une commande client est validée
+  useEffect(() => {
+    if (scooterCelebrationKey <= 0) return;
+    if (scooterCelebrationKey === lastScooterKeyRef.current) return;
+    lastScooterKeyRef.current = scooterCelebrationKey;
+    setScooterMode('order');
+    setShowScooterLoader(true);
+  }, [scooterCelebrationKey]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       // smooth view mount
@@ -95,18 +100,14 @@ function MainAppContent({ onExitToWelcome }: { onExitToWelcome?: () => void }) {
 
   return (
     <div className={`min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-900 selection:bg-[#ff8a1f]/25 selection:text-slate-900 ${isFullScreenDashboard ? 'lg:h-screen lg:max-h-screen lg:overflow-hidden' : ''}`}>
-      {/* Scooter Page Loading Animation */}
+      {/* Scooter animation — commande validée */}
       {showScooterLoader && (
         <PageScooterLoader 
+          mode={scooterMode}
           onComplete={() => {
-            try {
-              sessionStorage.setItem('livriko_loader_shown', '1');
-            } catch {
-              // ignore storage errors
-            }
             setShowScooterLoader(false);
           }}
-          duration={2000}
+          duration={scooterMode === 'order' ? 2800 : 2000}
         />
       )}
 
@@ -125,6 +126,7 @@ function MainAppContent({ onExitToWelcome }: { onExitToWelcome?: () => void }) {
             openAuthModal(mode);
           }}
           onTriggerScooterLoader={() => {
+            setScooterMode('boot');
             setShowScooterLoader(true);
           }}
           onExitToWelcome={onExitToWelcome}

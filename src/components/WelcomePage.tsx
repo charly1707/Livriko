@@ -82,7 +82,7 @@ const DESKTOP_SLIDES = [
     title: 'Commandez, détendez-vous,',
     titleHighlight: 'on s’occupe du reste !',
     description:
-      'Repas, courses ou colis — recevez vos achats à domicile à Lokossa dès 1 000 FCFA.',
+      'Repas, courses ou colis — recevez vos achats à domicile à Lokossa dès 500 FCFA.',
     bgImage: welcomeMobileHero,
   },
 ] as const;
@@ -197,7 +197,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onSeen, onOpenAuth, onBrowseM
           <div className="mx-auto flex max-w-[96rem] items-center justify-between gap-4 px-12 py-1.5 text-[12px] xl:px-16">
             <p className="inline-flex items-center gap-1.5 font-medium">
               <MapPin className="h-3.5 w-3.5 text-[#ff8a1f]" aria-hidden />
-              Livraison express à Lokossa — forfait 1 000 FCFA
+              Livraison express à Lokossa — forfait 500 FCFA
             </p>
             <p className="inline-flex items-center gap-1.5 font-medium">
               <Phone className="h-3.5 w-3.5 text-[#ff8a1f]" aria-hidden />

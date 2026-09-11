@@ -32,10 +32,10 @@ export function isValidCoordinates(lat: unknown, lng: unknown): lat is number {
 
 /**
  * Barème Livriko (Lokossa) — forfait livraison unique.
- * Frais de livraison fixes : 1 000 FCFA (indépendants de la distance GPS).
+ * Frais de livraison fixes : 500 FCFA (indépendants de la distance GPS).
  * La distance reste calculée pour l’info course / affichage.
  */
-export const FLAT_DELIVERY_FEE = 1000;
+export const FLAT_DELIVERY_FEE = 500;
 
 export function calculateDeliveryFee(distanceKm: number): DeliveryFeeBreakdown {
   const dist = Math.max(0.1, Math.round(distanceKm * 10) / 10);
@@ -50,7 +50,7 @@ export function calculateDeliveryFee(distanceKm: number): DeliveryFeeBreakdown {
     driverEarnings,
     platformFee,
     ratePerKm,
-    tierLabel: 'Forfait livraison 1 000 FCFA',
+    tierLabel: 'Forfait livraison 500 FCFA',
   };
 }
 

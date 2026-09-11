@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  X, Truck, MapPin, CheckCircle2, Phone, Clock, Store, AlertCircle, ArrowLeft, Trash2,
+  X, CheckCircle2, Phone, Clock, AlertCircle, ArrowLeft, Trash2,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../../types';
 import { useApp } from '../../context/AppContext';
@@ -53,48 +53,6 @@ export const OrderTrackingModal: React.FC<{ order: Order; onClose: () => void }>
           <p className="text-xs text-slate-300 mt-0.5">{order.storeName}</p>
         </div>
 
-        {/* Map simulation */}
-        <div className="relative bg-[#f4f0e8] h-40 border-b border-[#e6dac8] overflow-hidden">
-          <div className="absolute inset-0 opacity-30 bg-[radial-gradient(#ff8a1f_1px,transparent_1px)] bg-size-[14px_14px]" />
-
-          <div className="absolute left-[15%] top-[40%] text-center -translate-x-1/2 -translate-y-1/2">
-            <div className="w-9 h-9 rounded-full bg-white border-2 border-[#ff8a1f] flex items-center justify-center shadow-md mx-auto">
-              <Store className="w-4 h-4 text-[#ff8a1f]" />
-            </div>
-            <span className="text-[9px] font-bold bg-white/95 px-1.5 py-0.5 rounded mt-1 inline-block text-slate-800 max-w-20 truncate">
-              {order.storeName}
-            </span>
-          </div>
-
-          <div className="absolute right-[15%] top-[55%] text-center translate-x-1/2 -translate-y-1/2">
-            <div className="w-9 h-9 rounded-full bg-white border-2 border-[#0c1a2e] flex items-center justify-center shadow-md mx-auto">
-              <MapPin className="w-4 h-4 text-[#0c1a2e]" />
-            </div>
-            <span className="text-[9px] font-bold bg-white/95 px-1.5 py-0.5 rounded mt-1 inline-block text-slate-800 max-w-20 truncate">
-              Vous
-            </span>
-          </div>
-
-          {order.riderName && (
-            <div
-              className="absolute top-[45%] text-center -translate-x-1/2 -translate-y-1/2 transition-all duration-700"
-              style={{ left: `${order.status === 'delivered' ? 85 : order.status === 'delivering' ? 60 : 35}%` }}
-            >
-              <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg border-2 border-white animate-pulse mx-auto">
-                <Truck className="w-5 h-5" />
-              </div>
-              <span className="text-[9px] font-bold bg-[#0c1a2e] text-[#ffb86a] px-2 py-0.5 rounded-full mt-1 inline-block">
-                {order.riderName}
-              </span>
-            </div>
-          )}
-
-          <div className="absolute bottom-2.5 left-3 bg-[#0c1a2e]/90 text-white px-2.5 py-1 rounded-lg text-[11px] flex items-center gap-1.5">
-            <Clock className="w-3 h-3 text-[#ffb86a]" />
-            ~{order.estimatedMinutes || 15} min
-          </div>
-        </div>
-
         <div className="bg-[#faf6ef] border-b border-[#e6dac8] p-4 grid grid-cols-2 gap-2">
           <div className="rounded-xl border border-[#e6dac8] bg-[#fffdf8] p-2.5">
             <p className="text-[10px] font-bold uppercase text-slate-400">Distance</p>
@@ -103,6 +61,12 @@ export const OrderTrackingModal: React.FC<{ order: Order; onClose: () => void }>
           <div className="rounded-xl border border-[#e6dac8] bg-[#fffdf8] p-2.5">
             <p className="text-[10px] font-bold uppercase text-slate-400">Livraison</p>
             <p className="mt-0.5 text-sm font-black text-[#ff8a1f]">{displayDeliveryFee.toLocaleString()} F</p>
+          </div>
+          <div className="rounded-xl border border-[#e6dac8] bg-[#fffdf8] p-2.5 col-span-2 flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 text-[#ff8a1f]" />
+            <p className="text-xs text-slate-600">
+              Estimation : <strong className="text-slate-900">~{order.estimatedMinutes || 15} min</strong>
+            </p>
           </div>
         </div>
 

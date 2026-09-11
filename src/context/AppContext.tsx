@@ -61,6 +61,9 @@ interface AppContextType {
   closeAuthModal: () => void;
   reviewModalOrderId: string | null;
   setReviewModalOrderId: (id: string | null) => void;
+  /** Incrémente pour lancer l’animation livreur en moto (commande validée). */
+  scooterCelebrationKey: number;
+  triggerScooterCelebration: (orderId?: string) => void;
 
   stores: Store[];
   products: Product[];
@@ -362,6 +365,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [authModalMode, setAuthModalMode] = useState<'register' | 'login'>('login');
   const [authModalRole, setAuthModalRole] = useState<UserRole>('client');
   const [reviewModalOrderId, setReviewModalOrderId] = useState<string | null>(null);
+  const [scooterCelebrationKey, setScooterCelebrationKey] = useState(0);
+  const celebratedOrderIdsRef = React.useRef<Set<string>>(new Set());
+  const previousOrderStatusRef = React.useRef<Map<string, string>>(new Map());
+
+  const triggerScooterCelebration = React.useCallback((orderId?: string) => {
+    if (orderId) {
+      if (celebratedOrderIdsRef.current.has(orderId)) return;
+      celebratedOrderIdsRef.current.add(orderId);
+    }
+    setScooterCelebrationKey((key) => key + 1);
+  }, []);
 
   const openAuthModal = React.useCallback((mode: 'register' | 'login' = 'login', role: UserRole = 'client') => {
     setAuthModalMode(mode);
@@ -563,6 +577,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await axios.get(ordersUrl, { withCredentials: true });
       if (Array.isArray(res.data?.orders)) {
         const mapped = res.data.orders.map(mapApiOrder);
+        // Animation moto : commande passée de pending → confirmed (validée par le prestataire)
+        for (const order of mapped as Order[]) {
+          const prevStatus = previousOrderStatusRef.current.get(order.id);
+          previousOrderStatusRef.current.set(order.id, order.status);
+          if (
+            order.status === 'confirmed'
+            && prevStatus === 'pending'
+            && currentUserId
+            && String(order.clientId).replace(/^usr-/, '') === String(currentUserId).replace(/^usr-/, '')
+          ) {
+            triggerScooterCelebration(order.id);
+          }
+        }
         setOrders(mapped);
         setActiveTrackingOrder(prev => {
           if (!prev) return prev;
@@ -573,7 +600,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       // keep existing orders on failure
     }
-  }, []);
+  }, [currentUserId, triggerScooterCelebration]);
 
   const refreshAdminUsers = React.useCallback(async () => {
     try {
@@ -1293,6 +1320,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // ignore
     }
 
+    // Animation livreur en moto dès que la commande client est validée / enregistrée
+    triggerScooterCelebration(persistedOrder.id);
+
     addNotification(
       'Nouvelle commande reçue !',
       [
@@ -1455,6 +1485,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await refreshOrders();
     } catch {
       // ignore
+    }
+
+    if (status === 'confirmed') {
+      // Si le client a la session ouverte (ou après refresh), lancer l’animation moto
+      const clientId = orderSnapshot?.clientId;
+      if (
+        clientId
+        && currentUserId
+        && String(clientId).replace(/^usr-/, '') === String(currentUserId).replace(/^usr-/, '')
+      ) {
+        triggerScooterCelebration(orderId);
+      }
     }
 
     if (status === 'delivered' && orderSnapshot) {
@@ -1637,6 +1679,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveTrackingOrder,
         reviewModalOrderId,
         setReviewModalOrderId,
+        scooterCelebrationKey,
+        triggerScooterCelebration,
         addToCart,
         removeFromCart,
         updateCartQuantity,

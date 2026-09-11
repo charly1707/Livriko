@@ -2,61 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, ShoppingBag, Trash2, Plus, Minus, MapPin, Phone, User, ArrowRight, Compass, ArrowLeft,
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
-import { LatLngExpression, icon } from 'leaflet';
 import { useApp } from '../../context/AppContext';
 import { calculateDeliveryFee, calculateRoadDistanceKm, isValidCoordinates } from '../../utils/deliveryCalculator';
-
-const clientMarkerIcon = icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  shadowSize: [41, 41],
-});
-
-const storeMarkerIcon = icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-red.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  shadowSize: [41, 41],
-});
-
-const LocationMarker: React.FC<{ clientCoords: { lat: number; lng: number }; onLocationSelect: (coords: { lat: number; lng: number }) => void }> = ({ clientCoords, onLocationSelect }) => {
-  useMapEvents({
-    click(e) {
-      onLocationSelect({ lat: e.latlng.lat, lng: e.latlng.lng });
-    },
-  });
-
-  return (
-    <Marker
-      position={[clientCoords.lat, clientCoords.lng] as LatLngExpression}
-      icon={clientMarkerIcon}
-    >
-      <Popup>Votre position de livraison</Popup>
-    </Marker>
-  );
-};
-
-const MapAutoFit: React.FC<{ bounds: LatLngExpression[] }> = ({ bounds }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!bounds || bounds.length === 0) return;
-    const validBounds = bounds.filter(Boolean) as LatLngExpression[];
-    if (validBounds.length === 0) return;
-    map.fitBounds(validBounds as any, {
-      padding: [24, 24],
-      maxZoom: 15,
-    });
-  }, [map, bounds]);
-
-  return null;
-};
 
 export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { 
@@ -80,15 +27,8 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       ? { lat: currentUser.location.lat, lng: currentUser.location.lng }
       : null
   );
-  const [mapZoom, setMapZoom] = useState(14);
-  const [isMapReady, setIsMapReady] = useState(false);
   const [isGeolocating, setIsGeolocating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [routeCoordinates, setRouteCoordinates] = useState<LatLngExpression[]>([]);
-  const [routeDistanceKm, setRouteDistanceKm] = useState<number | null>(null);
-  const [routeDurationMin, setRouteDurationMin] = useState<number | null>(null);
-  const [routeLoading, setRouteLoading] = useState(false);
-  const [routeError, setRouteError] = useState<string | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -107,7 +47,7 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
   const handleGetGPS = () => {
     if (!('geolocation' in navigator)) {
-      setGeoError('La géolocalisation n’est pas supportée par ce navigateur. Saisissez votre adresse et placez le pin manuellement sur la carte.');
+      setGeoError('La géolocalisation n’est pas supportée par ce navigateur. Saisissez votre adresse de livraison.');
       return;
     }
     setIsGeolocating(true);
@@ -116,7 +56,6 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       (pos) => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setClientCoords(coords);
-        setMapZoom(15);
         if (currentUser) {
           void updateUserProfile(currentUser.id, {
             location: {
@@ -131,11 +70,11 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       (err) => {
         setIsGeolocating(false);
         if (err.code === err.PERMISSION_DENIED) {
-          setGeoError('Autorisation GPS refusée. Activez la localisation ou placez le pin manuellement sur la carte.');
+          setGeoError('Autorisation GPS refusée. Activez la localisation ou saisissez votre adresse.');
         } else if (err.code === err.TIMEOUT) {
-          setGeoError('Délai GPS dépassé. Réessayez ou placez le pin manuellement.');
+          setGeoError('Délai GPS dépassé. Réessayez ou saisissez votre adresse.');
         } else {
-          setGeoError('Position indisponible. Saisissez votre adresse et ajustez le pin sur la carte.');
+          setGeoError('Position indisponible. Saisissez votre adresse de livraison.');
         }
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
@@ -152,6 +91,10 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   const cartSubtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const cartDeliveryFee = deliveryInfo?.deliveryFee ?? 0;
   const cartTotal = cartSubtotal + cartDeliveryFee;
+  const canSubmitOrder = Boolean(name.trim() && phone.trim() && address.trim());
+  const hasStoreCoords = isValidCoordinates(storeLat, storeLng);
+  const hasClientCoords = Boolean(clientCoords && isValidCoordinates(clientCoords.lat, clientCoords.lng));
+  const canComputeDelivery = distanceKm !== null && distanceKm > 0 && hasStoreCoords && hasClientCoords;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,7 +105,7 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       return;
     }
 
-    if (!canComputeDelivery) {
+    if (!canComputeDelivery || distanceKm === null) {
       setSubmissionError('Le calcul GPS de la livraison est impossible avec la position actuelle. Réessayez ou géolocalisez-vous à nouveau.');
       return;
     }
@@ -174,7 +117,7 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       if (!clientCoords) {
         throw new Error('Votre position GPS est nécessaire pour calculer la distance.');
       }
-      const quote = calculateDeliveryFee(resolvedDistanceKm);
+      const quote = calculateDeliveryFee(distanceKm);
       await placeOrder({
         paymentMethod: 'cash',
         storePaymentMode: 'delivery',
@@ -200,66 +143,6 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       setIsSubmitting(false);
     }
   };
-
-  const canSubmitOrder = Boolean(name.trim() && phone.trim() && address.trim());
-
-  const storeCoords: LatLngExpression | null = typeof storeLat === 'number' && typeof storeLng === 'number' && isValidCoordinates(storeLat, storeLng) ? [storeLat, storeLng] : null;
-  const clientPosition: LatLngExpression | null = clientCoords && isValidCoordinates(clientCoords.lat, clientCoords.lng) ? [clientCoords.lat, clientCoords.lng] : null;
-  const routePositions: LatLngExpression[] = storeCoords && clientPosition ? [storeCoords, clientPosition] : [];
-  const resolvedDistanceKm = routeDistanceKm ?? distanceKm;
-  const canComputeDelivery = resolvedDistanceKm !== null && resolvedDistanceKm > 0 && Boolean(storeCoords && clientPosition);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    if (!isValidCoordinates(storeLat, storeLng) || !clientCoords || !isValidCoordinates(clientCoords.lat, clientCoords.lng)) {
-      setRouteCoordinates(routePositions);
-      return;
-    }
-
-    const controller = new AbortController();
-    const routeUrl = `/backend/index.php/api/maps/route?fromLat=${storeLat}&fromLng=${storeLng}&toLat=${clientCoords.lat}&toLng=${clientCoords.lng}`;
-
-    setRouteLoading(true);
-    setRouteError(null);
-
-    fetch(routeUrl, { signal: controller.signal, credentials: 'include' })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`OSRM non disponible (${response.status})`);
-        }
-        return response.json();
-      })
-      .then((body) => {
-        const data = body.route ?? body;
-        if (body.success === false) {
-          throw new Error(body.message || 'Service GPS non configuré');
-        }
-        const route = data.routes?.[0];
-        if (!route) {
-          throw new Error('Aucun itinéraire trouvé');
-        }
-        const coordinates = route.geometry.coordinates.map((coord: number[]) => [coord[1], coord[0]] as LatLngExpression);
-
-        setRouteCoordinates(coordinates);
-        setRouteDistanceKm(Math.max(0.1, Math.round((route.distance / 1000) * 10) / 10));
-        setRouteDurationMin(Math.max(1, Math.round(route.duration / 60)));
-      })
-      .catch((error) => {
-        if (controller.signal.aborted) return;
-        setRouteCoordinates(routePositions);
-        setRouteDistanceKm(distanceKm);
-        setRouteDurationMin(null);
-        setRouteError(error instanceof Error ? error.message : 'Impossible de charger l’itinéraire');
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setRouteLoading(false);
-        }
-      });
-
-    return () => controller.abort();
-  }, [isOpen, storeLat, storeLng, clientCoords?.lat, clientCoords?.lng, distanceKm]);
 
   if (!isOpen) return null;
 
@@ -421,12 +304,12 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                 </div>
               </div>
 
-              {/* GPS / map */}
+              {/* Position GPS (sans carte) */}
               <div className="pt-3 border-t border-[#e6dac8] space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5 text-[#ff8a1f]" />
-                    Trajet Lokossa
+                    Livraison Lokossa
                   </h4>
                   <span className="text-[11px] font-bold text-[#e86f00] bg-[#ff8a1f]/10 px-2 py-0.5 rounded-md border border-[#ff8a1f]/25">
                     {deliveryInfo ? `${deliveryInfo.deliveryFee.toLocaleString()} F (forfait)` : 'GPS requis'}
@@ -436,10 +319,9 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                 <div className="p-3 bg-[#fffdf8] rounded-xl border border-[#e6dac8] space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <p className="text-xs font-bold text-slate-800">Boutique → Vous</p>
-                      <p className="text-[11px] text-slate-500">Cliquez la carte pour placer le pin</p>
+                      <p className="text-xs font-bold text-slate-800">Position de livraison</p>
+                      <p className="text-[11px] text-slate-500">Utilisez le GPS ou l’adresse saisie ci-dessus</p>
                     </div>
-
                     <button
                       type="button"
                       onClick={handleGetGPS}
@@ -453,55 +335,12 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                   {geoError && (
                     <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">{geoError}</p>
                   )}
-
                   {submissionError && (
                     <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700 text-[12px]">
                       <p className="font-semibold">Erreur de validation :</p>
                       <p>{submissionError}</p>
                     </div>
                   )}
-
-                  <div className="h-44 rounded-xl overflow-hidden border border-[#e6dac8] relative">
-                    <div className="absolute left-3 top-3 z-20 rounded-xl bg-[#0c1a2e]/95 text-white text-[11px] p-2.5 shadow-lg w-[calc(100%-1.5rem)] max-w-[220px]">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold">Itinéraire</span>
-                        <span className="text-[#ffb86a]">{routeLoading ? '...' : routeDistanceKm ? `${routeDistanceKm.toFixed(1)} km` : distanceKm !== null ? `${distanceKm.toFixed(1)} km` : '—'}</span>
-                      </div>
-                      <p className="mt-1 text-[10px] text-slate-300">
-                        {routeDurationMin ? `~${routeDurationMin} min` : routeError || 'Trajet GPS'}
-                      </p>
-                    </div>
-
-                    {storeCoords && clientPosition ? <MapContainer
-                      center={clientPosition}
-                      zoom={mapZoom}
-                      scrollWheelZoom={false}
-                      style={{ height: '100%', width: '100%' }}
-                      whenReady={() => setIsMapReady(true)}
-                    >
-                      <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      />
-                      <LocationMarker
-                        clientCoords={clientCoords!}
-                        onLocationSelect={(coords) => setClientCoords(coords)}
-                      />
-                      <Marker position={storeCoords} icon={storeMarkerIcon}>
-                        <Popup>{storeName}</Popup>
-                      </Marker>
-                      <MapAutoFit bounds={routeCoordinates.length > 0 ? routeCoordinates : routePositions} />
-                      <Polyline
-                        positions={routeCoordinates.length > 0 ? routeCoordinates : routePositions}
-                        pathOptions={{ color: 'rgba(251,146,60,0.95)', weight: 5, opacity: 0.95, dashArray: routeCoordinates.length > 0 ? undefined : '10,6' }}
-                      />
-                    </MapContainer> : (
-                      <div className="h-full flex items-center justify-center bg-slate-100 px-6 text-center text-xs font-semibold text-slate-600">
-                        Votre position GPS et la position de la boutique sont nécessaires pour afficher l’itinéraire.
-                      </div>
-                    )}
-                  </div>
-
                   <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
                     <div className="rounded-lg bg-[#f4f0e8] p-2 border border-[#e6dac8]">
                       <p className="font-bold text-slate-800">Boutique</p>
@@ -512,13 +351,16 @@ export const CartDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                       <p className="truncate">{clientCoords ? `${clientCoords.lat.toFixed(4)}, ${clientCoords.lng.toFixed(4)}` : 'Non défini'}</p>
                     </div>
                   </div>
+                  {distanceKm != null && (
+                    <p className="text-[11px] text-slate-500">Distance estimée : <strong className="text-slate-800">{distanceKm.toFixed(1)} km</strong></p>
+                  )}
                 </div>
 
                 <div className="pt-2">
                   <p className="text-[10px] font-bold uppercase text-slate-500 mb-1.5">Tarif livraison Lokossa</p>
                   <div className="rounded-xl border border-[#ff8a1f]/35 bg-[#ff8a1f]/10 px-3 py-2.5 text-center">
                     <p className="text-[11px] text-slate-600">Forfait unique (toutes distances)</p>
-                    <strong className="text-base text-[#e86f00]">1 000 FCFA</strong>
+                    <strong className="text-base text-[#e86f00]">500 FCFA</strong>
                   </div>
                 </div>
               </div>
