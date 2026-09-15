@@ -943,7 +943,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const updateUserProfile = async (userId: string, updates: Partial<User>) => {
+  const updateUserProfile = async (
+    userId: string,
+    updates: Partial<User> & { currentPassword?: string },
+  ) => {
     const payload = new URLSearchParams();
     if (updates.name) payload.append('name', updates.name);
     if (updates.phone) payload.append('phone', updates.phone);
@@ -955,7 +958,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updates.cipPhoto) payload.append('cip_photo', updates.cipPhoto);
     if (updates.vehiclePhoto) payload.append('vehicle_photo', updates.vehiclePhoto);
     if (updates.password) payload.append('newPassword', updates.password);
-    if ((updates as any).currentPassword) payload.append('currentPassword', String((updates as any).currentPassword));
+    if (updates.currentPassword) payload.append('currentPassword', String(updates.currentPassword));
     if (updates.location?.lat != null) payload.append('lat', String(updates.location.lat));
     if (updates.location?.lng != null) payload.append('lng', String(updates.location.lng));
     if (updates.location?.address) payload.append('address', updates.location.address);

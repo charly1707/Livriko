@@ -24,6 +24,8 @@ import {
   Loader2,
   Search,
   User as UserIcon,
+  KeyRound,
+  MapPin,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { User } from '../../types';
@@ -1351,14 +1353,32 @@ export const AdminView: React.FC<{
 
         <div className="grid grid-cols-1 gap-2">
           {onOpenUserProfile && (
-            <button
-              type="button"
-              onClick={() => onOpenUserProfile('profil')}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white/6 text-[12px] font-semibold text-[#d5e0ee] hover:bg-white/10 hover:text-white transition cursor-pointer"
-            >
-              <UserIcon className="w-4 h-4" />
-              Mon profil
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => onOpenUserProfile('profil')}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white/6 text-[12px] font-semibold text-[#d5e0ee] hover:bg-white/10 hover:text-white transition cursor-pointer"
+              >
+                <UserIcon className="w-4 h-4" />
+                Mon profil
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenUserProfile('adresses')}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white/6 text-[12px] font-semibold text-[#d5e0ee] hover:bg-white/10 hover:text-white transition cursor-pointer"
+              >
+                <MapPin className="w-4 h-4 text-[#ffb86a]" />
+                Ma localisation
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenUserProfile('parametres')}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white/6 text-[12px] font-semibold text-[#d5e0ee] hover:bg-white/10 hover:text-white transition cursor-pointer"
+              >
+                <KeyRound className="w-4 h-4 text-[#ffb86a]" />
+                Mot de passe
+              </button>
+            </>
           )}
           <button
             type="button"

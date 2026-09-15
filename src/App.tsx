@@ -160,6 +160,10 @@ function MainAppContent({ onExitToWelcome }: { onExitToWelcome?: () => void }) {
           <VendeurView
             onOpenChat={() => setIsChatOpen(true)}
             onOpenNotifications={() => setIsNotifOpen(true)}
+            onOpenUserProfile={(tab = 'parametres') => {
+              setUserProfileTab(tab);
+              setIsUserProfileOpen(true);
+            }}
           />
         )}
 

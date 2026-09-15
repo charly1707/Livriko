@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import {
-  X, User, ShoppingBag, MapPin, Settings, LogOut, Check, Phone, Mail,
-  ChevronRight, ArrowLeft, Key, Camera, Shield, Wallet, Trash2,
+  X, User as UserIcon, ShoppingBag, MapPin, Settings, LogOut, Check, Phone, Mail,
+  ChevronRight, ArrowLeft, Camera, Shield, Wallet, Trash2,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import type { User as AppUser } from '../types';
 import { uploadImageFile } from '../utils/imageUpload';
 import { buildApiUrl } from '../utils/media';
 import axios from 'axios';
+import { ManualLocationForm } from './shared/ManualLocationForm';
+import { PasswordChangeForm } from './shared/PasswordChangeForm';
 
 type ProfileTab = 'profil' | 'commandes' | 'adresses' | 'parametres';
 
 const TAB_CONFIG: { id: ProfileTab; label: string; icon: React.ElementType }[] = [
-  { id: 'profil', label: 'Mon profil', icon: User },
+  { id: 'profil', label: 'Mon profil', icon: UserIcon },
   { id: 'commandes', label: 'Mes commandes', icon: ShoppingBag },
   { id: 'adresses', label: 'Mes adresses', icon: MapPin },
   { id: 'parametres', label: 'Paramètres', icon: Settings },
@@ -80,14 +83,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [city, setCity] = useState(currentUser?.city || 'Lokossa');
   const [isSaved, setIsSaved] = useState(false);
-  const [savedAddress, setSavedAddress] = useState(
-    currentUser?.location?.address || `${currentUser?.city || 'Lokossa'}, Quartier Agamé`,
-  );
-  const [isAddressSaved, setIsAddressSaved] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordMessage, setPasswordMessage] = useState('');
+  const [profileNotice, setProfileNotice] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
 
   React.useEffect(() => {
@@ -100,11 +96,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setEmail(currentUser.email || '');
       setPhone(currentUser.phone || '');
       setCity(currentUser.city || 'Lokossa');
-      setSavedAddress(currentUser.location?.address || `${currentUser.city || 'Lokossa'}, Quartier Agamé`);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setPasswordMessage('');
+      setProfileNotice('');
     }
   }, [currentUser]);
 
@@ -115,7 +107,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setSelectedAvatar(url);
       updateUserProfile(currentUser.id, { avatar: url, selfiePhoto: url });
     } catch (error: any) {
-      setPasswordMessage(error.message || 'Impossible d\'envoyer la photo de profil.');
+      setProfileNotice(error.message || 'Impossible d\'envoyer la photo de profil.');
     }
   };
 
@@ -143,41 +135,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     setTimeout(() => setIsSaved(false), 2000);
   };
 
-  const handleAddressSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateUserProfile(currentUser.id, {
+  const saveUserLocation = async (values: { address: string; lat?: number; lng?: number }) => {
+    await updateUserProfile(currentUser.id, {
       city,
-      ...(currentUser.location ? {
-        location: { ...currentUser.location, address: savedAddress },
-      } : {}),
+      location: {
+        address: values.address,
+        lat: values.lat ?? currentUser.location?.lat,
+        lng: values.lng ?? currentUser.location?.lng,
+      } as User['location'],
     });
-    setIsAddressSaved(true);
-    setTimeout(() => setIsAddressSaved(false), 2000);
-  };
-
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setPasswordMessage('Veuillez remplir tous les champs du mot de passe.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordMessage('Les nouveaux mots de passe ne correspondent pas.');
-      return;
-    }
-    if (newPassword.length < 8) {
-      setPasswordMessage('Le mot de passe doit contenir au moins 8 caractères.');
-      return;
-    }
-    try {
-      await updateUserProfile(currentUser.id, { password: newPassword, currentPassword } as any);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setPasswordMessage('Mot de passe mis à jour avec succès.');
-    } catch (error: any) {
-      setPasswordMessage(error.message || 'Impossible de mettre à jour le mot de passe.');
-    }
   };
 
   const inputClass = 'w-full px-4 py-3 bg-white border border-[#e6dac8] rounded-xl text-sm font-medium text-slate-900 focus:border-[#ff8a1f] focus:outline-none focus:ring-2 focus:ring-[#ff8a1f]/20 transition';
@@ -265,6 +231,35 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </select>
           </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('adresses')}
+          className="flex items-center gap-3 rounded-2xl border border-[#e6dac8] bg-white p-4 text-left hover:border-[#ff8a1f]/50 transition"
+        >
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#ff8a1f]/10 text-[#ff8a1f]">
+            <MapPin className="w-5 h-5" />
+          </span>
+          <span>
+            <span className="block text-sm font-black text-slate-900">Localisation manuelle</span>
+            <span className="block text-xs text-slate-500 mt-0.5">Adresse et coordonnées GPS</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('parametres')}
+          className="flex items-center gap-3 rounded-2xl border border-[#e6dac8] bg-white p-4 text-left hover:border-[#ff8a1f]/50 transition"
+        >
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#0c1a2e]/10 text-[#0c1a2e]">
+            <Settings className="w-5 h-5" />
+          </span>
+          <span>
+            <span className="block text-sm font-black text-slate-900">Changer le mot de passe</span>
+            <span className="block text-xs text-slate-500 mt-0.5">Sécurité du compte</span>
+          </span>
+        </button>
       </div>
 
       {currentUser.role === 'client' && (
@@ -439,43 +434,33 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   };
 
   const renderAdressesTab = () => (
-    <form onSubmit={handleAddressSave} className="space-y-5">
-      <div className="rounded-2xl border border-[#e6dac8] bg-[#fffdf8] p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-black text-slate-900">Adresse de livraison</h4>
-          {isAddressSaved && (
-            <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 font-bold">
-              <Check className="w-4 h-4" /> Enregistrée
-            </span>
-          )}
-        </div>
-        <div>
-          <label className={labelClass}>Adresse habituelle</label>
-          <input
-            type="text"
-            required
-            value={savedAddress}
-            onChange={e => setSavedAddress(e.target.value)}
-            placeholder="ex : Quartier Agamé, près du Marché Central, Lokossa"
-            className={inputClass}
-          />
-        </div>
-        <div>
-          <label className={labelClass}>Ville</label>
-          <select value={city} onChange={e => setCity(e.target.value)} className={inputClass}>
-            <option value="Lokossa">Lokossa (Ville couverte — 100 %)</option>
-          </select>
-        </div>
-      </div>
-      <div className="text-right">
+    <div className="space-y-5">
+      <ManualLocationForm
+        title={currentUser.role === 'client' ? 'Adresse de livraison' : 'Ma localisation'}
+        description={
+          currentUser.role === 'client'
+            ? 'Saisissez votre adresse habituelle ou ajustez vos coordonnées GPS manuellement.'
+            : 'Mettez à jour votre position pour les courses, livraisons et calculs de distance.'
+        }
+        initialAddress={currentUser.location?.address || `${currentUser.city || 'Lokossa'}, Quartier Agamé`}
+        initialLat={currentUser.location?.lat ?? null}
+        initialLng={currentUser.location?.lng ?? null}
+        onSave={saveUserLocation}
+      />
+      <div className="rounded-2xl border border-[#e6dac8] bg-white p-5">
+        <label className={labelClass}>Ville principale</label>
+        <select value={city} onChange={e => setCity(e.target.value)} className={inputClass}>
+          <option value="Lokossa">Lokossa (Ville couverte — 100 %)</option>
+        </select>
         <button
-          type="submit"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0c1a2e] hover:bg-[#132d4d] text-white text-sm font-bold transition"
+          type="button"
+          onClick={() => void updateUserProfile(currentUser.id, { city })}
+          className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0c1a2e] hover:bg-[#132d4d] text-white text-sm font-bold transition"
         >
-          Enregistrer l&apos;adresse
+          Enregistrer la ville
         </button>
       </div>
-    </form>
+    </div>
   );
 
   const renderParametresTab = () => (
@@ -496,54 +481,35 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         ))}
       </div>
 
-      <form onSubmit={handlePasswordChange} className="rounded-2xl border border-[#e6dac8] bg-[#fffdf8] p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Key className="w-5 h-5 text-[#ff8a1f]" />
-          <h4 className="text-sm font-black text-slate-900">Changer mon mot de passe</h4>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>Mot de passe actuel</label>
-            <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className={labelClass}>Nouveau mot de passe</label>
-            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={inputClass} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={labelClass}>Confirmer le nouveau mot de passe</label>
-            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={inputClass} />
-          </div>
-        </div>
-        {passwordMessage && (
-          <div className={`rounded-xl px-4 py-3 text-sm font-medium ${
-            passwordMessage.includes('succès') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-          }`}>
-            {passwordMessage}
-          </div>
-        )}
-        <button
-          type="submit"
-          className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#ff8a1f] hover:bg-[#e86f00] text-white text-sm font-bold transition"
-        >
-          Enregistrer le nouveau mot de passe
-        </button>
-      </form>
+      <PasswordChangeForm
+        onSubmit={async (currentPassword, newPassword) => {
+          await updateUserProfile(currentUser.id, { password: newPassword, currentPassword } as any);
+        }}
+      />
     </div>
   );
+
+  const locationTabTitle = currentUser.role === 'client' ? 'Mes adresses' : 'Ma localisation';
+  const locationTabSubtitle = currentUser.role === 'client'
+    ? 'Votre adresse de livraison par défaut.'
+    : 'Adresse et coordonnées GPS pour vos activités sur Livriko.';
 
   const TAB_CONTENT: Record<ProfileTab, { title: string; subtitle: string; body: React.ReactNode }> = {
     profil: { title: 'Mon profil', subtitle: 'Gérez vos informations personnelles et votre photo.', body: renderProfilTab() },
     commandes: { title: 'Mes commandes', subtitle: `${userOrders.length} commande(s) dans votre historique.`, body: renderCommandesTab() },
-    adresses: { title: 'Mes adresses', subtitle: 'Votre adresse de livraison par défaut.', body: renderAdressesTab() },
+    adresses: { title: locationTabTitle, subtitle: locationTabSubtitle, body: renderAdressesTab() },
     parametres: { title: 'Paramètres', subtitle: 'Préférences, notifications et sécurité.', body: renderParametresTab() },
   };
+
+  const tabConfig = TAB_CONFIG.map(tab => (
+    tab.id === 'adresses' ? { ...tab, label: locationTabTitle } : tab
+  ));
 
   const currentPage = TAB_CONTENT[activeTab];
 
   const renderSidebarNav = () => (
     <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-      {TAB_CONFIG.map(tab => {
+      {tabConfig.map(tab => {
         const Icon = tab.icon;
         const isActive = activeTab === tab.id;
         const badge = tab.id === 'commandes' ? userOrders.length : undefined;
@@ -629,7 +595,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </button>
           </div>
           <div className="flex overflow-x-auto gap-1 p-2">
-            {TAB_CONFIG.map(tab => {
+            {tabConfig.map(tab => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (

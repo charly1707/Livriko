@@ -268,7 +268,7 @@ export const Header: React.FC<{
                 type="button"
                 onClick={() => onOpenUserProfile('profil')}
                 className="flex items-center gap-2 pl-1 pr-2 sm:pr-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition max-w-[160px] sm:max-w-[200px]"
-                title={currentUserLabel}
+                title="Profil, localisation et mot de passe"
               >
                 <div className="w-7 h-7 rounded-full bg-[#ff8a1f] text-white font-black text-xs flex items-center justify-center overflow-hidden shrink-0">
                   {currentUser.avatar ? (

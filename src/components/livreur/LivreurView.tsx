@@ -7,6 +7,8 @@ import { Order, OrderStatus, User } from '../../types';
 import { calculateDeliveryFee, calculateHaversineDistance, formatFCFA, isValidCoordinates } from '../../utils/deliveryCalculator';
 import { MediaPicker } from '../MediaPicker';
 import { uploadImageFile } from '../../utils/imageUpload';
+import { ManualLocationForm } from '../shared/ManualLocationForm';
+import { PasswordChangeForm } from '../shared/PasswordChangeForm';
 
 interface RiderAcceptButtonProps {
   order: Order;
@@ -359,6 +361,36 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
             <p className="text-sm text-amber-800 mt-2">
               Votre compte livreur n&apos;est pas encore certifié. Aucune course ni service n&apos;est accessible pour le moment.
             </p>
+          </div>
+        )}
+
+        {currentUser && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-black text-slate-900">Mon compte</h3>
+            <p className="text-xs text-slate-500 -mt-2">
+              Même en attente de certification, vous pouvez mettre à jour votre localisation et votre mot de passe.
+            </p>
+            <ManualLocationForm
+              title="Ma localisation"
+              description="Adresse et coordonnées GPS saisies manuellement ou via GPS."
+              initialAddress={currentUser.location?.address || currentUser.city || 'Lokossa'}
+              initialLat={currentUser.location?.lat ?? null}
+              initialLng={currentUser.location?.lng ?? null}
+              onSave={async (values) => {
+                await updateUserProfile(currentUser.id, {
+                  location: {
+                    address: values.address,
+                    lat: values.lat ?? currentUser.location?.lat,
+                    lng: values.lng ?? currentUser.location?.lng,
+                  } as User['location'],
+                });
+              }}
+            />
+            <PasswordChangeForm
+              onSubmit={async (currentPassword, newPassword) => {
+                await updateUserProfile(currentUser.id, { password: newPassword, currentPassword } as Partial<User>);
+              }}
+            />
           </div>
         )}
       </div>
@@ -881,19 +913,20 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
       )}
 
       {/* Rider Profile Settings Modal */}
-      {isProfileModalOpen && (
+      {isProfileModalOpen && currentUser && (
         <div className="fixed inset-0 z-1100 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-100 space-y-5">
+            <div className="flex items-center justify-between sticky top-0 bg-white z-10 pb-2">
               <h3 className="text-base font-bold text-slate-900">
-                Modifier mon Profil Livreur
+                Mon compte livreur
               </h3>
-              <button onClick={() => setIsProfileModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <button type="button" onClick={() => setIsProfileModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveProfile} className="space-y-3">
+            <form onSubmit={handleSaveProfile} className="space-y-3 rounded-2xl border border-slate-200 p-4">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">Informations</p>
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Photo Selfie (URL)</label>
                 <input
@@ -933,9 +966,8 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
                   onClick={() => setIsProfileModalOpen(false)}
                   className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold"
                 >
-                  Annuler
+                  Fermer
                 </button>
-
                 <button
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md"
@@ -944,6 +976,29 @@ export const LivreurView: React.FC<{ onOpenChat?: () => void }> = ({ onOpenChat 
                 </button>
               </div>
             </form>
+
+            <ManualLocationForm
+              title="Ma localisation"
+              description="Saisissez votre position manuellement (adresse + coordonnées) ou utilisez le GPS. Utile pour recevoir les courses proches."
+              initialAddress={currentUser.location?.address || currentUser.city || 'Lokossa'}
+              initialLat={currentUser.location?.lat ?? null}
+              initialLng={currentUser.location?.lng ?? null}
+              onSave={async (values) => {
+                await updateUserProfile(currentUser.id, {
+                  location: {
+                    address: values.address,
+                    lat: values.lat ?? currentUser.location?.lat,
+                    lng: values.lng ?? currentUser.location?.lng,
+                  } as User['location'],
+                });
+              }}
+            />
+
+            <PasswordChangeForm
+              onSubmit={async (currentPassword, newPassword) => {
+                await updateUserProfile(currentUser.id, { password: newPassword, currentPassword } as Partial<User>);
+              }}
+            />
           </div>
         </div>
       )}

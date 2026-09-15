@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { useApp } from '../../context/AppContext';
-import { calculateDeliveryFee, calculateHaversineDistance } from '../../utils/deliveryCalculator';
+import { FLAT_DELIVERY_FEE, calculateDeliveryFee, calculateHaversineDistance } from '../../utils/deliveryCalculator';
 
 type ServiceType = 'parcel' | 'document' | 'errand' | 'pickup' | 'buy' | 'other';
 type FlowStep = 'select' | 'form' | 'summary' | 'tracking' | 'history';
@@ -54,9 +54,25 @@ export const ServiceExpressView: React.FC<{ onBack: () => void }> = ({ onBack })
   });
 
   const updateField = (field: keyof typeof form, value: string) => setForm(previous => ({ ...previous, [field]: value }));
-  const distanceKm = fromCoords && toCoords ? calculateHaversineDistance(fromCoords.lat, fromCoords.lng, toCoords.lat, toCoords.lng) : null;
-  const quote = distanceKm !== null ? calculateDeliveryFee(distanceKm) : null;
-  const canContinue = Boolean(form.fromAddress.trim() && form.toAddress.trim() && form.description.trim() && quote);
+  const distanceKm = fromCoords && toCoords
+    ? calculateHaversineDistance(fromCoords.lat, fromCoords.lng, toCoords.lat, toCoords.lng)
+    : null;
+  // Forfait 500 FCFA : le récapitulatif ne doit pas dépendre du GPS.
+  // La distance GPS reste optionnelle (affichage info).
+  const quote = distanceKm !== null
+    ? calculateDeliveryFee(distanceKm)
+    : calculateDeliveryFee(0.1);
+  const hasRequiredFields = Boolean(
+    form.fromAddress.trim() && form.toAddress.trim() && form.description.trim(),
+  );
+  const canContinue = hasRequiredFields;
+  const missingHint = !form.fromAddress.trim()
+    ? 'Indiquez le point de récupération.'
+    : !form.toAddress.trim()
+      ? 'Indiquez le point de livraison.'
+      : !form.description.trim()
+        ? 'Ajoutez une description de la mission.'
+        : null;
 
   const detailLabel = useMemo(() => {
     if (selectedType === 'parcel') return 'Description du colis';
@@ -69,17 +85,23 @@ export const ServiceExpressView: React.FC<{ onBack: () => void }> = ({ onBack })
   const resetFlow = () => {
     setStep('select');
     setStatusIndex(0);
-    setRating(0);
-    setComment('');
+    setMissionId(null);
+    setError(null);
+    setFromCoords(null);
+    setToCoords(null);
   };
 
   const confirmRequest = () => {
-    if (!quote) return;
+    if (!hasRequiredFields) {
+      setError(missingHint || 'Complétez le formulaire avant de confirmer.');
+      return;
+    }
     if (!currentUser) {
       setError('Connectez-vous ou créez un compte pour confirmer cette mission.');
       openAuthModal('login');
       return;
     }
+    setError(null);
     const payload = new URLSearchParams();
     payload.append('type', selectedType);
     payload.append('description', form.description);
@@ -91,13 +113,14 @@ export const ServiceExpressView: React.FC<{ onBack: () => void }> = ({ onBack })
     payload.append('toAddress', form.toAddress);
     payload.append('toPhone', form.toPhone);
     payload.append('toNotes', form.toNotes);
-    payload.append('distanceKm', String(quote.distanceKm));
+    payload.append('distanceKm', String(distanceKm ?? quote.distanceKm));
     payload.append('fee', String(quote.deliveryFee));
     payload.append('details', JSON.stringify({
       packageType: form.packageType, size: form.size, weight: form.weight,
       documentType: form.documentType, documentCount: form.documentCount,
       budget: form.budget, purchaseLocation: form.purchaseLocation,
       quantity: form.quantity, instructions: form.instructions,
+      fromCoords, toCoords,
     }));
 
     void axios.post('/backend/index.php/api/service-express', payload, { withCredentials: true })
@@ -255,7 +278,7 @@ export const ServiceExpressView: React.FC<{ onBack: () => void }> = ({ onBack })
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <Field label={detailLabel} value={form.description} onChange={value => updateField('description', value)} multiline placeholder="Décrivez précisément la mission" />
               <p className="rounded-xl border border-[#ff8a1f]/30 bg-[#ff8a1f]/10 p-3 text-xs text-[#9a4d00] self-start">
-                Utilisez « Ma position » pour le départ et la destination. Le tarif est calculé à partir des coordonnées GPS.
+                Remplissez départ, destination et description pour continuer. « Ma position » est optionnel et sert à afficher la distance réelle.
               </p>
             </div>
 
@@ -289,17 +312,23 @@ export const ServiceExpressView: React.FC<{ onBack: () => void }> = ({ onBack })
                 <MapPin className="h-4 w-4 text-[#ff8a1f]" /> Départ → Destination
               </span>
               <span className="font-bold text-slate-900">
-                {quote
+                {distanceKm !== null
                   ? `${quote.distanceKm} km · ${quote.deliveryFee.toLocaleString('fr-FR')} FCFA`
-                  : 'Tarif en attente des positions GPS'}
+                  : `Forfait ${FLAT_DELIVERY_FEE.toLocaleString('fr-FR')} FCFA · GPS optionnel pour la distance`}
               </span>
             </div>
 
-            <div className="mt-5 flex justify-end">
+            <div className="mt-5 flex flex-col items-end gap-2">
+              {missingHint && (
+                <p className="text-[11px] font-bold text-amber-700">{missingHint}</p>
+              )}
               <button
                 type="button"
                 disabled={!canContinue}
-                onClick={() => setStep('summary')}
+                onClick={() => {
+                  setError(null);
+                  setStep('summary');
+                }}
                 className="inline-flex items-center gap-2 rounded-xl bg-[#ff8a1f] px-5 py-2.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[#e86f00]"
               >
                 Voir le récapitulatif <ArrowRight className="h-4 w-4" />
@@ -308,7 +337,7 @@ export const ServiceExpressView: React.FC<{ onBack: () => void }> = ({ onBack })
           </section>
         )}
 
-        {step === 'summary' && quote && (
+        {step === 'summary' && (
           <section className={`mx-auto max-w-xl rounded-2xl ${CARD} p-5 sm:p-7`}>
             <p className="text-[10px] font-black uppercase tracking-wider text-[#ff8a1f]">Étape 2 / 2</p>
             <h2 className="mt-1 text-xl font-black text-slate-900">Résumé</h2>
@@ -317,7 +346,10 @@ export const ServiceExpressView: React.FC<{ onBack: () => void }> = ({ onBack })
               <SummaryRow label="Départ" value={form.fromAddress} />
               <SummaryRow label="Destination" value={form.toAddress} />
               <SummaryRow label="Description" value={form.description} />
-              <SummaryRow label="Distance" value={`${quote.distanceKm} km`} />
+              <SummaryRow
+                label="Distance"
+                value={distanceKm !== null ? `${quote.distanceKm} km` : 'À confirmer avec le livreur'}
+              />
               <SummaryRow label="Paiement" value="Avec le livreur" />
               <div className="flex items-center justify-between border-t border-[#e6dac8] pt-3 text-base font-black">
                 <span>Total</span>

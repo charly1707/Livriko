@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import {
   Store as StoreIcon, Package, Plus, Edit3, Trash2, Truck, CheckCircle2, Clock,
   DollarSign, X, Image as ImageIcon, ShieldCheck, XCircle, Settings,
-  MessageCircle, LayoutDashboard, ShoppingBag, Menu, ChevronRight, TrendingUp, Camera, LogOut, Bell,
+  MessageCircle, LayoutDashboard, ShoppingBag, Menu, ChevronRight, TrendingUp, Camera, LogOut, Bell, UserRound, MapPin,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Product, CategoryType } from '../../types';
 import { CATEGORIES } from '../../data/mockData';
 import { uploadImageFile } from '../../utils/imageUpload';
 import livrikoLogo from '../../assets/images/livriko-logo-sm.webp';
+import { ManualLocationForm } from '../shared/ManualLocationForm';
+import { PasswordChangeForm } from '../shared/PasswordChangeForm';
 
 type VendeurTab = 'overview' | 'orders' | 'catalog' | 'settings';
 
@@ -25,7 +27,11 @@ const NAV_SECTIONS: { title: string; items: VendeurTab[] }[] = [
   { title: 'Boutique', items: ['settings'] },
 ];
 
-export const VendeurView: React.FC<{ onOpenChat?: () => void; onOpenNotifications?: () => void }> = ({ onOpenChat, onOpenNotifications }) => {
+export const VendeurView: React.FC<{
+  onOpenChat?: () => void;
+  onOpenNotifications?: () => void;
+  onOpenUserProfile?: (tab?: 'profil' | 'commandes' | 'adresses' | 'parametres') => void;
+}> = ({ onOpenChat, onOpenNotifications, onOpenUserProfile }) => {
   const {
     currentUser,
     stores,
@@ -235,6 +241,8 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void; onOpenNotification
       name: storeName,
       phone: storePhone,
       address: storeAddress,
+      lat: currentStore.lat,
+      lng: currentStore.lng,
       logo: nextLogo,
       isOpen: storeIsOpen,
     });
@@ -756,16 +764,59 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void; onOpenNotification
                 <label className={labelClass}>Nom du commerce</label>
                 <input type="text" required value={storeName} onChange={e => setStoreName(e.target.value)} className={inputClass} />
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <label className={labelClass}>Téléphone</label>
                 <input type="text" required value={storePhone} onChange={e => setStorePhone(e.target.value)} className={inputClass} />
               </div>
-              <div>
-                <label className={labelClass}>Adresse</label>
-                <input type="text" required value={storeAddress} onChange={e => setStoreAddress(e.target.value)} className={inputClass} />
-              </div>
             </div>
           </section>
+
+          <ManualLocationForm
+            title="Localisation de la boutique"
+            description="Adresse et coordonnées GPS utilisées pour les livraisons et le calcul des distances. Saisie manuelle possible."
+            initialAddress={storeAddress}
+            initialLat={currentStore.lat ?? null}
+            initialLng={currentStore.lng ?? null}
+            onSave={async (values) => {
+              setStoreAddress(values.address);
+              await updateStore({
+                ...currentStore,
+                name: storeName,
+                phone: storePhone,
+                address: values.address,
+                lat: values.lat ?? currentStore.lat,
+                lng: values.lng ?? currentStore.lng,
+                logo: storeLogo || currentStore.logo,
+                isOpen: storeIsOpen,
+              });
+            }}
+          />
+
+          {currentUser && (
+            <>
+              <ManualLocationForm
+                title="Ma localisation personnelle"
+                description="Votre position personnelle (indépendante de la boutique). Saisie manuelle ou GPS."
+                initialAddress={currentUser.location?.address || currentUser.city || 'Lokossa'}
+                initialLat={currentUser.location?.lat ?? null}
+                initialLng={currentUser.location?.lng ?? null}
+                onSave={async (values) => {
+                  await updateUserProfile(currentUser.id, {
+                    location: {
+                      address: values.address,
+                      lat: values.lat ?? currentUser.location?.lat,
+                      lng: values.lng ?? currentUser.location?.lng,
+                    },
+                  });
+                }}
+              />
+              <PasswordChangeForm
+                onSubmit={async (currentPassword, newPassword) => {
+                  await updateUserProfile(currentUser.id, { password: newPassword, currentPassword } as any);
+                }}
+              />
+            </>
+          )}
 
           <div className="flex items-center justify-between p-4 rounded-2xl border border-[#e6dac8] bg-white">
             <div>
@@ -859,6 +910,26 @@ export const VendeurView: React.FC<{ onOpenChat?: () => void; onOpenNotification
       </nav>
 
       <div className="px-3 pb-5 pt-3 border-t border-white/8 space-y-2">
+        {onOpenUserProfile && (
+          <>
+            <button
+              type="button"
+              onClick={() => onOpenUserProfile('adresses')}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/8 border border-white/10 text-[12px] font-semibold text-[#f8f4ec] hover:bg-white/12 transition"
+            >
+              <MapPin className="w-4 h-4 text-[#ffb86a]" />
+              Ma localisation
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpenUserProfile('parametres')}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/8 border border-white/10 text-[12px] font-semibold text-[#f8f4ec] hover:bg-white/12 transition"
+            >
+              <UserRound className="w-4 h-4 text-[#ffb86a]" />
+              Compte & mot de passe
+            </button>
+          </>
+        )}
         {onOpenNotifications && (
           <button
             type="button"

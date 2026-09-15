@@ -351,7 +351,7 @@ export const StoreDetailView: React.FC<StoreDetailViewProps> = ({
                   Total · +{cartDeliveryFee.toLocaleString()} F livraison
                 </p>
                 <p className="text-lg font-black">
-                  {(cartTotal + cartDeliveryFee).toLocaleString()} FCFA
+                  {cartTotal.toLocaleString()} FCFA
                 </p>
               </div>
               <button
