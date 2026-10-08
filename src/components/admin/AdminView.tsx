@@ -241,15 +241,15 @@ export const AdminView: React.FC<{
             </h1>
             <p className="text-sm text-[#c5d3e4] mt-1.5 hidden sm:block">Vue d&apos;ensemble de la marketplace Livriko</p>
           </div>
-          <div className="grid grid-cols-4 gap-3 w-full lg:w-auto lg:min-w-[28rem]">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full lg:w-auto lg:min-w-[28rem]">
             {[
               { label: 'Commandes', value: orders.length },
               { label: 'Actives', value: activeOrders.length },
               { label: 'Livrées', value: deliveredOrders },
               { label: 'Boutiques', value: vendorsCount },
             ].map(item => (
-              <div key={item.label} className="rounded-xl bg-white/10 px-3.5 py-3 text-center">
-                <p className="text-[11px] font-bold uppercase text-[#9eb0c7]">{item.label}</p>
+              <div key={item.label} className="rounded-xl bg-white/10 px-2 sm:px-3.5 py-3 text-center min-w-0">
+                <p className="text-[11px] font-bold uppercase text-[#9eb0c7] truncate">{item.label}</p>
                 <p className="text-2xl sm:text-3xl font-black leading-tight mt-1">{item.value}</p>
               </div>
             ))}

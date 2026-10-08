@@ -100,7 +100,7 @@ export const Header: React.FC<{
         isScrolled ? 'shadow-lg border-b border-slate-800' : 'border-b border-slate-800/60'
       }`}
     >
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center gap-2 sm:gap-4">
+      <div className="max-w-7xl 2xl:max-w-[90rem] mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center gap-2 sm:gap-4">
 
         <button
           type="button"
@@ -122,7 +122,7 @@ export const Header: React.FC<{
         </button>
 
         {isClient && (
-          <nav className="hidden lg:flex flex-1 items-center justify-center gap-1 min-w-0">
+          <nav className="hidden xl:flex flex-1 items-center gap-1 min-w-0 overflow-x-auto scrollbar-none">
             {menuNavItems.map((item) => {
               const Icon = item.icon;
               const active = activeCategory === item.id;
@@ -131,7 +131,8 @@ export const Header: React.FC<{
                   key={item.id}
                   type="button"
                   onClick={() => selectCategory(item.id)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 ${
+                  title={item.label}
+                  className={`inline-flex items-center gap-1.5 px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition shrink-0 first:ml-auto last:mr-auto ${
                     active
                       ? 'bg-[#ff8a1f] text-white'
                       : 'text-slate-300 hover:bg-white/10 hover:text-white'
@@ -146,15 +147,15 @@ export const Header: React.FC<{
         )}
 
         {isClient && (
-          <div className="flex-1 min-w-0 max-w-[9.5rem] sm:max-w-xs lg:max-w-[11rem] xl:max-w-sm">
+          <div className="flex-1 min-w-0 sm:max-w-xs lg:max-w-md xl:max-w-[14rem] 2xl:max-w-xs">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Rechercher…"
-                className="w-full h-9 sm:h-10 pl-9 pr-9 rounded-full bg-white/10 border border-white/10 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#ff8a1f]/60 focus:bg-white/15 transition select-text"
+                className="w-full h-9 sm:h-10 pl-8 sm:pl-9 pr-7 sm:pr-9 rounded-full bg-white/10 border border-white/10 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#ff8a1f]/60 focus:bg-white/15 transition select-text"
               />
               {searchQuery && (
                 <button
@@ -177,11 +178,11 @@ export const Header: React.FC<{
             <button
               type="button"
               onClick={onExitToWelcome}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition"
+              className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition"
               title="Retour à l’accueil"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Accueil</span>
+              <span>Accueil</span>
             </button>
           )}
 
@@ -292,18 +293,20 @@ export const Header: React.FC<{
               </button>
             </>
           ) : (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 sm:gap-1.5">
               <button
                 type="button"
                 onClick={() => onOpenAuth('login')}
-                className="h-9 px-3 sm:px-4 rounded-full text-xs font-semibold text-slate-200 hover:bg-white/10 transition"
+                className="h-9 px-2 sm:px-4 rounded-full text-xs font-semibold text-slate-200 hover:bg-white/10 transition flex items-center"
+                title="Connexion"
               >
-                Connexion
+                <User className="w-5 h-5 sm:hidden" />
+                <span className="hidden sm:inline">Connexion</span>
               </button>
               <button
                 type="button"
                 onClick={() => onOpenAuth('register')}
-                className="h-9 px-3 sm:px-4 rounded-full bg-[#ff8a1f] hover:bg-[#e86f00] text-white text-xs font-semibold transition"
+                className="h-9 px-3 sm:px-4 rounded-full bg-[#ff8a1f] hover:bg-[#e86f00] text-white text-xs font-semibold whitespace-nowrap transition"
               >
                 S&apos;inscrire
               </button>
